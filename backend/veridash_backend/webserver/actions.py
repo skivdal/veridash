@@ -12,6 +12,10 @@ class Handler:
         if "messageType" not in data:
             raise KeyError("Expected messageType in data")
 
+        if "videoId" not in data and data["messageType"] != "source":
+            raise KeyError("Expected videoId in data")
+
+        # handle non-cacheable messages
         match data["messageType"]:
             case "source":
                 obj_name = db.provision_object_name(user_id, data["filename"])
@@ -22,6 +26,22 @@ class Handler:
                     "videoId": obj_name,
                     "uploadUrl": url,
                 }
+
+        # Return cached results if exists
+        # TODO: test
+        cached_result = db.get_cached_results(data["videoId"], data["messageType"])
+        if cached_result:
+            print(cached_result)
+            return {
+                "messageType": data["messageType"],
+                "videoId": data["videoId"],
+                **cached_result,
+            }
+
+        # might be cached
+        match data["messageType"]:
+            case "metadata":
+                pass
 
         return None
 
