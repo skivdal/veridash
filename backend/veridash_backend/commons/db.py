@@ -9,12 +9,13 @@ class Database:
         self.pool.open()
 
 
-    def provision_object_name(self, filename: str) -> str:
+    def provision_object_name(self, user_id: int, filename: str) -> str:
         _, ext = path.splitext(filename)
         obj_name = str(uuid4()) + ext
 
         with self.pool.connection() as conn:
-            conn.execute("INSERT INTO videos (filename, object_name) VALUES (%s, %s);", (filename, obj_name))
+            conn.execute("INSERT INTO videos (owner_id, filename, object_name) VALUES (%i, %s, %s);",
+                         (user_id, filename, obj_name))
 
         return obj_name
 

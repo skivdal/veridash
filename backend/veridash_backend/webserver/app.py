@@ -1,7 +1,8 @@
 import uuid
+import json
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-
+from .actions import Handler
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("veridash")
@@ -35,8 +36,20 @@ class ConnectionManager:
 
     async def receive_message(self, websocket: WebSocket, client_id: str):
         while True:
-            data = await websocket.receive_text()
+            res = None
+
+            data = await websocket.receive_json()
             logger.debug(f"Message received from {client_id}: {data}")
+
+            try:
+                res = Handler.handle_message(1, data)
+            except KeyError as e:
+                # likely no messageType present
+                err = json.dumps({"error": str(e)})
+                await self.send_message(err, client_id)
+
+            if res is not None:
+                await self.send_message(json.dumps(res), client_id)
 
 
 manager = ConnectionManager()

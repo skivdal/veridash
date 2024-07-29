@@ -15,6 +15,10 @@ export interface BackendError extends BackendMessage {
   error: string;
 }
 
+export interface VideoUploadResponse extends BackendMessage {
+  uploadUrl: string;
+}
+
 export interface SourceResponse extends BackendMessage { }
 
 export default function useBackend<T extends BackendMessage>(videoId: string | undefined, messageType: string):

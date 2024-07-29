@@ -12,8 +12,8 @@ class StorageManager:
         assert self._client.bucket_exists("veridash"), "veridash bucket does not exist"
 
 
-    def get_video_upload_url(self, filename: str) -> str | None:
-        return self._client.get_presigned_url("POST", "veridash", filename)
+    def get_video_upload_url(self, object_name: str) -> str | None:
+        return self._client.get_presigned_url("POST", "veridash", object_name)
 
 
 if __name__ == "__main__":
