@@ -13,7 +13,7 @@ class StorageManager:
 
 
     def get_video_upload_url(self, object_name: str) -> str | None:
-        return self._client.get_presigned_url("POST", "veridash", object_name)
+        return self._client.get_presigned_url("PUT", "veridash", object_name)
 
 
 if __name__ == "__main__":

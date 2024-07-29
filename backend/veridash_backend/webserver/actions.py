@@ -13,7 +13,7 @@ class Handler:
             raise KeyError("Expected messageType in data")
 
         match data["messageType"]:
-            case "videoUpload":
+            case "source":
                 obj_name = db.provision_object_name(user_id, data["filename"])
                 url = storage.get_video_upload_url(obj_name)
 

@@ -14,7 +14,7 @@ class Database:
         obj_name = str(uuid4()) + ext
 
         with self.pool.connection() as conn:
-            conn.execute("INSERT INTO videos (owner_id, filename, object_name) VALUES (%i, %s, %s);",
+            conn.execute("INSERT INTO videos (owner_id, filename, object_name) VALUES (%s, %s, %s);",
                          (user_id, filename, obj_name))
 
         return obj_name
