@@ -3,8 +3,9 @@ import useBackend, { SourceResponse } from "@/useBackend";
 
 export default function VideoSource({ videoId, onFinishedUpload: handleFinishedUpload }:
   { videoId: string | undefined, onFinishedUpload: (videoId?: string, error?: string) => void }) {
+
   const [file, setFile] = useState<File | null>(null);
-  const data = useBackend<SourceResponse>(videoId, "source", file?.name);
+  const data = useBackend<SourceResponse>(undefined, "source", file?.name);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {

@@ -13,6 +13,7 @@ celery = "^5.4.0"
 minio = "^7.2.7"
 websockets = "^12.0"
 psycopg = {extras = ["pool"], version = "^3.2.1"}
+redis = "^5.0.7"
 
 
 [build-system]

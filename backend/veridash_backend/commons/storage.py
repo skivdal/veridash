@@ -16,6 +16,10 @@ class StorageManager:
         return self._client.get_presigned_url("PUT", "veridash", object_name)
 
 
+    def file_exists(self, object_name: str) -> bool:
+        return len(list(self._client.list_objects("veridash", prefix=object_name))) == 1
+
+
 if __name__ == "__main__":
     mgr = StorageManager()
 
