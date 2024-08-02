@@ -1,3 +1,4 @@
+from werkzeug.utils import secure_filename
 from veridash_backend.commons.db import Database
 from veridash_backend.commons.storage import StorageManager
 from veridash_backend.worker.app import get_metadata
@@ -19,7 +20,8 @@ class Handler:
         # handle non-cacheable messages
         match data["messageType"]:
             case "source":
-                file_name, file_hash = data["filename"].split(':')
+                file_name, file_hash = data["filename"].rsplit(':', maxsplit=1)
+                file_name = secure_filename(file_name)
                 if len(file_hash) != 64:
                     file_hash = None
 

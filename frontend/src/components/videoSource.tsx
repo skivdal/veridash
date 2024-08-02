@@ -29,7 +29,11 @@ export default function VideoSource({ videoId, onFinishedUpload: handleFinishedU
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const hash = hex(await window.crypto.subtle.digest("SHA-256", await e.target.files[0].arrayBuffer()));
+      let hash = "";
+      try {
+        hash = hex(await window.crypto.subtle.digest("SHA-256", await e.target.files[0].arrayBuffer()));
+      } catch { }
+
       setFile([e.target.files[0], hash]);
     }
   };

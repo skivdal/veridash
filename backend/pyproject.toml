@@ -15,6 +15,7 @@ websockets = "^12.0"
 psycopg = {extras = ["pool"], version = "^3.2.1"}
 redis = "^5.0.7"
 ffmpeg-python = "^0.2.0"
+werkzeug = "^3.0.3"
 
 
 [build-system]
