@@ -5,11 +5,14 @@ import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from celery.result import AsyncResult
 from .actions import Handler
+from veridash_backend.commons.db import Database
+
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("veridash")
 
 
+db = Database()
 app = FastAPI()
 
 
@@ -78,6 +81,7 @@ class ConnectionManager:
                     continue
 
                 if result.status == "SUCCESS":
+                    db.store_job_result(video_id, message_type, result.result)
                     await websocket.send_json({"messageType": message_type, "videoId": video_id, **result.result})
                 elif result.status == "FAILED":
                     await websocket.send_json({"messageType": message_type, "videoId": video_id, "error": str(result.result)})

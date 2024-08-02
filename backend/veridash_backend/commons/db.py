@@ -1,3 +1,5 @@
+import json
+import hashlib
 from os import path
 from uuid import uuid4
 from psycopg_pool import ConnectionPool
@@ -9,13 +11,13 @@ class Database:
         self.pool.open()
 
 
-    def provision_object_name(self, user_id: int, filename: str) -> str:
+    def provision_object_name(self, user_id: int, filename: str, file_hash: str | None) -> str:
         _, ext = path.splitext(filename)
         obj_name = str(uuid4()) + ext
 
         with self.pool.connection() as conn:
-            conn.execute("INSERT INTO videos (owner_id, filename, object_name) VALUES (%s, %s, %s);",
-                         (user_id, filename, obj_name))
+            conn.execute("INSERT INTO videos (owner_id, filename, hash_sha256, object_name) VALUES (%s, %s, %s, %s);",
+                         (user_id, filename, file_hash, obj_name))
 
         return obj_name
 
@@ -26,6 +28,27 @@ class Database:
                                (user_id, object_name)).fetchone()
 
         return res is not None
+
+
+    def add_video_hash_if_not_exists(self, object_name: str, local_path: str):
+        with self.pool.connection() as conn:
+            res = conn.execute("SELECT hash_sha256 FROM videos WHERE object_name = %s;", (object_name, )).fetchone()
+            if res is not None and res[0] != None:
+                return
+
+        hasher = hashlib.sha256()
+        with open(local_path, 'rb') as f:
+            while True:
+                # reading at 1MB chunks
+                data = f.read(1_000_000)
+                if not data:
+                    break
+
+                hasher.update(data)
+
+        digest = hasher.hexdigest()
+        with self.pool.connection() as conn:
+            conn.execute("UPDATE videos SET hash_sha256 = %s WHERE object_name = %s;", (digest, object_name))
 
 
     def get_cached_results(self, object_name: str, job_type: str) -> dict | None:
@@ -40,7 +63,21 @@ class Database:
                 LIMIT 1;
                 """, (job_type, object_name)).fetchone()
 
-        return res
+        if res is None:
+            return None
+
+        return res[0]
+
+
+    def store_job_result(self, object_name: str, job_type: str, job_result: dict):
+        with self.pool.connection() as conn:
+            conn.execute("""
+                INSERT INTO job_results (video_id, job_type, job_result) 
+                VALUES (
+                    (SELECT id FROM videos WHERE object_name = %s),
+                    %s, %s
+                );
+            """, (object_name, job_type, json.dumps(job_result)))
 
 
 if __name__ == "__main__":

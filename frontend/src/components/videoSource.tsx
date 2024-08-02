@@ -4,12 +4,33 @@ import useBackend, { SourceResponse } from "@/useBackend";
 export default function VideoSource({ videoId, onFinishedUpload: handleFinishedUpload }:
   { videoId: string | undefined, onFinishedUpload: (videoId?: string, error?: string) => void }) {
 
-  const [file, setFile] = useState<File | null>(null);
-  const data = useBackend<SourceResponse>(undefined, "source", file?.name);
+  const [file, setFile] = useState<[File, string] | null>(null);
+  const data = useBackend<SourceResponse>(undefined, "source", file ? `${file[0].name}:${file[1]}` : undefined);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // https://gist.github.com/GaspardP/fffdd54f563f67be8944
+  function hex(buffer: ArrayBuffer) {
+    var digest = ''
+    var view = new DataView(buffer)
+    for (var i = 0; i < view.byteLength; i += 4) {
+      // We use getUint32 to reduce the number of iterations (notice the `i += 4`)
+      var value = view.getUint32(i)
+      // toString(16) will transform the integer into the corresponding hex string
+      // but will remove any initial "0"
+      var stringValue = value.toString(16)
+      // One Uint32 element is 4 bytes or 8 hex chars (it would also work with 4
+      // chars for Uint16 and 2 chars for Uint8)
+      var padding = '00000000'
+      var paddedValue = (padding + stringValue).slice(-padding.length)
+      digest += paddedValue
+    }
+
+    return digest
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFile(e.target.files[0]);
+      const hash = hex(await window.crypto.subtle.digest("SHA-256", await e.target.files[0].arrayBuffer()));
+      setFile([e.target.files[0], hash]);
     }
   };
 
@@ -20,9 +41,9 @@ export default function VideoSource({ videoId, onFinishedUpload: handleFinishedU
     (async () => {
       const res = await fetch((data as SourceResponse).uploadUrl, {
         method: "PUT",
-        body: file,
+        body: file![0],
         headers: {
-          'Content-Type': file!.type,
+          'Content-Type': file![0].type,
         },
       });
 
@@ -35,15 +56,23 @@ export default function VideoSource({ videoId, onFinishedUpload: handleFinishedU
   }, [data]);
 
   return (
-    <>
+    <div className="h-full w-full">
       <div>Source</div>
-      <div>
-        <label htmlFor="file" className="sr-only">
-          Choose a file
-        </label>
-        <input id="file" type="file" onChange={handleFileChange} />
-      </div>
-    </>
+      {videoId && (data as SourceResponse)?.downloadUrl ? (
+        /* NOTE: setting height like this a hack to prevent overflow,
+         * should be h-full and some flexbox system to make the box the correct size, respecting the header... */
+        <video controls className="h-[40vh] w-full object-contain">
+          <source src={(data as SourceResponse)?.downloadUrl} />
+        </video>
+      ) : (
+        <>
+          <label htmlFor="file" className="sr-only">
+            Choose a file
+          </label>
+          <input id="file" type="file" onChange={handleFileChange} />
+        </>
+      )}
+    </div>
   );
 }
 
