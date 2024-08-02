@@ -55,11 +55,12 @@ class Database:
         with self.pool.connection() as conn:
             res = conn.execute("""
                 SELECT r.job_result FROM job_results r
-                INNER JOIN videos v on v.id = r.video_id
+                INNER JOIN videos v ON v.id = r.video_id
                 WHERE r.job_type = %s
                 AND v.hash_sha256 = (SELECT hash_sha256 FROM videos
                                      WHERE object_name = %s AND hash_sha256 is not null
                                      LIMIT 1)
+                ORDER BY r.id DESC
                 LIMIT 1;
                 """, (job_type, object_name)).fetchone()
 
@@ -72,7 +73,7 @@ class Database:
     def store_job_result(self, object_name: str, job_type: str, job_result: dict):
         with self.pool.connection() as conn:
             conn.execute("""
-                INSERT INTO job_results (video_id, job_type, job_result) 
+                INSERT INTO job_results (video_id, job_type, job_result)
                 VALUES (
                     (SELECT id FROM videos WHERE object_name = %s),
                     %s, %s
