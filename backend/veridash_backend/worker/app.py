@@ -1,4 +1,7 @@
+import gc
+import torch
 import ffmpeg
+import whisper
 from celery import Celery
 from veridash_backend.commons.storage import StorageManager
 from veridash_backend.commons.mutex import LockManager
@@ -25,4 +28,42 @@ def grab_video_locally(video_name: str):
 def get_metadata(self, video_name: str):
     local_name = grab_video_locally(video_name)
     return ffmpeg.probe(local_name)
+
+
+@app.task(bind=True)
+def get_transcription(self, video_name: str):
+    local_name = grab_video_locally(video_name)
+
+    # to prevent OOM-errors, we wait for gpu
+    with locks.wait_for_lock("gpu", expiration=100):
+        model = whisper.load_model("medium")
+        res = model.transcribe(local_name)
+
+        gc.collect();
+        if torch.cuda.device_count() != 0:
+            torch.cuda.empty_cache();
+        del model
+
+        res_en = None
+        # if we need translation
+        if res["language"] != "en" and res["text"].strip():
+            model = whisper.load_model("medium.en")
+            res_en = model.transcribe(local_name)
+
+            gc.collect();
+            if torch.cuda.device_count() != 0:
+                torch.cuda.empty_cache();
+            del model
+
+    for x in res["segments"]:
+        x.pop("tokens")
+
+    if res_en:
+        for x in res_en["segments"]:
+            x.pop("tokens")
+
+    return {
+        "transcription": res,
+        "translation": res_en,
+    }
 
