@@ -11,6 +11,7 @@ import { useState } from "react";
 
 export default function Layout() {
   const [videoId, setVideoId] = useState<string | undefined>(undefined);
+  const [scrubTime, setScrubTime] = useState<number | undefined>(undefined);
 
   return (
     <div className="min-h-screen p-4">
@@ -20,7 +21,12 @@ export default function Layout() {
         <div className="col-span-8 grid grid-rows-2 gap-4">
           <div className="grid grid-cols-8 gap-4">
             <div className="col-span-3 bg-white p-4 h-[45vh]">
-              <VideoSource videoId={videoId} onFinishedUpload={(i, err) => { setVideoId(i); return; }} />
+              <VideoSource
+                videoId={videoId}
+                onFinishedUpload={(i, err) => { setVideoId(i); return; }}
+                scrubToTime={scrubTime}
+                onScrubAccepted={() => { setScrubTime(undefined); }}
+              />
             </div>
             <div className="col-span-5 bg-white p-4 h-[45vh]">
               <Map videoId={videoId} />
@@ -35,7 +41,10 @@ export default function Layout() {
               <Metadata videoId={videoId} />
             </div>
             <div className="col-span-3 bg-white p-4 h-[45vh]">
-              <Transcription videoId={videoId} />
+              <Transcription
+                videoId={videoId}
+                onScrub={(x) => { setScrubTime(x); }}
+              />
             </div>
           </div>
         </div>

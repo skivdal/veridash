@@ -1,11 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import useBackend, { SourceResponse } from "@/useBackend";
 
-export default function VideoSource({ videoId, onFinishedUpload: handleFinishedUpload }:
-  { videoId: string | undefined, onFinishedUpload: (videoId?: string, error?: string) => void }) {
-
+export default function VideoSource({
+  videoId, onFinishedUpload: handleFinishedUpload,
+  scrubToTime, onScrubAccepted: handleScrubAccepted,
+}: {
+  videoId: string | undefined,
+  onFinishedUpload: (videoId?: string, error?: string) => void,
+  scrubToTime: number | undefined,
+  onScrubAccepted: () => void;
+}) {
   const [file, setFile] = useState<[File, string] | null>(null);
   const data = useBackend<SourceResponse>(undefined, "source", file ? `${file[0].name}:${file[1]}` : undefined);
+  const videoElement = useRef<HTMLVideoElement>();
 
   // https://gist.github.com/GaspardP/fffdd54f563f67be8944
   function hex(buffer: ArrayBuffer) {
@@ -59,13 +66,20 @@ export default function VideoSource({ videoId, onFinishedUpload: handleFinishedU
     })();
   }, [data]);
 
+  useEffect(() => {
+    if (videoElement.current && scrubToTime != undefined) {
+      videoElement.current.currentTime = scrubToTime;
+      handleScrubAccepted();
+    }
+  }, [scrubToTime])
+
   return (
     <div className="h-full w-full">
       <div>Source</div>
       {videoId && (data as SourceResponse)?.downloadUrl ? (
         /* NOTE: setting height like this a hack to prevent overflow,
          * should be h-full and some flexbox system to make the box the correct size, respecting the header... */
-        <video controls className="h-[40vh] w-full object-contain">
+        <video ref={videoElement} controls className="h-[40vh] w-full object-contain">
           <source src={(data as SourceResponse)?.downloadUrl} />
         </video>
       ) : (

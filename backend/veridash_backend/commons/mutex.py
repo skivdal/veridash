@@ -42,7 +42,7 @@ class LockManager:
         """
         owning = False
         while not owning:
-            owning = self.acquire_lock(lock_name, data, expiration)
+            owning, _ = self.acquire_lock(lock_name, data, expiration)
             sleep(0.1)
 
         try:

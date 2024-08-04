@@ -27,6 +27,31 @@ export interface MetadataResponse extends BackendMessage {
   format: Object;
 }
 
+export interface TranscriptionResponse extends BackendMessage {
+  transcription: {
+    text: string;
+    segments: Segment[];
+    // ISO 639 language code
+    language: string;
+  };
+}
+
+interface Segment {
+  id: number;
+  seek: number;
+
+  start: number;
+  end: number;
+
+  text: string;
+  text_en?: string; // present if the language is not english
+
+  temperature: number;
+  avg_logprob: number;
+  compression_ratio: number;
+  no_speech_prob: number;
+}
+
 export default function useBackend<T extends BackendMessage>(videoId: string | undefined, messageType: string,
   filename?: string, imageId?: string): T | BackendProgress | BackendError | undefined {
 
