@@ -33,7 +33,7 @@ class StorageManager:
         :returns: Local file path
         """
         if not local_filename:
-            local_filename = f"/tmp/{object_name}"
+            local_filename = f"/tmp/veridash/{object_name}"
 
         if not os.path.exists(local_filename):
             self._client.fget_object("veridash", object_name, local_filename)

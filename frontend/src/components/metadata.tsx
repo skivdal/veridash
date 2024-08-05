@@ -1,3 +1,4 @@
+import { JsonToTable } from "react-json-to-table";
 import useBackend, { MetadataResponse } from "@/useBackend";
 
 export default function Metadata({ videoId }: { videoId: string | undefined }) {
@@ -6,9 +7,11 @@ export default function Metadata({ videoId }: { videoId: string | undefined }) {
   return (
     <div className="h-full overflow-auto hover:overflow-scroll">
       <p className="mb-2">Metadata</p>
-      <pre className="text-xs">
-        {data ? JSON.stringify((data as MetadataResponse).format, undefined, 2) : ''}
-      </pre>
+      <div className="text-xs">
+        {data && (data as MetadataResponse)?.format ?
+          <JsonToTable json={(data as MetadataResponse).format} />
+          : ''}
+      </div>
     </div>
   );
 }

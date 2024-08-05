@@ -101,7 +101,7 @@ def get_coordinates(self, video_name: str):
 def get_keyframes(self, video_name: str):
     local_name = grab_video_locally(video_name)
 
-    out_folder = f"/tmp/{video_name}-frames/"
+    out_folder = f"/tmp/veridash/{video_name}-frames/"
     os.makedirs(out_folder, exist_ok=True)
 
     # sample 1 frame per second
@@ -117,8 +117,14 @@ def get_keyframes(self, video_name: str):
 
     download_urls = []
     for obj, local in zip(img_obj_names, images):
-        storage.upload_file(obj, os.path.join(out_folder, local))
+        local_path = os.path.join(out_folder, local)
+
+        storage.upload_file(obj, local_path)
         download_urls.append(storage.get_video_download_url(obj))
+
+        os.remove(local_path)
+
+    os.rmdir(out_folder)
 
     return {
         "urls": download_urls,

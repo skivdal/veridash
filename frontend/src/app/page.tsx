@@ -20,7 +20,7 @@ export default function Layout() {
     <div className="min-h-screen p-4">
       <h1 className="text-xl font-bold mb-4">Verification dashboard</h1>
 
-      <div className="grid grid-cols-12 gap-4 mb-4">
+      <div className="grid grid-cols-12 gap-4">
         <div className="col-span-8 grid grid-rows-2 gap-4">
           <div className="grid grid-cols-8 gap-4">
             <div className="col-span-3 bg-white p-4 h-[45vh]">

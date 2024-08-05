@@ -75,7 +75,8 @@ export default function VideoSource({
 
   return (
     <div className="h-full w-full">
-      <div>Source</div>
+      <p className="mb-2">Source</p>
+
       {videoId && (data as SourceResponse)?.downloadUrl ? (
         /* NOTE: setting height like this a hack to prevent overflow,
          * should be h-full and some flexbox system to make the box the correct size, respecting the header... */
