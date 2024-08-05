@@ -41,6 +41,7 @@ class Handler:
             raise ValueError("The provided videoId does not belong to an uploaded video")
 
         # Return cached results if exists
+        # TODO: allow cache-ignore
         cached_result = db.get_cached_results(data["videoId"], data["messageType"])
         if cached_result:
             return {

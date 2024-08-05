@@ -87,6 +87,15 @@ class ConnectionManager:
                 if result.status == "SUCCESS":
                     db.store_job_result(video_id, message_type, result.result)
                     await websocket.send_json({"messageType": message_type, "videoId": video_id, **result.result})
+
+                    # TODO: handle dependent jobs
+                    match message_type:
+                        case "transcription":
+                            pass  # TODO: rerun map task
+                        case "keyframes":
+                            pass  # TODO: rerun object detection
+                        case "objectdetection":
+                            pass  # TODO: rerun osm
                 elif result.status == "FAILED":
                     await websocket.send_json({"messageType": message_type, "videoId": video_id, "error": str(result.result)})
 

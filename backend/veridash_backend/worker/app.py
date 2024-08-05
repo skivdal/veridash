@@ -64,6 +64,9 @@ def get_transcription(self, video_name: str):
 
 @app.task(bind=True)
 def get_coordinates(self, video_name: str):
+    # TODO: use transcript named entity recognition and geocoding
+    # TODO: use osm tags
+
     local_name = grab_video_locally(video_name)
     metadata = ffmpeg.probe(local_name)
 
