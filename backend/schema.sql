@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS images (
 	id serial primary key,
 	video_id integer not null,
 	object_name text unique not null,
+	-- 1-based, thus inclusive of total_frames
+	frame_number integer not null,
+	total_frames integer not null,
 	created_at timestamp with time zone default now(),
 
 	CONSTRAINT fk_video

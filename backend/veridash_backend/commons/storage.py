@@ -41,6 +41,10 @@ class StorageManager:
         return local_filename
 
 
+    def upload_file(self, object_name: str, local_filename: str):
+        self._client.fput_object("veridash", object_name, local_filename)
+
+
 if __name__ == "__main__":
     mgr = StorageManager()
 

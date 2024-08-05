@@ -24,7 +24,7 @@ export default function Transcription({ videoId, onScrub: handleScrub }: {
 
     return (
       <div className="h-full overflow-auto hover:overflow-scroll">
-        Transcription ({ISO6391.getName(d.transcription.language)} - {d.transcription.language}):
+        <p className="mb-2">Transcription ({ISO6391.getName(d.transcription.language)} - {d.transcription.language}):</p>
         {
           d.transcription.segments
             .filter(x => x.no_speech_prob < 0.7)

@@ -56,6 +56,10 @@ export interface MapResponse extends BackendMessage {
   latlng: number[] | null;
 }
 
+export interface KeyFramesResponse extends BackendMessage {
+  urls: string[];
+}
+
 export default function useBackend<T extends BackendMessage>(videoId: string | undefined, messageType: string,
   filename?: string, imageId?: string): T | BackendProgress | BackendError | undefined {
 

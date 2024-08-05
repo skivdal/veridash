@@ -1,17 +1,20 @@
 "use client";
 
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import KeyFrames from "@/components/keyframes";
-import Map from "@/components/map";
 import Metadata from "@/components/metadata";
 import ObjectDetection from "@/components/objectDetection";
 import OsmTags from "@/components/osmTags";
 import Transcription from "@/components/transcription";
 import VideoSource from "@/components/videoSource";
-import { useState } from "react";
+
+const Map = dynamic(() => import("../components/map"), { ssr: false })
 
 export default function Layout() {
   const [videoId, setVideoId] = useState<string | undefined>(undefined);
   const [scrubTime, setScrubTime] = useState<number | undefined>(undefined);
+
 
   return (
     <div className="min-h-screen p-4">

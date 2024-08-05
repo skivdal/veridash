@@ -51,6 +51,30 @@ class Database:
             conn.execute("UPDATE videos SET hash_sha256 = %s WHERE object_name = %s;", (digest, object_name))
 
 
+    def add_video_keyframes(self, video_name: str, image_names: list[str]) -> list[str]:
+        with self.pool.connection() as conn:
+            video_id = conn.execute("SELECT id FROM videos WHERE object_name = %s;", (video_name, )).fetchone()
+            if video_id is None:
+                return []
+            video_id = video_id[0]
+
+        insert_tuples = []
+        frame_count = len(image_names)
+        for i, name in enumerate(image_names):
+            _, ext = path.splitext(name)
+            obj_name = str(uuid4()) + ext
+
+            insert_tuples.append((video_id, obj_name, i+1, frame_count))
+
+        with self.pool.connection() as conn:
+            conn.cursor().executemany("""
+                INSERT INTO images (video_id, object_name, frame_number, total_frames)
+                VALUES (%s, %s, %s, %s);
+            """, insert_tuples)
+
+        return [x[1] for x in insert_tuples]
+
+
     def get_cached_results(self, object_name: str, job_type: str) -> dict | None:
         with self.pool.connection() as conn:
             res = conn.execute("""

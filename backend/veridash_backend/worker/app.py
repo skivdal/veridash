@@ -1,3 +1,4 @@
+import os
 import gc
 import torch
 import ffmpeg
@@ -93,5 +94,33 @@ def get_coordinates(self, video_name: str):
 
     return {
         "latlng": coords
+    }
+
+
+@app.task(bind=True)
+def get_keyframes(self, video_name: str):
+    local_name = grab_video_locally(video_name)
+
+    out_folder = f"/tmp/{video_name}-frames/"
+    os.makedirs(out_folder, exist_ok=True)
+
+    # sample 1 frame per second
+    ffmpeg \
+        .input(local_name) \
+        .filter('fps', fps=1) \
+        .output(os.path.join(out_folder, "frame_%04d.jpg"), format='image2', vcodec='mjpeg') \
+        .run()
+
+    images = os.listdir(out_folder)
+
+    img_obj_names = db.add_video_keyframes(video_name, images)
+
+    download_urls = []
+    for obj, local in zip(img_obj_names, images):
+        storage.upload_file(obj, os.path.join(out_folder, local))
+        download_urls.append(storage.get_video_download_url(obj))
+
+    return {
+        "urls": download_urls,
     }
 

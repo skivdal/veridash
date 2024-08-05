@@ -1,7 +1,7 @@
 from werkzeug.utils import secure_filename
 from veridash_backend.commons.db import Database
 from veridash_backend.commons.storage import StorageManager
-from veridash_backend.worker.app import get_metadata, get_transcription, get_coordinates
+from veridash_backend.worker.app import get_metadata, get_transcription, get_coordinates, get_keyframes
 
 
 db = Database()
@@ -57,6 +57,8 @@ class Handler:
                 task_id: str = get_transcription.apply_async((data["videoId"], )).id  # ignore the error on this line
             case "map":
                 task_id: str = get_coordinates.apply_async((data["videoId"], )).id # ignore the error on this line
+            case "keyframes":
+                task_id: str = get_keyframes.apply_async((data["videoId"], )).id # ignore the error on this line
             case _:
                 raise NotImplementedError(f"The messageType {data['messageType']} is not yet implemented")
 
