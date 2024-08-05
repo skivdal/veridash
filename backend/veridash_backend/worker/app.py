@@ -49,7 +49,7 @@ def get_transcription(self, video_name: str):
     for x in res["segments"]:
         x.pop("tokens")
 
-    if res["language"] != "en" and res["text"].strip():
+    if res["language"] != "en" and type(res["text"]) == str and res["text"].strip():
         t = Translator()
         translations = t.translate_sentences([x["text"] for x in res["segments"]])
 
@@ -58,5 +58,40 @@ def get_transcription(self, video_name: str):
 
     return {
         "transcription": res,
+    }
+
+
+@app.task(bind=True)
+def get_coordinates(self, video_name: str):
+    local_name = grab_video_locally(video_name)
+    metadata = ffmpeg.probe(local_name)
+
+    has_tags = ("format" in metadata and type(metadata["format"]) == dict and
+                "tags" in metadata["format"] and type(metadata["format"]["tags"]) == dict)
+
+    if not has_tags:
+        return {
+            "latlng": None,
+        }
+
+    # TODO: this should be extended to cover as many formats as possible.
+    # We could also go by other methods if not present in metadata (approx. from transcript, OSM tags, etc.)
+    if "location" in metadata["format"]["tags"]:
+        l = metadata["format"]["tags"]["location"]
+    elif "com.apple.quicktime.location.ISO6709" in metadata["format"]["tags"]:
+        l = metadata["format"]["tags"]["com.apple.quicktime.location.ISO6709"]
+    else:
+        return {
+            "latlng": None,
+        }
+
+    try:
+        lat, lng = map(float, l.split('+')[1:3])
+        coords = [lat, lng]
+    except:
+        coords = None
+
+    return {
+        "latlng": coords
     }
 

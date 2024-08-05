@@ -5,7 +5,7 @@ export default function Metadata({ videoId }: { videoId: string | undefined }) {
 
   return (
     <div className="h-full overflow-auto hover:overflow-scroll">
-      <div>Metadata:</div>
+      <div>Metadata</div>
       <pre className="text-xs">
         {data ? JSON.stringify((data as MetadataResponse).format, undefined, 2) : ''}
       </pre>

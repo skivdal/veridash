@@ -52,6 +52,10 @@ interface Segment {
   no_speech_prob: number;
 }
 
+export interface MapResponse extends BackendMessage {
+  latlng: number[] | null;
+}
+
 export default function useBackend<T extends BackendMessage>(videoId: string | undefined, messageType: string,
   filename?: string, imageId?: string): T | BackendProgress | BackendError | undefined {
 
