@@ -3,11 +3,14 @@ import hashlib
 from os import path
 from uuid import uuid4
 from psycopg_pool import ConnectionPool
+from veridash_backend.commons.settings import Settings
 
 
 class Database:
     def __init__(self):
-        self.pool = ConnectionPool("dbname=veridash user=postgres")
+        settings = Settings()
+
+        self.pool = ConnectionPool(settings.POSTGRES_CONN_STR)
         self.pool.open()
 
 

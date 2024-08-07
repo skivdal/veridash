@@ -1,12 +1,15 @@
 import os
 from minio import Minio
+from veridash_backend.commons.settings import Settings
 
 
 class StorageManager:
     def __init__(self):
-        self._client = Minio("localhost:9000",
-            access_key="veridash",
-            secret_key="njW2uWLiV8FLUJ6kYpsF",
+        self.settings = Settings()
+
+        self._client = Minio(self.settings.MINIO_HOST,
+            access_key=self.settings.MINIO_USER,
+            secret_key=self.settings.MINIO_PASS,
             secure=False,
         )
 
@@ -33,7 +36,7 @@ class StorageManager:
         :returns: Local file path
         """
         if not local_filename:
-            local_filename = f"/tmp/veridash/{object_name}"
+            local_filename = f"{self.settings.TEMP_STORAGE_DIR}/{object_name}"
 
         if not os.path.exists(local_filename):
             self._client.fget_object("veridash", object_name, local_filename)

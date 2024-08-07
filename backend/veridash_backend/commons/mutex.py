@@ -1,6 +1,7 @@
 from time import sleep
 from contextlib import contextmanager
 from redis import Redis
+from veridash_backend.commons.settings import Settings
 
 
 class LockManager:
@@ -8,7 +9,9 @@ class LockManager:
     Redis-based helper class to ensure single access to resources
     """
     def __init__(self):
-        self.redis_client = Redis(host="localhost", port=6379, db=0)
+        settings = Settings()
+
+        self.redis_client = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
 
 
     def acquire_lock(self, lock_name: str, data: str="TAKEN", expiration: int | None=3600) -> tuple[bool, str]:

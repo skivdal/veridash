@@ -8,9 +8,12 @@ from veridash_backend.worker.translation import Translator
 from veridash_backend.commons.storage import StorageManager
 from veridash_backend.commons.mutex import LockManager
 from veridash_backend.commons.db import Database
+from veridash_backend.commons.settings import Settings
 
 
-app = Celery("worker", broker="redis://localhost:6379/0", backend="redis://localhost:6379/0",
+settings = Settings()
+
+app = Celery("worker", broker=settings.REDIS_CONN_STR, backend=settings.REDIS_CONN_STR,
              broker_connection_retry_on_startup=True)
 storage = StorageManager()
 locks = LockManager()
@@ -104,7 +107,7 @@ def get_coordinates(self, video_name: str):
 def get_keyframes(self, video_name: str):
     local_name = grab_video_locally(video_name)
 
-    out_folder = f"/tmp/veridash/{video_name}-frames/"
+    out_folder = f"{settings.TEMP_STORAGE_DIR}/{video_name}-frames/"
     os.makedirs(out_folder, exist_ok=True)
 
     # sample 1 frame per second

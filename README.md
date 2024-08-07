@@ -19,7 +19,7 @@ Currently in development
 - [ ] Production deployment
     - [ ] Dockerfiles for frontend and backend
     - [ ] Backend entrypoint script (worker or server)
-    - [ ] Backend more extensive settings
+    - [x] Backend more extensive settings
     - [ ] nginx config
     - [ ] docker-compose with all services
 - [ ] "Go back to a case" user video archive
