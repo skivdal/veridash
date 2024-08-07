@@ -22,6 +22,7 @@ class Settings:
         self.MINIO_HOST = Settings.get_env_or_error("MINIO_HOST")
         self.MINIO_USER = Settings.get_env_or_error("MINIO_USER")
         self.MINIO_PASS = Settings.get_env_or_error("MINIO_PASS")
+        self.MINIO_BUCKET = Settings.get_env_or_error("MINIO_BUCKET")
 
 
     @classmethod
