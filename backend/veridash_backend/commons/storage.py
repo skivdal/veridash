@@ -10,7 +10,7 @@ class StorageManager:
         self._client = Minio(self.settings.MINIO_HOST,
             access_key=self.settings.MINIO_USER,
             secret_key=self.settings.MINIO_PASS,
-            secure=False,
+            secure=self.settings.MINIO_SECURE,
         )
 
         assert self._client.bucket_exists(self.settings.MINIO_BUCKET), \

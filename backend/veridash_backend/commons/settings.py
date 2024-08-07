@@ -20,6 +20,7 @@ class Settings:
         self.REDIS_CONN_STR = f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
         self.MINIO_HOST = Settings.get_env_or_error("MINIO_HOST")
+        self.MINIO_SECURE = Settings.get_env_or_error("MINIO_SECURE").lower() != 'false'
         self.MINIO_USER = Settings.get_env_or_error("MINIO_USER")
         self.MINIO_PASS = Settings.get_env_or_error("MINIO_PASS")
         self.MINIO_BUCKET = Settings.get_env_or_error("MINIO_BUCKET")
