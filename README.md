@@ -6,12 +6,17 @@ Currently in development
 
 ## TODO:
 
-- [ ] Object detection
-- [ ] OSM-tag extraction
+- [ ] Docs for local setup
+- [ ] Sattelite maps (maybe multiple maps to choose from)
+- [ ] Stitching
+- [ ] Object detection (from lifelog?)
+- [ ] OSM-tag extraction (object detection + bellingcat)
 - [ ] Dependent tasks specified in comments
-- [ ] Loading indicators / animations
+- [x] Loading indicators / animations
+    - [ ] Actually show progress
 - [ ] Multiuser authentication (zitadel/authentik?)
-- [ ] Deployment
+- [ ] Beta deployment (desktop computer + proxy)
+- [ ] Production deployment
     - [ ] Dockerfiles for frontend and backend
     - [ ] Backend entrypoint script (worker or server)
     - [ ] Backend more extensive settings
