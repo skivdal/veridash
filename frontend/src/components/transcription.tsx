@@ -29,7 +29,7 @@ export default function Transcription({ videoId, onScrub: handleScrub }: {
           d.transcription.segments
             .filter(x => x.no_speech_prob < 0.7)
             .map(x =>
-              <p className="mb-2">
+              <p key={x.id} className="mb-2">
                 <span
                   className="text-blue-400 underline hover:text-blue-600 hover:no-underline"
                   onClick={() => { handleScrub(x.start); }}
