@@ -6,6 +6,9 @@ class Translator:
     def __init__(self):
         s = Settings()
 
+        if not s.HAS_OPENAI:
+            raise EnvironmentError("Could not create Translator, OpenAI credentials missing.")
+
         self.client = OpenAI(
             organization=s.OPENAI_ORG,
             project=s.OPENAI_PROJECT,

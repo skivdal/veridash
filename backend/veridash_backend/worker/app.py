@@ -54,11 +54,14 @@ def get_transcription(self, video_name: str):
         x.pop("tokens")
 
     if res["language"] != "en" and type(res["text"]) == str and res["text"].strip():
-        t = Translator()
-        translations = t.translate_sentences([x["text"] for x in res["segments"]])
+        try:
+            t = Translator()
+            translations = t.translate_sentences([x["text"] for x in res["segments"]])
 
-        for x, y in zip(res["segments"], translations):
-            x["text_en"] = y
+            for x, y in zip(res["segments"], translations):
+                x["text_en"] = y
+        except EnvironmentError:
+            pass
 
     return {
         "transcription": res,

@@ -1,4 +1,5 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 
@@ -8,9 +9,14 @@ class Settings:
 
         self.TEMP_STORAGE_DIR = Settings.get_env_or_error("TEMP_STORAGE_DIR")
 
-        self.OPENAI_ORG = Settings.get_env_or_error("OPENAI_ORG")
-        self.OPENAI_PROJECT = Settings.get_env_or_error("OPENAI_PROJECT")
-        self.OPENAI_API_KEY = Settings.get_env_or_error("OPENAI_API_KEY")
+        try:
+            self.OPENAI_ORG = Settings.get_env_or_error("OPENAI_ORG")
+            self.OPENAI_PROJECT = Settings.get_env_or_error("OPENAI_PROJECT")
+            self.OPENAI_API_KEY = Settings.get_env_or_error("OPENAI_API_KEY")
+            self.HAS_OPENAI = True
+        except EnvironmentError:
+            logging.warning("No OpenAI credentials configured. Features will be limited")
+            self.HAS_OPENAI = False
 
         self.POSTGRES_CONN_STR = Settings.get_env_or_error("POSTGRES_CONN_STR")
 
