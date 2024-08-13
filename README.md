@@ -6,22 +6,31 @@ Video fact checking and verification dashboard
 
 Ensure you have a working development setup by following the guide for [local development setup](#Local-development-setup).
 
+Development plans and task allocation is done using Github Issues in this repository, connected to [this Github project](https://github.com/users/skivdal/projects/1).
+The life of a new feature will look something like this:
+1. Feature is imagined, and an issue is created in the repo
+2. This issue is assigned to a person, and added to the "veridash - development" project board with the status of 'ready'.
+3. The feature is described in sufficient detail
+4. Issue assignee creates a branch out of main for this feature, and moves the issue to the 'in progress' column of the project board.
+5. Assignee implements the feature on their branch
+6. Assignee creates a pull request documenting how the issue was solved, and marks it with "closing #\[issue number\]"
+7. Assignee merges the pull request into the main branch. Alternatively, for larger features, another participant can review the pull request first.
+8. Assignee moves the issue to the 'Done' column of the project board.
+
+
 ### TODO
 
-- [x] Docs for local setup
+This list is for tasks not yet added as an Issue to the project board.
+
 - [ ] Sattelite maps (maybe multiple maps to choose from)
 - [ ] Stitching
 - [ ] Object detection (from lifelog?)
 - [ ] OSM-tag extraction (object detection + bellingcat)
 - [ ] Dependent tasks specified in comments
-- [x] Loading indicators / animations
-    - [ ] Actually show progress
 - [ ] Multiuser authentication (zitadel/authentik?)
-- [x] Beta deployment (desktop computer + proxy)
 - [ ] Production deployment
     - [ ] Dockerfiles for frontend and backend
     - [ ] Backend entrypoint script (worker or server)
-    - [x] Backend more extensive settings
     - [ ] nginx config
     - [ ] docker-compose with all services
 - [ ] "Go back to a case" user video archive
