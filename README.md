@@ -17,25 +17,6 @@ The life of a new feature will look something like this:
 7. Assignee merges the pull request into the main branch. Alternatively, for larger features, another participant can review the pull request first.
 8. Assignee moves the issue to the 'Done' column of the project board.
 
-
-### TODO
-
-This list is for tasks not yet added as an Issue to the project board.
-
-- [ ] Sattelite maps (maybe multiple maps to choose from)
-- [ ] Stitching
-- [ ] Object detection (from lifelog?)
-- [ ] OSM-tag extraction (object detection + bellingcat)
-- [ ] Dependent tasks specified in comments
-- [ ] Multiuser authentication (zitadel/authentik?)
-- [ ] Production deployment
-    - [ ] Dockerfiles for frontend and backend
-    - [ ] Backend entrypoint script (worker or server)
-    - [ ] nginx config
-    - [ ] docker-compose with all services
-- [ ] "Go back to a case" user video archive
-- [ ] Redundant upload reduction with hash matching
-
 ## Local development setup
 
 This project is divided into two subdirectories: `frontend/` and `backend/`.
