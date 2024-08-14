@@ -2,7 +2,7 @@ import json
 import hashlib
 from os import path
 from uuid import uuid4
-from psycopg_pool import ConnectionPool
+from psycopg_pool import NullConnectionPool
 from veridash_backend.commons.settings import Settings
 
 
@@ -10,7 +10,7 @@ class Database:
     def __init__(self):
         settings = Settings()
 
-        self.pool = ConnectionPool(settings.POSTGRES_CONN_STR)
+        self.pool = NullConnectionPool(settings.POSTGRES_CONN_STR)
         self.pool.open()
 
 

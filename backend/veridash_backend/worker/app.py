@@ -96,7 +96,7 @@ def get_coordinates(self, video_name: str):
         }
 
     try:
-        lat, lng = map(float, l.split('+')[1:3])
+        lat, lng = map(lambda x: float(''.join([n for n in x if n.isdigit() or n == '.'])), l.split('+')[1:3])
         coords = [lat, lng]
     except:
         coords = None
