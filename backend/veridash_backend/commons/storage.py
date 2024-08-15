@@ -37,7 +37,7 @@ class StorageManager:
         :returns: Local file path
         """
         if not local_filename:
-            local_filename = f"{self.settings.TEMP_STORAGE_DIR}/{object_name}"
+            local_filename = os.path.join(self.settings.TEMP_STORAGE_DIR, object_name)
 
         if not os.path.exists(local_filename):
             self._client.fget_object(self.settings.MINIO_BUCKET, object_name, local_filename)

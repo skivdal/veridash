@@ -110,7 +110,7 @@ def get_coordinates(self, video_name: str):
 def get_keyframes(self, video_name: str):
     local_name = grab_video_locally(video_name)
 
-    out_folder = f"{settings.TEMP_STORAGE_DIR}/{video_name}-frames/"
+    out_folder = os.path.join(settings.TEMP_STORAGE_DIR, f"{video_name}-frames")
     os.makedirs(out_folder, exist_ok=True)
 
     # sample 1 frame per second
