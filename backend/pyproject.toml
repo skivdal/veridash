@@ -18,7 +18,7 @@ ffmpeg-python = "^0.2.0"
 werkzeug = "^3.0.3"
 openai-whisper = "^20231117"
 openai = "^1.38.0"
-
+ultralytics = "^8.2.79"
 
 [build-system]
 requires = ["poetry-core"]
