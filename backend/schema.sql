@@ -53,3 +53,16 @@ CREATE TABLE IF NOT EXISTS job_results (
 	REFERENCES images(id)
 );
 
+CREATE TABLE IF NOT EXISTS detected_objects (
+	id serial primary key,
+	video_id integer not null,
+	object_name text unique not null,
+	-- 1-based, thus inclusive of total_frames
+	frame_number integer not null,
+	total_frames integer not null,
+	created_at timestamp with time zone default now(),
+
+	CONSTRAINT fk_video
+	FOREIGN KEY(video_id)
+	REFERENCES videos(id)
+);
