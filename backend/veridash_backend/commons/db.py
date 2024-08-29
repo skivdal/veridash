@@ -75,8 +75,8 @@ class Database:
             """, insert_tuples)
 
         return [x[1] for x in insert_tuples]
-    
-    
+
+
     def add_detected_objects(self, video_name: str, image_names: list[str]) -> list[str]:
         with self.pool.connection() as conn:
             video_id = conn.execute("SELECT id FROM videos WHERE object_name = %s;", (video_name, )).fetchone()
@@ -133,10 +133,16 @@ class Database:
 
     def get_images_by_video_id(self, video_name: str) -> list[str]:
         with self.pool.connection() as conn:
-            video_id = conn.execute("SELECT id FROM videos WHERE object_name = %s;", (video_name, )).fetchone()
-            video_id = video_id[0]
-            print(video_id, flush=True)
-            res = conn.execute("SELECT object_name FROM images WHERE video_id = %s ORDER BY frame_number ASC;", (video_id,)).fetchall()
+            res = conn.execute("""
+                SELECT DISTINCT ON (i.frame_number) i.object_name
+                FROM images i
+                INNER JOIN videos v ON v.id = i.video_id
+                WHERE v.hash_sha256 IN (
+                    SELECT hash_sha256 FROM videos
+                    WHERE object_name = %s AND hash_sha256 is not null
+                )
+                ORDER BY frame_number DESC;
+            """, (video_name, )).fetchall()
 
         image_names = [row[0] for row in res]
         return image_names

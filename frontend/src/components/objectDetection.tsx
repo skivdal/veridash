@@ -1,12 +1,13 @@
 import { useState } from "react";
-import useBackend, { ObjDetectResponse } from "@/useBackend";
+import useBackend, { BackendError, ObjDetectResponse } from "@/useBackend";
 
 export default function ObjectDetection({ videoId }: { videoId: string | undefined }) {
-  const data = useBackend<ObjDetectResponse>(videoId, "objectdetection");
+  const data = useBackend<ObjDetectResponse | BackendError>(videoId, "objectdetection");
   const [frameNumber, setFrameNumber] = useState<number>(1);
-  
-  if (!data) {
-    const isLoading = !data && videoId;
+
+  if (!data || (data as BackendError)?.error) {
+    // NOTE: error should really not be meaning loading...
+    const isLoading = (!data || (data as BackendError)?.error) && videoId;
 
     return (
       <div>
@@ -31,7 +32,7 @@ export default function ObjectDetection({ videoId }: { videoId: string | undefin
   }
 
   const d = data as ObjDetectResponse;
-  console.log(d);
+
   return (
     <div>
       <p className="mb-2">Object Detection</p>

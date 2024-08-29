@@ -6,6 +6,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from celery.result import AsyncResult
 from .actions import Handler
 from veridash_backend.commons.db import Database
+from veridash_backend.worker.app import get_objects
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -78,6 +79,7 @@ class ConnectionManager:
     async def handle_job_updates(self, websocket: WebSocket, client_id: str):
         while True:
             deletions = []
+            additions = []
 
             for message_type, (task_id, video_id) in self.active_tasks[client_id].items():
                 result = AsyncResult(task_id)
@@ -85,15 +87,18 @@ class ConnectionManager:
                     continue
 
                 if result.status == "SUCCESS":
-                    db.store_job_result(video_id, message_type, result.result)
+                    if "error" not in result.result:
+                        db.store_job_result(video_id, message_type, result.result)
+
                     await websocket.send_json({"messageType": message_type, "videoId": video_id, **result.result})
 
-                    # TODO: handle dependent jobs
                     match message_type:
                         case "transcription":
                             pass  # TODO: rerun map task
                         case "keyframes":
-                            pass  # TODO: rerun object detection
+                            new_id: str = get_objects.apply_async((video_id, )).id # ignore the error on this line
+                            new_triple = ("objectdetection", new_id, video_id)
+                            additions.append(new_triple)
                         case "objectdetection":
                             pass  # TODO: rerun osm
                 elif result.status == "FAILED":
@@ -104,6 +109,9 @@ class ConnectionManager:
 
             for d in deletions:
                 del self.active_tasks[client_id][d]
+
+            for message_type, task_id, video_id in additions:
+                self.active_tasks[client_id][message_type] = (task_id, video_id)
 
             await asyncio.sleep(0.25)
 

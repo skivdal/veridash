@@ -144,41 +144,45 @@ def get_keyframes(self, video_name: str):
         "urls": download_urls,
     }
 
+
 @app.task(bind=True)
 def get_objects(self, video_name: str):
-
     out_folder = os.path.join(settings.TEMP_STORAGE_DIR, f"{video_name}-objects")
     os.makedirs(out_folder, exist_ok=True)
 
     img_names = db.get_images_by_video_id(video_name)
+    if len(img_names) == 0:
+        return {
+            "error": "Missing required dependency: keyframes",
+        }
+
+    img_files = [storage.download_file(x) for x in img_names]
+
     classes = ["car", "tank", "plane", "person"]
     index_mapping = {index: item for index, item in enumerate(classes)}
-
-    download_urls = []
-    for img in img_names:
-        download_urls.append(storage.get_video_download_url(img))
 
     with locks.wait_for_lock("gpu", expiration=180):
         obj_det_model = YOLO("../weights/yolov8x-worldv2.pt")
 
-    for img_url in download_urls:
-        im = Image.open(requests.get(img_url, stream=True).raw)
-        results = obj_det_model.predict(im, conf=0.35)
-        boxes = results[0].boxes.xyxy.tolist()
-        im = np.array(im)
-        im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
-        cropped_objects = []
-        for i, box in enumerate(boxes):
-            x1, y1, x2, y2 = box
-            ultralytics_crop_object = im[int(y1):int(y2), int(x1):int(x2)]
-            # obj_name = index_mapping[results[0].boxes[i].cls.cpu().tolist()[0]]
-            cropped_objects.append(ultralytics_crop_object)
-            cv2.imwrite(out_folder+'/'+str(i)+'_object.jpg', ultralytics_crop_object)
+        for filename in img_files:
+            im = Image.open(filename)
+            results = obj_det_model.predict(im, conf=0.35)
+            boxes = results[0].boxes.xyxy.tolist()
+            im = np.array(im)
+            im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
 
-    del obj_det_model
-    gc.collect();
-    if torch.cuda.device_count() != 0:
-        torch.cuda.empty_cache()
+            cropped_objects = []
+            for i, box in enumerate(boxes):
+                x1, y1, x2, y2 = box
+                ultralytics_crop_object = im[int(y1):int(y2), int(x1):int(x2)]
+                # obj_name = index_mapping[results[0].boxes[i].cls.cpu().tolist()[0]]
+                cropped_objects.append(ultralytics_crop_object)
+                cv2.imwrite(os.path.join(out_folder, f"{str(i)}_object.jpg"), ultralytics_crop_object)
+
+        del obj_det_model
+        gc.collect()
+        if torch.cuda.device_count() != 0:
+            torch.cuda.empty_cache()
 
     images = os.listdir(out_folder)
     img_obj_names = db.add_detected_objects(video_name, images)
@@ -190,8 +194,11 @@ def get_objects(self, video_name: str):
         storage.upload_file(obj, local_path)
         download_urls.append(storage.get_video_download_url(obj))
 
+        os.remove(local_path)
+
     os.rmdir(out_folder)
 
     return {
         "urls": download_urls,
     }
+
