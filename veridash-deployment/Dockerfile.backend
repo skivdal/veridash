@@ -1,0 +1,32 @@
+FROM nvidia/cuda:12.6.1-cudnn-runtime-ubuntu24.04
+
+ENV POETRY_VERSION=1.8.3 \
+    POETRY_HOME=/opt/poetry \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PATH="$POETRY_HOME/bin:$PATH" \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install -y python3-pip python3-dev python-is-python3 postgresql-client postgresql-common curl;
+
+RUN curl -sSL https://install.python-poetry.org | python3 - \
+    && apt clean && rm -rf /var/lib/apt/lists/*;
+
+ENV PATH="$PATH:/$POETRY_HOME/bin"
+
+RUN mkdir /app;
+
+WORKDIR /app
+
+COPY ./backend/pyproject.toml .
+COPY ./backend/poetry.lock .
+
+RUN poetry install --no-root;
+
+COPY ./backend/ .
+
+ADD ./veridash-deployment/backend-entrypoint.sh ./entrypoint.sh
+RUN chmod +x /app/entrypoint.sh;
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+
