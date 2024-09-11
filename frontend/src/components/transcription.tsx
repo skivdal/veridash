@@ -16,7 +16,7 @@ export default function Transcription({ videoId, onScrub: handleScrub }: {
     if (d.transcription.segments.length === 0 || (d.transcription.segments.length == 1 && d.transcription.segments[0].no_speech_prob > 0.4)) {
       return (
         <div>
-          Transcription/translation
+          Transcription/Translation
           <p className="mt-2 text-gray-600 italic">There is probably no speech in this video</p>
         </div>
       );
@@ -56,7 +56,7 @@ export default function Transcription({ videoId, onScrub: handleScrub }: {
 
   return (
     <>
-      <div>Transcription/translation</div>
+      <div>Transcription/Translation</div>
       {
         isLoading ? (
           <div className="inline-flex justify-between w-full">
