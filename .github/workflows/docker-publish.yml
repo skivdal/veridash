@@ -22,7 +22,7 @@ jobs:
         include:
           - dockerfile: ./veridash-deployment/Dockerfile.backend
             image: ghcr.io/skivdal/veridash-backend
-          - dockerfile: ./veridash-depolyment/Dockerfile.frontend
+          - dockerfile: ./veridash-deployment/Dockerfile.frontend
             image: ghcr.io/skivdal/veridash-frontend
 
     permissions:
