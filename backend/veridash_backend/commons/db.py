@@ -78,6 +78,7 @@ class Database:
 
 
     def add_detected_objects(self, video_name: str, image_names: list[str]) -> list[str]:
+        # TODO: rework so we know what image the object is extracted from.
         with self.pool.connection() as conn:
             video_id = conn.execute("SELECT id FROM videos WHERE object_name = %s;", (video_name, )).fetchone()
             if video_id is None:

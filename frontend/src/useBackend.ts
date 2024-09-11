@@ -62,6 +62,7 @@ export interface KeyFramesResponse extends BackendMessage {
 
 export interface ObjDetectResponse extends BackendMessage {
   urls: string[];
+  keyFrameNumbers: number[];
 }
 
 export default function useBackend<T extends BackendMessage>(videoId: string | undefined, messageType: string,

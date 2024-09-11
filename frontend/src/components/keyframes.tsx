@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useBackend, { KeyFramesResponse } from "@/useBackend";
 
-export default function Keyframes({ videoId }: { videoId: string | undefined }) {
+export default function Keyframes({ videoId, frameNo }: { videoId: string | undefined, frameNo: number | undefined }) {
   const data = useBackend<KeyFramesResponse>(videoId, "keyframes");
   const [frameNumber, setFrameNumber] = useState<number>(1);
+
+  useEffect(() => {
+    const d = data as KeyFramesResponse;
+    if (frameNo && data && frameNo > 0 && frameNo < d.urls.length + 1)
+      setFrameNumber(frameNo);
+  }, [frameNo]);
 
   if (!data) {
     const isLoading = !data && videoId;

@@ -161,44 +161,44 @@ def get_objects(self, video_name: str):
     classes = ["car", "tank", "plane", "person"]
     index_mapping = {index: item for index, item in enumerate(classes)}
 
+    object_filenames = []
+    object_frame_ixs = []
     with locks.wait_for_lock("gpu", expiration=180):
         obj_det_model = YOLO("../weights/yolov8x-worldv2.pt")
 
-        for filename in img_files:
+        for frame_ix, filename in enumerate(img_files):
             im = Image.open(filename)
             results = obj_det_model.predict(im, conf=0.35)
             boxes = results[0].boxes.xyxy.tolist()
             im = np.array(im)
             im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
 
-            cropped_objects = []
             for i, box in enumerate(boxes):
                 x1, y1, x2, y2 = box
                 ultralytics_crop_object = im[int(y1):int(y2), int(x1):int(x2)]
                 # obj_name = index_mapping[results[0].boxes[i].cls.cpu().tolist()[0]]
-                cropped_objects.append(ultralytics_crop_object)
-                cv2.imwrite(os.path.join(out_folder, f"{str(i)}_object.jpg"), ultralytics_crop_object)
+                object_filenames.append(os.path.join(out_folder, f"{frame_ix}-object-{i}.jpg"))
+                object_frame_ixs.append(frame_ix)
+                cv2.imwrite(object_filenames[-1], ultralytics_crop_object)
 
         del obj_det_model
         gc.collect()
         if torch.cuda.device_count() != 0:
             torch.cuda.empty_cache()
 
-    images = os.listdir(out_folder)
-    img_obj_names = db.add_detected_objects(video_name, images)
+    img_obj_names = db.add_detected_objects(video_name, object_filenames)
 
     download_urls = []
-    for obj, local in zip(img_obj_names, images):
-        local_path = os.path.join(out_folder, local)
-
-        storage.upload_file(obj, local_path)
+    for obj, local in zip(img_obj_names, object_filenames):
+        storage.upload_file(obj, local)
         download_urls.append(storage.get_video_download_url(obj))
 
-        os.remove(local_path)
+        os.remove(local)
 
     os.rmdir(out_folder)
 
     return {
         "urls": download_urls,
+        "keyFrameNumbers": list(map(lambda x: x+1, object_frame_ixs)),
     }
 

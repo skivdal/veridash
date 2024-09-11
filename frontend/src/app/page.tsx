@@ -14,7 +14,7 @@ const Map = dynamic(() => import("../components/map"), { ssr: false })
 export default function Layout() {
   const [videoId, setVideoId] = useState<string | undefined>(undefined);
   const [scrubTime, setScrubTime] = useState<number | undefined>(undefined);
-
+  const [keyFrameNumber, setKeyFrameNumber] = useState<number | undefined>(undefined);
 
   return (
     <div className="min-h-screen p-4">
@@ -38,7 +38,7 @@ export default function Layout() {
 
           <div className="grid grid-cols-8 gap-4">
             <div className="col-span-3 bg-white p-4 h-[45vh]">
-              <KeyFrames videoId={videoId} />
+              <KeyFrames videoId={videoId} frameNo={keyFrameNumber} />
             </div>
             <div className="col-span-2 bg-white p-4 h-[45vh]">
               <Metadata videoId={videoId} />
@@ -54,7 +54,7 @@ export default function Layout() {
 
         <div className="col-span-4 flex flex-col gap-4">
           <div className="bg-white p-4 h-[60vh]">
-            <ObjectDetection videoId={videoId} />
+            <ObjectDetection videoId={videoId} onUpdateKeyFrame={(i: number) => { setKeyFrameNumber(i); }} />
           </div>
           <div className="bg-white p-4 h-[30vh]">
             <OsmTags videoId={videoId} />

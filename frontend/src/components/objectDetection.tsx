@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useBackend, { BackendError, ObjDetectResponse } from "@/useBackend";
 
-export default function ObjectDetection({ videoId }: { videoId: string | undefined }) {
+export default function ObjectDetection({ videoId, onUpdateKeyFrame: handleKeyFrameUpdate }: { videoId: string | undefined, onUpdateKeyFrame: any }) {
   const data = useBackend<ObjDetectResponse | BackendError>(videoId, "objectdetection");
   const [frameNumber, setFrameNumber] = useState<number>(1);
+
+  useEffect(() => {
+    if (data && (data as ObjDetectResponse)?.keyFrameNumbers) {
+      const d = data as ObjDetectResponse;
+      handleKeyFrameUpdate(d.keyFrameNumbers[frameNumber - 1]);
+    }
+  }, [data, frameNumber])
 
   if (!data || (data as BackendError)?.error) {
     // NOTE: error should really not be meaning loading...
@@ -37,14 +44,14 @@ export default function ObjectDetection({ videoId }: { videoId: string | undefin
     <div>
       <p className="mb-2">Object Detection</p>
 
-      <div className="h-[33vh] flex items-center justify-center">
+      <div className="h-[45vh] flex items-center justify-center">
         <img
           src={d.urls[frameNumber - 1]}
-          className="max-h-full max-w-full object-contain">
+          className="max-h-full max-w-full min-w-full object-contain">
         </img>
       </div>
 
-      <div className="inline-flex justify-between w-full mt-2">
+      <div className="inline-flex justify-between w-full mt-4">
         <button
           onClick={() => { if (frameNumber > 1) setFrameNumber(frameNumber - 1); }}
           className="bg-transparent text-grey-700 font-semibold py-2 px-4 border border-grey-500 hover:border-transparent rounded">
