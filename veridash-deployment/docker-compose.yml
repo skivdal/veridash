@@ -1,45 +1,54 @@
-version: '3.9'
 services:
   api:
     image: ghcr.io/skivdal/veridash-backend
+    container_name: api
     command: webserver
-    expose:
+    ports:
       - 127.0.0.1:8080:80
     environment:
-      - POSTGRES_CONN_STR="host=postgres dbname=veridash user=postgres password=postgres"
-      - REDIS_HOST="valkey"
+      - "POSTGRES_CONN_STR=host=postgres dbname=veridash user=postgres password=postgres"
+      - REDIS_HOST=valkey
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - MINIO_HOST="s3.veridash.skivdal.no"
-      - MINIO_SECURE=true
-      - MINIO_USER="minioadmin"
-      - MINIO_PASS="minioadmin"
-      - MINIO_BUCKET="veridash"
+      - MINIO_HOST=s3.veridash.skivdal.no
+      - MINIO_SECURE="true"
+      - MINIO_USER=minioadmin
+      - MINIO_PASS=minioadmin
+      - MINIO_BUCKET=veridash
     restart: always
 
   worker:
     image: ghcr.io/skivdal/veridash-backend
+    container_name: worker
     command: worker
     environment:
-      - POSTGRES_CONN_STR="host=postgres dbname=veridash user=postgres password=postgres"
-      - REDIS_HOST="valkey"
+      - "POSTGRES_CONN_STR=host=postgres dbname=veridash user=postgres password=postgres"
+      - REDIS_HOST=valkey
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - MINIO_HOST="s3.veridash.skivdal.no"
-      - MINIO_SECURE=true
-      - MINIO_USER="minioadmin"
-      - MINIO_PASS="minioadmin"
-      - MINIO_BUCKET="veridash"
+      - MINIO_HOST=s3.veridash.skivdal.no
+      - MINIO_SECURE="true"
+      - MINIO_USER=minioadmin
+      - MINIO_PASS=minioadmin
+      - MINIO_BUCKET=veridash
     restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   frontend:
     image: ghcr.io/skivdal/veridash-frontend
-    expose:
+    container_name: frontend
+    ports:
       - 127.0.0.1:3000:80
     restart: always
 
   postgres:  # TODO: load schema
-    image: postgres:14.1-alpine
+    image: docker.io/postgres:14.1-alpine
     container_name: postgres
     volumes:
       - postgres:/var/lib/postgresql/data
@@ -49,23 +58,25 @@ services:
       - POSTGRES_PASSWORD=postgres
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: docker.io/valkey/valkey:7-alpine
     container_name: valkey
     restart: always
 
   minio:  # TODO: make bucket
-    image: minio/minio:RELEASE.2024-08-03T04-33-23Z
+    image: docker.io/minio/minio:RELEASE.2024-08-03T04-33-23Z
     container_name: minio
     volumes:
-      - minio:/data
+      - /data/minio:/data
     restart: always
-    expose:
+    ports:
       - 127.0.0.1:9000:9000
       - 127.0.0.1:9001:9001
     command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - "MINIO_ROOT_PASSWORD=minioadmin"
 
 
 volumes:
   postgres:
-  minio:
 
