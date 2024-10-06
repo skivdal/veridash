@@ -148,6 +148,25 @@ class Database:
         image_names = [row[0] for row in res]
         return image_names
 
+
+    # TODO: what keyframe did it come from?
+    def get_detections_by_video_name(self, video_name: str) -> list[str]:
+        with self.pool.connection() as conn:
+            res = conn.execute("""
+                SELECT DISTINCT ON (i.frame_number) i.object_name
+                FROM detected_objects i
+                INNER JOIN videos v ON v.id = i.video_id
+                WHERE v.hash_sha256 IN (
+                    SELECT hash_sha256 FROM videos
+                    WHERE object_name = %s AND hash_sha256 is not null
+                )
+                ORDER BY frame_number;
+            """, (video_name, )).fetchall()
+
+        image_names = [row[0] for row in res]
+        return image_names
+
+
 if __name__ == "__main__":
     db = Database()
 

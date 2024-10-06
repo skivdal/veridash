@@ -133,7 +133,7 @@ def get_keyframes(self, video_name: str):
         local_path = os.path.join(out_folder, local)
 
         storage.upload_file(obj, local_path)
-        download_urls.append(storage.get_video_download_url(obj))
+        download_urls.append(storage.get_object_download_url(obj))
 
         os.remove(local_path)
 
@@ -190,7 +190,7 @@ def get_objects(self, video_name: str):
     download_urls = []
     for obj, local in zip(img_obj_names, object_filenames):
         storage.upload_file(obj, local)
-        download_urls.append(storage.get_video_download_url(obj))
+        download_urls.append(storage.get_object_download_url(obj))
 
         os.remove(local)
 

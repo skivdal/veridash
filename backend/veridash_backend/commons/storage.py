@@ -17,11 +17,11 @@ class StorageManager:
             f"{self.settings.MINIO_BUCKET} bucket does not exist"
 
 
-    def get_video_upload_url(self, object_name: str) -> str | None:
+    def get_object_upload_url(self, object_name: str) -> str | None:
         return self._client.get_presigned_url("PUT", self.settings.MINIO_BUCKET, object_name)
 
 
-    def get_video_download_url(self, object_name: str) -> str | None:
+    def get_object_download_url(self, object_name: str) -> str | None:
         return self._client.get_presigned_url("GET", self.settings.MINIO_BUCKET, object_name)
 
 
