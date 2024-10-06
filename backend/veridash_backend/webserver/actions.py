@@ -1,7 +1,8 @@
 from werkzeug.utils import secure_filename
 from veridash_backend.commons.db import Database
 from veridash_backend.commons.storage import StorageManager
-from veridash_backend.worker.app import get_metadata, get_transcription, get_coordinates, get_keyframes, get_objects
+from veridash_backend.worker.app import get_metadata, get_transcription, get_coordinates, get_keyframes, get_objects, \
+    get_stitch
 
 
 db = Database()
@@ -16,6 +17,9 @@ class Handler:
 
         if "videoId" not in data and data["messageType"] != "source":
             raise KeyError("Expected videoId in data")
+
+        if "sourceKeyFrames" not in data and data["messageType"] == "stitching":
+            raise KeyError("Expected sourceKeyFrames in data")
 
         # handle source message
         if data["messageType"] == "source":
@@ -61,12 +65,16 @@ class Handler:
                         "videoId": data["videoId"],
                         "urls": presigned_urls,
                     }
+            case "stitching":
+                # NOTE: might be cached, would require lookup based on identical source frames
+                # computing it every time for now...
+                task_id: str = get_stitch.apply_async((data["videoId"], data["sourceKeyFrames"])).id # ignore the error on this line
+
  
         # Return cached results if exists
-        # TODO: allow cache-ignore
         cached_result = db.get_cached_results(data["videoId"], data["messageType"])
         # NOTE: object detection too unstable at the moment
-        if cached_result and data["messageType"] != "objectdetection":
+        if cached_result and data["messageType"] not in ("objectdetection", "stitching"):
             return {
                 "messageType": data["messageType"],
                 "videoId": data["videoId"],
@@ -85,6 +93,8 @@ class Handler:
                 task_id: str = get_keyframes.apply_async((data["videoId"], )).id # ignore the error on this line
             case "objectdetection":  # NOTE: this should never be served from cache
                 task_id: str = get_objects.apply_async((data["videoId"], )).id # ignore the error on this line
+            case "stitching":
+                pass
             case _:
                 raise NotImplementedError(f"The messageType {data['messageType']} is not yet implemented")
 

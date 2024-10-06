@@ -87,7 +87,7 @@ class ConnectionManager:
                     continue
 
                 if result.status == "SUCCESS":
-                    if "error" not in result.result and message_type not in ("keyframes", "objectdetection"):
+                    if "error" not in result.result and message_type not in ("keyframes", "objectdetection", "stitching"):
                         db.store_job_result(video_id, message_type, result.result)
 
                     await websocket.send_json({"messageType": message_type, "videoId": video_id, **result.result})

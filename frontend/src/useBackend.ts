@@ -7,6 +7,7 @@ interface BackendMessage {
   videoId?: string;
   filename?: string;
   imageId?: string;
+  sourceKeyFrames?: number[];
 }
 
 export interface BackendProgress extends BackendMessage {
@@ -65,8 +66,13 @@ export interface ObjDetectResponse extends BackendMessage {
   keyFrameNumbers: number[];
 }
 
+export interface StitchingResponse extends BackendMessage {
+  url: string;
+  sourceKeyFrames: number[];
+}
+
 export default function useBackend<T extends BackendMessage>(videoId: string | undefined, messageType: string,
-  filename?: string, imageId?: string): T | BackendProgress | BackendError | undefined {
+  filename?: string, imageId?: string, sourceKeyFrames?: number[]): T | BackendProgress | BackendError | undefined {
 
   const [msg, setMsg] = useState<T | BackendProgress | BackendError | undefined>(undefined);
   const { lastJsonMessage, sendJsonMessage } = useWebSocket(config.websocketUrl, { share: true });
@@ -78,10 +84,14 @@ export default function useBackend<T extends BackendMessage>(videoId: string | u
         msg.filename = filename;
       if (imageId)
         msg.imageId = imageId;
+      if (sourceKeyFrames)
+        msg.sourceKeyFrames = sourceKeyFrames;
+      if (sourceKeyFrames && sourceKeyFrames.length == 0)
+        return;
 
       sendJsonMessage<BackendMessage>(msg);
     }
-  }, [sendJsonMessage, messageType, videoId, filename, imageId]);
+  }, [sendJsonMessage, messageType, videoId, filename, imageId, sourceKeyFrames]);
 
   useEffect(() => {
     if (lastJsonMessage

@@ -19,6 +19,7 @@ werkzeug = "^3.0.3"
 openai-whisper = "^20231117"
 openai = "^1.38.0"
 ultralytics = "^8.2.79"
+opencv-python = "^4.10.0.84"
 
 [build-system]
 requires = ["poetry-core"]

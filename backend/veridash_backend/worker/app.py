@@ -1,10 +1,12 @@
 import os
 import gc
+import cv2
 import torch
 import ffmpeg
 import whisper
-from PIL import Image
 import numpy as np
+from PIL import Image
+from uuid import uuid4
 from celery import Celery
 from veridash_backend.worker.translation import Translator
 from veridash_backend.commons.storage import StorageManager
@@ -13,7 +15,6 @@ from veridash_backend.commons.db import Database
 from veridash_backend.commons.settings import Settings
 
 from ultralytics import YOLO
-import cv2
 
 settings = Settings()
 
@@ -199,5 +200,55 @@ def get_objects(self, video_name: str):
     return {
         "urls": download_urls,
         "keyFrameNumbers": list(map(lambda x: x+1, object_frame_ixs)),
+    }
+
+
+@app.task(bind=True)
+def get_stitch(self, video_name: str, source_key_frames: list[int]):
+    # download the files we need
+    img_names = db.get_images_by_video_name(video_name)
+    filtered_img_names = [x for i, x in enumerate(img_names) if i+1 in source_key_frames]
+    img_files = [storage.download_file(x) for x in filtered_img_names]
+
+    if len(img_files) == 0:
+        return {
+            "error": "Could not find requested source frames",
+        }
+
+    # read images
+    images = []
+    for f in img_files:
+        img = cv2.imread(f)
+        images.append(img)
+
+
+    # stitch
+    try:
+        stitcher = cv2.Stitcher_create()  # NOTE: this is very intentional, it is not supposed to be Stitcher()
+        (status, stitched) = stitcher.stitch(images)
+    except Exception as e:
+        return {
+            "error": f"Exception raised during stitching: {e}",
+        }
+
+    if status != 0:
+        return {
+            "error": f"Stitching error: {status}",
+        }
+
+    stitch_name = f"stitch-{str(uuid4())}.jpg"
+    cv2.imwrite(stitch_name, stitched)
+
+    # upload file and remove locally
+    storage.upload_file(stitch_name, stitch_name)
+    pre_url = storage.get_object_download_url(stitch_name)
+
+    os.remove(stitch_name)
+    for f in img_files:
+        os.remove(f)
+
+    return {
+        "url": pre_url,
+        "sourceKeyFrames": source_key_frames,
     }
 

@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import useBackend, { KeyFramesResponse } from "@/useBackend";
+import Stitching from "./stitching";
 
 export default function Keyframes({ videoId, frameNo }: { videoId: string | undefined, frameNo: number | undefined }) {
   const data = useBackend<KeyFramesResponse>(videoId, "keyframes");
   const [frameNumber, setFrameNumber] = useState<number>(1);
+  const [stitchingOpen, setStitchingOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const d = data as KeyFramesResponse;
@@ -39,9 +41,15 @@ export default function Keyframes({ videoId, frameNo }: { videoId: string | unde
   const d = data as KeyFramesResponse;
   return (
     <div>
+      {(stitchingOpen && videoId) &&
+        <Stitching videoId={videoId} isOpen={stitchingOpen} close={() => setStitchingOpen(false)}
+          frameLinks={d.urls} startingFrame={frameNumber}
+        />
+      }
+
       <p className="mb-2">Keyframes (1 frame per second)</p>
 
-      <div className="h-[33vh] flex items-center justify-center">
+      <div className="h-[28vh] flex items-center justify-center">
         <img
           src={d.urls[frameNumber - 1]}
           className="max-h-full max-w-full object-contain">
@@ -62,6 +70,16 @@ export default function Keyframes({ videoId, frameNo }: { videoId: string | unde
           className="bg-transparent text-grey-700 font-semibold py-2 px-4 border border-grey-500 hover:border-transparent rounded">
           Next
         </button>
+      </div>
+
+      <div className="inline-flex justify-between w-full mt-2">
+        <div></div>
+        <button
+          onClick={() => { setStitchingOpen(true) }}
+          className="bg-transparent text-grey-700 font-semibold py-2 px-4 border border-grey-500 hover:border-transparent rounded">
+          Stitching
+        </button>
+        <div></div>
       </div>
     </div>
   );
