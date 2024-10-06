@@ -132,7 +132,7 @@ class Database:
             """, (object_name, job_type, json.dumps(job_result)))
 
 
-    def get_images_by_video_id(self, video_name: str) -> list[str]:
+    def get_images_by_video_name(self, video_name: str) -> list[str]:
         with self.pool.connection() as conn:
             res = conn.execute("""
                 SELECT DISTINCT ON (i.frame_number) i.object_name
@@ -142,7 +142,7 @@ class Database:
                     SELECT hash_sha256 FROM videos
                     WHERE object_name = %s AND hash_sha256 is not null
                 )
-                ORDER BY frame_number DESC;
+                ORDER BY frame_number;
             """, (video_name, )).fetchall()
 
         image_names = [row[0] for row in res]

@@ -43,9 +43,9 @@ export default function ObjectDetection({ videoId, onUpdateKeyFrame: handleKeyFr
   return (
     <div>
       <p className="mb-2">Object Detection</p>
-      <p className="text-sm">Tip: in Chrome, right click the image and select &quot;Search with Google&quot;</p>
+      <p className="text-sm mb-2">Tip: in Chrome, right click the image and select &quot;Search with Google&quot;</p>
 
-      <div className="h-[45vh] flex items-center justify-center">
+      <div className="h-[40vh] flex items-center justify-center">
         <img
           src={d.urls[frameNumber - 1]}
           className="max-h-full max-w-full min-w-full object-contain">

@@ -3,7 +3,6 @@ import gc
 import torch
 import ffmpeg
 import whisper
-import requests
 from PIL import Image
 import numpy as np
 from celery import Celery
@@ -150,7 +149,7 @@ def get_objects(self, video_name: str):
     out_folder = os.path.join(settings.TEMP_STORAGE_DIR, f"{video_name}-objects")
     os.makedirs(out_folder, exist_ok=True)
 
-    img_names = db.get_images_by_video_id(video_name)
+    img_names = db.get_images_by_video_name(video_name)
     if len(img_names) == 0:
         return {
             "error": "Missing required dependency: keyframes",
