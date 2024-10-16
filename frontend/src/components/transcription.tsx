@@ -71,7 +71,7 @@ export default function Transcription({ videoId, onScrub: handleScrub }: {
               </div>
               <div></div>
             </div>
-            <p>This typically takes a 1-2 minutes</p>
+            <p>This typically takes 2-3 minutes</p>
           </div>
         ) : ''
       }

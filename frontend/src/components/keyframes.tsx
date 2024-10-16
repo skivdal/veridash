@@ -33,7 +33,7 @@ export default function Keyframes({ videoId, frameNo }: { videoId: string | unde
                 </div>
                 <div></div>
               </div>
-              <p>This typically takes less 1-2 minutes</p>
+              <p>This typically takes 1-2 minutes</p>
             </div>
           ) : ''
         }
