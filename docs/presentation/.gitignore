@@ -1,0 +1,21 @@
+# MacOS & Windows
+.DS_Store
+desktop.ini
+
+# TeX
+*.aux
+*.fls
+*.fdb_latexmk
+*.log
+*.synctex.gz
+
+*.bbl
+*.bcf
+*.blg
+*.out
+*.run.xml
+
+*.nav
+*.snm
+*.toc
+
