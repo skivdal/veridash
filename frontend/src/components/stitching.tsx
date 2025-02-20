@@ -77,7 +77,7 @@ export default function Stitching({ videoId, isOpen, close, frameLinks, starting
                     <div className="mt-3 text-center sm:mt-5">
                       <div className="grid grid-cols-6 gap-4">
                         {frameLinks.slice(startFrame - 1, endFrame).map(u =>
-                          <img src={u}></img>
+                          <img key={u} src={u}></img>
                         )}
                       </div>
                     </div>
