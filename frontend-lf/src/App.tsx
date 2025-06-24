@@ -2,10 +2,12 @@ import './App.css';
 import { useAccount } from 'jazz-tools/react-core';
 import { MyAppAccount, TodoItem } from './schema';
 import { AuthStateIndicator } from './AuthStateIndicator';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { storeFile } from './util/fileTransfer';
 
 function App() {
   const [draft, setDraft] = useState("");
+  const fileUpload = useRef<HTMLInputElement | null>(null);
 
   const { me } = useAccount(MyAppAccount, {
     resolve: {
@@ -36,6 +38,19 @@ function App() {
         if (!me.root || !me.root.todos) return;
         me.root.todos.push(TodoItem.create({ title: draft, completed: false }));
       }}>Add</button>
+
+      <br />
+      <br />
+      <br />
+      <br />
+
+      <input type="file" ref={fileUpload} />
+      <button type="button" onClick={async () => {
+        if (fileUpload.current != null) {
+          const result = await storeFile(fileUpload.current);
+          console.log(result);
+        }
+      }}>"Upload"</button>
     </>
   );
 }
