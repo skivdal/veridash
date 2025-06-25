@@ -95,60 +95,60 @@ interface SignalingConnection {
 }
 
 export class WebSocketSignalingConnection implements SignalingConnection {
-  _ws: WebSocket
-  _listeners: { type: string, handler: EventListenerOrEventListenerObject | null }[] = [];
-  _myId: string;
-  _peerId: string;
+  private ws: WebSocket
+  private listeners: { type: string, handler: EventListenerOrEventListenerObject | null }[] = [];
+  private myId: string;
+  private peerId: string;
 
   constructor(myId: string, peerId: string) {
-    this._myId = myId;
-    this._peerId = peerId;
+    this.myId = myId;
+    this.peerId = peerId;
 
-    this._ws = new WebSocket("ws://localhost:8080");
+    this.ws = new WebSocket("ws://localhost:8080");
 
-    this._ws.addEventListener("error", event => console.error("Signaling Websocket error:", event));
-    this._ws.addEventListener("close", event => console.warn("Signaling Websocket closed:", event));
+    this.ws.addEventListener("error", event => console.error("Signaling Websocket error:", event));
+    this.ws.addEventListener("close", event => console.warn("Signaling Websocket closed:", event));
   }
 
   close() {
-    this._ws.close();
+    this.ws.close();
   }
 
   clientReady() {
-    this._ws.send(JSON.stringify({ type: 'join', id: this._myId }));
+    this.ws.send(JSON.stringify({ type: 'join', id: this.myId }));
   }
 
   serverReady(callback: () => void) {
-    if (this._ws.readyState == WebSocket.OPEN) {
+    if (this.ws.readyState == WebSocket.OPEN) {
       callback();
       return;
     }
 
     const handleOpen = () => {
       callback();
-      this._ws.removeEventListener("open", handleOpen);
+      this.ws.removeEventListener("open", handleOpen);
     }
 
-    this._ws.addEventListener("open", handleOpen);
+    this.ws.addEventListener("open", handleOpen);
   }
 
   announceCandidate(cand: RTCIceCandidate) {
-    this._sendSignal({ candidate: cand });
+    this.sendSignal({ candidate: cand });
   }
 
   sendSDP(sdp: RTCSessionDescription | null) {
-    this._sendSignal({ sdp });
+    this.sendSignal({ sdp });
   }
 
-  _sendSignal(data: any) {
-    this._ws.send(JSON.stringify({ type: 'signal', to: this._peerId, data }));
+  private sendSignal(data: any) {
+    this.ws.send(JSON.stringify({ type: 'signal', to: this.peerId, data }));
   }
 
   listenCandidate(callback: (cand: RTCIceCandidate) => void) {
-    this._ws.addEventListener("message", (event) => {
+    this.ws.addEventListener("message", (event) => {
       // @ts-ignore
       const { from, data } = JSON.parse(event.data);
-      if (!data.candidate || from != this._peerId) {
+      if (!data.candidate || from != this.peerId) {
         return;
       }
 
@@ -158,10 +158,10 @@ export class WebSocketSignalingConnection implements SignalingConnection {
   }
 
   listenSDP(callback: (sdp: RTCSessionDescription) => void) {
-    this._ws.addEventListener("message", (event) => {
+    this.ws.addEventListener("message", (event) => {
       // @ts-ignore
       const { from, data } = JSON.parse(event.data);
-      if (!data.sdp || from != this._peerId) {
+      if (!data.sdp || from != this.peerId) {
         return;
       }
 
@@ -171,76 +171,76 @@ export class WebSocketSignalingConnection implements SignalingConnection {
   }
 }
 
-export class ConnectionManager {
-  _pc: RTCPeerConnection | undefined;
-  _signal: SignalingConnection;
-  _channel: RTCDataChannel | undefined;
+export class RTCFileTransfer {
+  private pc: RTCPeerConnection | undefined;
+  private signal: SignalingConnection;
+  private channel: RTCDataChannel | undefined;
 
   constructor(signal: SignalingConnection) {
-    this._signal = signal;
-    this._signal.serverReady(async () => await this._establishConnection());
+    this.signal = signal;
+    this.signal.serverReady(async () => await this.establishConnection());
   }
 
   close() {
-    if (this._pc)
-      this._pc.close();
-    this._signal.close();
+    if (this.pc)
+      this.pc.close();
+    this.signal.close();
   }
 
-  async _establishConnection() {
+  private async establishConnection() {
     const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-    this._pc = new RTCPeerConnection(config);
+    this.pc = new RTCPeerConnection(config);
 
-    this._signal.listenCandidate(async (cand: RTCIceCandidate) => {
-      if (!this._pc)
+    this.signal.listenCandidate(async (cand: RTCIceCandidate) => {
+      if (!this.pc)
         return;
 
-      await this._pc.addIceCandidate(cand);
+      await this.pc.addIceCandidate(cand);
     });
 
-    this._signal.listenSDP(async (sdp: RTCSessionDescription) => {
-      if (!this._pc)
+    this.signal.listenSDP(async (sdp: RTCSessionDescription) => {
+      if (!this.pc)
         return;
 
-      await this._pc.setRemoteDescription(sdp);
+      await this.pc.setRemoteDescription(sdp);
       if (sdp.type === 'offer') {
-        const answer = await this._pc.createAnswer();
-        await this._pc.setLocalDescription(answer);
-        this._signal.sendSDP(this._pc.localDescription);
+        const answer = await this.pc.createAnswer();
+        await this.pc.setLocalDescription(answer);
+        this.signal.sendSDP(this.pc.localDescription);
       }
     });
 
     // Announce ready to signaling server
-    this._signal.clientReady();
+    this.signal.clientReady();
 
     // Forward disovered candidates to signaling server
-    this._pc.onicecandidate = ({ candidate }) => {
+    this.pc.onicecandidate = ({ candidate }) => {
       if (candidate)
-        this._signal.announceCandidate(candidate);
+        this.signal.announceCandidate(candidate);
     };
 
     // Handle connection events
-    this._pc.onconnectionstatechange = () => {
-      if (this._pc)
-        console.log('Connection State:', this._pc.connectionState);
+    this.pc.onconnectionstatechange = () => {
+      if (this.pc)
+        console.log('Connection State:', this.pc.connectionState);
     }
 
     // Channel opened from the other end
-    this._pc.ondatachannel = (event) => {
-      this._channel = event.channel;
-      this._channel.onmessage = (e) => console.log('Received:', e.data);
-      this._channel.onopen = () => console.log('Channel open');
+    this.pc.ondatachannel = (event) => {
+      this.channel = event.channel;
+      this.channel.onmessage = (e) => console.log('Received:', e.data);
+      this.channel.onopen = () => console.log('Channel open');
     };
 
     // Create channel and handle channel events
-    this._channel = this._pc.createDataChannel('chat');
-    this._channel.onopen = () => console.log('Channel open');
-    this._channel.onmessage = (e) => console.log('Received:', e.data);
+    this.channel = this.pc.createDataChannel('chat');
+    this.channel.onopen = () => console.log('Channel open');
+    this.channel.onmessage = (e) => console.log('Received:', e.data);
 
     // Create and signal my offer
-    const offer = await this._pc.createOffer();
-    await this._pc.setLocalDescription(offer);
-    this._signal.sendSDP(this._pc.localDescription);
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    this.signal.sendSDP(this.pc.localDescription);
   }
 }
 

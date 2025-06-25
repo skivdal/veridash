@@ -3,7 +3,7 @@ import { useAccount } from 'jazz-tools/react-core';
 import { MyAppAccount, TodoItem } from './schema';
 import { AuthStateIndicator } from './AuthStateIndicator';
 import { useState, useRef } from 'react';
-import { getFileByHash, storeFile, ConnectionManager, WebSocketSignalingConnection } from './util/fileTransfer';
+import { getFileByHash, storeFile, WebSocketSignalingConnection, RTCFileTransfer } from './util/fileTransfer';
 
 function App() {
   const [draft, setDraft] = useState("");
@@ -67,7 +67,7 @@ function App() {
       <input type="text" value={peerId} onChange={(e) => setPeerId(e.target.value)} />
       <button type="button" onClick={async () => {
         const sig = new WebSocketSignalingConnection(myId, peerId);
-        const mgr = new ConnectionManager(sig);
+        const mgr = new RTCFileTransfer(sig);
         console.log(mgr);
       }}>Connect</button>
     </>
