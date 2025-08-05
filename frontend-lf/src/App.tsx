@@ -1,12 +1,12 @@
 import './App.css';
-import { useAccount } from 'jazz-tools/react-core';
-import { MyAppAccount, TodoItem } from './schema';
+import { useAccount, useIsAuthenticated } from 'jazz-tools/react-core';
+import { Message, MyAppAccount } from './schema';
 import { AuthStateIndicator } from './AuthStateIndicator';
 import { useState, useRef, useEffect } from 'react';
 import { getFileByInfo, storeFile, WebSocketSignalingConnection, RTCFileTransfer, type FileTransferError, type FileTransferSuccess } from './util/fileTransfer';
+import { AuthButton } from "./AuthButton.tsx";
 
 function App() {
-  const [draft, setDraft] = useState("");
   const fileUpload = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -16,6 +16,8 @@ function App() {
   const [downloadInfo, setDownloadInfo] = useState("");
   const [downloadMsg, setDownloadMsg] = useState("");
   const [displayFile, setDisplayFile] = useState<File | undefined>();
+
+  const inputNameRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!displayFile || !videoRef.current) return;
@@ -28,6 +30,7 @@ function App() {
     };
   }, [displayFile]);
 
+  const isAuthenticated = useIsAuthenticated();
   const { me } = useAccount(MyAppAccount, {
     resolve: {
       profile: true,
@@ -41,25 +44,25 @@ function App() {
 
   return (
     <>
+      {isAuthenticated ? (
+        <span>You're logged in.</span>
+      ) : (
+        <span>Authenticate to share the data with another device.</span>
+      )}
+      <AuthButton />
+
       <p>Hello, {me.profile.name}</p>
+
+      <input type="text" ref={inputNameRef}></input>
+      <button onClick={() => {
+        if (!inputNameRef.current)
+          return;
+
+        me.profile.name = inputNameRef.current?.value;
+      }}>Submit</button>
 
       <AuthStateIndicator />
 
-      <ul>
-        {me.root.todos?.map(item => {
-          if (!item) return;
-          return <li key={item.id}>{item.title} {item.completed ? "(completed)" : ""}</li>
-        })}
-      </ul>
-
-      <input type="text" value={draft} onChange={(e) => setDraft(e.target.value)} />
-      <button type="button" onClick={() => {
-        if (!me.root || !me.root.todos) return;
-        me.root.todos.push(TodoItem.create({ title: draft, completed: false }));
-      }}>Add todo</button>
-
-      <br />
-      <br />
       <br />
       <br />
 
@@ -112,6 +115,19 @@ function App() {
 
       <br />
       <video ref={videoRef} style={{ maxHeight: "50vh", maxWidth: "75vw" }} controls />
+
+      <br />
+      <br />
+
+      <button onClick={() => {
+       me.root.status?.push(Message.create({
+        content: "ping",
+      }));
+      }}>Add message</button>
+
+      <pre>
+        {JSON.stringify(me.root.status?.inCurrentSession, undefined, 2)}
+      </pre>
 
     </>
   );
