@@ -40,7 +40,7 @@ export const TranscriptionResponse = co.map({
   transcription: co.map({
     text: z.string(),
     language: z.string(),
-    segments: co.list(Segment),
+    segments: co.list(z.string()),
   }),
 });
 
@@ -55,7 +55,7 @@ export const KeyFramesResponse = co.map({
 });
 
 export const ObjDetectResponse = co.map({
-  moduleType: z.literal(["object-detection"]),
+  moduleType: z.literal(["objectdetection"]),
   urls: z.array(z.string()),
   keyFrameNumbers: z.array(z.number()),
 });

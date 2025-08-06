@@ -29,7 +29,7 @@ export const MyAppAccount = co.account({
   root: AccountRoot,
   profile: co.map({ name: z.string() }),
 }).withMigration(async (account) => {
-  if (!account.root) {
+  if (!account.root && false) {
     const statusReaders = Group.create({ owner: account });
     const transferWriters = Group.create({ owner: account });
     account.root = AccountRoot.create({
