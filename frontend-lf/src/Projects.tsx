@@ -1,29 +1,37 @@
 import { useRef, useState } from "react";
 import { useOldBackend } from "./util/oldBackend";
 import { co } from "jazz-tools";
-import { useAccount } from 'jazz-tools/react-core';
+import { useAccount, useCoState } from 'jazz-tools/react-core';
 import { FileInfo, MyAppAccount, Project } from './schema';
 import { BackendMessage } from "./backendSchema";
+import { storeFile } from "./util/fileTransfer";
 
 function Projects() {
   const { me } = useAccount(MyAppAccount, {
     resolve: {
       profile: true,
-      root: true,
+      root: {
+        projects: true,
+      },
     },
   });
 
   const nameInput = useRef<HTMLInputElement>(null);
-  const activeProject = useRef<co.loaded<typeof Project> | undefined>(undefined);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const [activeProjectId, setActiveProjectId]= useState<string | undefined>(undefined);
+  const activeProject = useCoState(Project, activeProjectId, {
+    resolve: true,
+  });
 
   const [doListen, setDoListen] = useState(false);
-  useOldBackend("wss://veridash.fotoverifier.eu/ws", activeProject.current?.id, doListen);
+  useOldBackend("wss://veridash.fotoverifier.eu/ws", activeProjectId, doListen);
 
   return (
     <>
       <h1>Projects</h1>
 
-      <button onClick={() => {
+      <button type="button" onClick={() => {
         setDoListen(!doListen);
       }}>
         {doListen ? "Deactivate WebSocket" : "Activate WebSocket"}
@@ -32,33 +40,50 @@ function Projects() {
       <br />
       <br />
 
-      <input ref={nameInput} type="text"></input>
-      <button onClick={() => {
+      <label htmlFor="projectName">Project Name: </label>
+      <input ref={nameInput} type="text" name="projectName"></input>
+      <br />
+
+      <label htmlFor="projectVideo">Project Video: </label>
+      <input ref={fileInput} type="file" name="projectVideo"></input>
+      <br />
+      <br />
+
+      <button type="button" onClick={async () => {
+        if (!fileInput.current?.files)
+          return;
+
+        const fi = await storeFile(fileInput.current);
+        if (!fi)
+          return;
+
         const proj = Project.create({
           name: nameInput.current?.value ?? "Unnamed project",
-          files: co.list(FileInfo).create([]), 
-          jobState: co.list(BackendMessage).create([]), 
+          files: co.list(FileInfo).create([fi]),
+          jobState: co.list(BackendMessage).create([]),
         });
 
         if (me) {
           me.root.projects?.push(proj);
-          activeProject.current = proj;
+          setActiveProjectId(proj.id);
         } else {
           console.error("No me found");
         }
-      }}>New</button>
+      }}>
+        Create new project
+      </button>
 
+      <br />
+      <br />
+
+      <p>Existing projects:</p>
       <ul>
-        {me && me.root.projects?.map(p => {
+        {me?.root.projects?.map(p => {
           if (p)
             return <li key={p.id}>
               <span
                 onClick={async () => {
-                  const pr = await Project.load(p.id);
-                  console.log(pr);
-                  if (pr) {
-                    activeProject.current = pr;
-                  }
+                  setActiveProjectId(p.id);
                 }}
                 style={{
                   color: "blue", textDecoration: "underline", cursor: "pointer"
@@ -69,9 +94,15 @@ function Projects() {
         })}
       </ul>
 
-      <pre>
-        {JSON.stringify(activeProject.current?.toJSON(), null, 2)}
-      </pre>
+      { activeProject &&
+        <>
+          <br />
+          <p>Info for selected project "{ activeProject?.name }"</p>
+          <pre>
+            {JSON.stringify(activeProject?.toJSON(), null, 2)}
+          </pre>
+        </>
+      }
     </>
   );
 }

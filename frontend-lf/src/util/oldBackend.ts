@@ -1,7 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Project } from "../schema";
 import { co } from "jazz-tools";
-import { useCoState } from 'jazz-tools/react-core';
 import type {
   BackendError as OldBackendError,
   BackendProgress as OldBackendProgress,
@@ -14,8 +13,9 @@ import type {
   TranscriptionResponse as OldTranscriptionResponse,
 } from './oldBackendMessage';
 import { BackendData, BackendMessage, KeyFramesResponse, MapResponse, MetadataResponse, ObjDetectResponse, SourceResponse, StitchingResponse, TranscriptionResponse } from '../backendSchema';
+import { getFileByInfo, type FileInfo } from './fileTransfer';
 
-type OldBackendMessage = 
+type OldBackendMessage =
   OldBackendProgress |
   OldBackendError |
   OldSourceResponse |
@@ -173,59 +173,92 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
 }
 
 export function useOldBackend(url: string, projectId: string | undefined, doListen: boolean) {
-  const project = useCoState(Project, projectId);
-  const socketRef = useRef<WebSocket | null>(null);
-
   useEffect(() => {
     if (!projectId || !doListen)
       return;
 
     const socket = new WebSocket(url);
-    socketRef.current = socket;
+    (async () => {
+      const project = await Project.load(projectId);
+      if (!project?.files ||
+        project.files.length === 0 ||
+        !project.files[0]?.hash ||
+        project.jobState?.length !== 0)
+        return;  // if no file availiable or jobs already run
 
-    socket.addEventListener('open', () => {
-      console.log('WebSocket connected');
+      // Ensure the socket is open
+      await new Promise<void>((resolve, reject) => {
+        if (socket.readyState === socket.OPEN) {
+          resolve();
+        } else {
+          socket.onopen = () => {
+            resolve();
+          };
+          socket.onerror = (error) => {
+            reject(error);
+          };
+        }
+      });
 
-      socket.send(JSON.stringify({
-        "messageType":"source",
-        "filename":"Se hele opptaket her [ZarAElpjyDs].mp4:e370785c6b51a431159224ed1667893899faa3db2e901f33699d9879bccaa122"
-      }));
+      socket.addEventListener("message", (event) => {
+        if (!project) {
+          console.warn("Could not find Project with id", projectId);
+          return;
+        }
 
-      const reqs = [
-        {"messageType":"map", "videoId":"68599007-6a62-4a9c-83db-0d3b55db2d7c.mp4"},
-        {"messageType":"keyframes", "videoId":"68599007-6a62-4a9c-83db-0d3b55db2d7c.mp4"},
-        {"messageType":"metadata", "videoId":"68599007-6a62-4a9c-83db-0d3b55db2d7c.mp4"},
-        {"messageType":"transcription", "videoId":"68599007-6a62-4a9c-83db-0d3b55db2d7c.mp4"},
-        {"messageType":"osmtags", "videoId":"68599007-6a62-4a9c-83db-0d3b55db2d7c.mp4"},
-        {"messageType":"objectdetection", "videoId":"68599007-6a62-4a9c-83db-0d3b55db2d7c.mp4"},
-      ];
+        try {
+          const data = JSON.parse(event.data);
+          handleMessage(data, project);
 
-      for (const req of reqs) {
-        socket.send(JSON.stringify(req));
-      }
-    });
+          // Upload file and ask for more
+          (async () => {
+            if (!data?.uploadUrl || !project.files || project.files.length === 0)
+              return;
 
-    socket.addEventListener('message', (event) => {
-      if (!project) {
-        console.warn("Could not find Project with id", projectId);
-        return;
-      }
+            const f = await getFileByInfo(project.files[0] as FileInfo);
+            const res = await fetch(data.uploadUrl, {
+              method: "PUT",
+              body: f,
+              headers: {
+                "Content-Type": f.type,
+              },
+            });
 
-      try {
-        const data = JSON.parse(event.data);
-        handleMessage(data, project);
-      } catch (e) {
-        console.warn('Invalid JSON from websocket:', event.data);
-      }
-    });
+            if (res.ok) {
+              const reqs = ["map", "keyframes", "metadata", "transcription", "osmtags", "objectdetection"];
+              for (const r of reqs) {
+                socket.send(
+                  JSON.stringify({
+                    messageType: r,
+                    videoId: data.videoId,
+                  })
+                )
+              }
+            }
+            else {
+              console.error("Upload failed :(")
+            }
+          })();
+        } catch (e) {
+          console.warn("Invalid JSON from websocket:", event.data);
+        }
+      });
 
-    socket.addEventListener('error', (event) => {
-      console.error('WebSocket error:', event);
-    });
+      socket.addEventListener("error", (event) => {
+        console.error("WebSocket error:", event);
+      });
 
-    socket.addEventListener('close', () => {
-      console.log('WebSocket disconnected');
-    });
+      socket.addEventListener("close", () => {
+        console.log("WebSocket disconnected");
+      });
+
+      socket.send(
+        JSON.stringify({
+          messageType: "source",
+          filename: `${project.files[0].name}:${project.files[0].hash}`,
+        })
+      );
+    })();
 
     return () => {
       socket.close();
