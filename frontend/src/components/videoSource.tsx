@@ -1,119 +1,268 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useBackend, { SourceResponse } from "@/useBackend";
 
 export default function VideoSource({
-  videoId, onFinishedUpload: handleFinishedUpload,
-  scrubToTime, onScrubAccepted: handleScrubAccepted,
+  videoId,
+  onFinishedUpload: handleFinishedUpload,
+  scrubToTime,
+  onScrubAccepted: handleScrubAccepted,
 }: {
-  videoId: string | undefined,
-  onFinishedUpload: (videoId?: string, error?: string) => void,
-  scrubToTime: number | undefined,
+  videoId: string | undefined;
+  onFinishedUpload: (videoId?: string, error?: string) => void;
+  scrubToTime: number | undefined;
   onScrubAccepted: () => void;
 }) {
   const [file, setFile] = useState<[File, string] | null>(null);
-  const data = useBackend<SourceResponse>(undefined, "source", file ? `${file[0].name}:${file[1]}` : undefined);
-  const videoElement = useRef<HTMLVideoElement>();
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
 
-  // https://gist.github.com/GaspardP/fffdd54f563f67be8944
+  // Signed URL fetch (unchanged behavior)
+  const data = useBackend<SourceResponse>(
+    undefined,
+    "source",
+    file ? `${file[0].name}:${file[1]}` : undefined
+  );
+
+  const videoElement = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // --- util: hex digest (same as before) ---
   function hex(buffer: ArrayBuffer) {
-    var digest = ''
-    var view = new DataView(buffer)
-    for (var i = 0; i < view.byteLength; i += 4) {
-      // We use getUint32 to reduce the number of iterations (notice the `i += 4`)
-      var value = view.getUint32(i)
-      // toString(16) will transform the integer into the corresponding hex string
-      // but will remove any initial "0"
-      var stringValue = value.toString(16)
-      // One Uint32 element is 4 bytes or 8 hex chars (it would also work with 4
-      // chars for Uint16 and 2 chars for Uint8)
-      var padding = '00000000'
-      var paddedValue = (padding + stringValue).slice(-padding.length)
-      digest += paddedValue
+    let digest = "";
+    const view = new DataView(buffer);
+    for (let i = 0; i < view.byteLength; i += 4) {
+      const value = view.getUint32(i);
+      const stringValue = value.toString(16);
+      const padding = "00000000";
+      const paddedValue = (padding + stringValue).slice(-padding.length);
+      digest += paddedValue;
     }
-
-    return digest
+    return digest;
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      let hash = "";
-      try {
-        hash = hex(await window.crypto.subtle.digest("SHA-256", await e.target.files[0].arrayBuffer()));
-      } catch { }
-
-      setFile([e.target.files[0], hash]);
+  // --- choose file (click or drop) ---
+  const chooseFile = useCallback(async (f: File) => {
+    setErr(null);
+    let hash = "";
+    try {
+      hash = hex(await window.crypto.subtle.digest("SHA-256", await f.arrayBuffer()));
+    } catch {
+      // ignore hashing errors; still proceed
     }
+    setFile([f, hash]);
+  }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) await chooseFile(f);
   };
 
-  useEffect(() => {
-    if (!data)
-      return;
+  // --- drag & drop ---
+  const [dragOver, setDragOver] = useState(false);
+  const onDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) await chooseFile(f);
+    },
+    [chooseFile]
+  );
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+  const onDragLeave = () => setDragOver(false);
 
+  // --- upload once backend returns signed URL (unchanged) ---
+  useEffect(() => {
+    if (!data || !file) return;
     setLoading(true);
     (async () => {
-      const res = await fetch((data as SourceResponse).uploadUrl, {
-        method: "PUT",
-        body: file![0],
-        headers: {
-          'Content-Type': file![0].type,
-        },
-      });
-
-      if (res.ok) {
-        handleFinishedUpload(data!.videoId, undefined);
-      } else {
-        handleFinishedUpload(undefined, await res.text());
+      try {
+        const res = await fetch((data as SourceResponse).uploadUrl, {
+          method: "PUT",
+          body: file[0],
+          headers: { "Content-Type": file[0].type },
+        });
+        if (!res.ok) {
+          const msg = await res.text();
+          setErr(msg || "Upload failed");
+          handleFinishedUpload(undefined, msg || "Upload failed");
+        } else {
+          handleFinishedUpload((data as SourceResponse).videoId, undefined);
+        }
+      } catch (e: any) {
+        const msg = e?.message ?? "Network error during upload";
+        setErr(msg);
+        handleFinishedUpload(undefined, msg);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     })();
   }, [data]);
 
+  // --- scrub control (unchanged) ---
   useEffect(() => {
-    if (videoElement.current && scrubToTime != undefined) {
+    if (videoElement.current && scrubToTime != null) {
       videoElement.current.currentTime = scrubToTime;
       handleScrubAccepted();
     }
-  }, [scrubToTime])
+  }, [scrubToTime]);
+
+  const downloadUrl = (data as SourceResponse)?.downloadUrl;
+
+  // --- optional: wire your import-by-URL endpoint here ---
+  const handleImportUrl = async () => {
+    // TODO: call your backend endpoint to import a remote URL and then call handleFinishedUpload(videoId)
+    // For now we just noop with a friendly error if filled.
+    if (importUrl.trim()) {
+      setErr("Import by URL not yet implemented.");
+    }
+  };
 
   return (
-    <div className="h-full w-full">
-      <p className="mb-2">Source</p>
+    <div className="p-4">
+      {/* Card container to match Figma: white, rounded, shadow, fixed-ish width */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-100 w-[360px]">
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <h2 className="text-sm font-semibold">Media/Source</h2>
+          <div className="flex items-center gap-2 text-gray-500">
+            {/* Collapse */}
+            <button
+              type="button"
+              onClick={() => setCollapsed((v) => !v)}
+              className="p-1 rounded hover:bg-gray-100"
+              aria-label="Collapse"
+              title="Collapse"
+            >
+              {/* chevron up/down */}
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                {collapsed ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                )}
+              </svg>
+            </button>
+            {/* Close (no-op placeholder, just for look) */}
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-gray-100"
+              aria-label="Close"
+              title="Close"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
 
-      {videoId && (data as SourceResponse)?.downloadUrl ? (
-        /* NOTE: setting height like this a hack to prevent overflow,
-         * should be h-full and some flexbox system to make the box the correct size, respecting the header... */
-        <video ref={videoElement} controls className="h-[40vh] w-full object-contain">
-          <source src={(data as SourceResponse)?.downloadUrl} />
-        </video>
-      ) : (
-        <>
-          <label htmlFor="file" className="sr-only">
-            Choose a file
-          </label>
-          <input id="file" type="file" onChange={handleFileChange} />
-          {
-            loading ? (
-              <div className="text-center">
-                <div className="inline-flex justify-between w-full">
-                  <div></div>
-                  <div role="status" className="mt-4">
-                    <svg aria-hidden="true" className="w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor" />
-                      <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill" />
-                    </svg>
-                    <span className="sr-only">Loading...</span>
-                  </div>
-                  <div></div>
-                </div>
-                <p>This typically takes less than 30 seconds</p>
+        {/* Body */}
+        {!collapsed && (
+          <div className="px-4 py-4">
+            {err && (
+              <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {err}
               </div>
-            ) : ''
-          }
-        </>
-      )}
+            )}
+
+            {videoId && downloadUrl ? (
+              // When a source exists, show the player inside the card
+              <div className="rounded-lg overflow-hidden border bg-black">
+                <video ref={videoElement} controls className="w-full h-[220px] object-contain bg-black">
+                  <source src={downloadUrl} />
+                </video>
+              </div>
+            ) : (
+              <>
+                {/* Drop zone */}
+                <div
+                  onDrop={onDrop}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={[
+                    "border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors",
+                    dragOver ? "border-blue-400 bg-blue-50/40" : "border-gray-300",
+                  ].join(" ")}
+                >
+                  <svg
+                    className="h-8 w-8 mx-auto mb-2 text-blue-600"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6H17a4 4 0 010 8h-3m-2 3V9m0 0l-3 3m3-3l3 3" />
+                  </svg>
+                  <p className="text-sm text-gray-700">
+                    Drag &amp; drop your video or{" "}
+                    <span className="text-blue-600 underline">click to upload</span>
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    id="file"
+                    type="file"
+                    className="hidden"
+                    accept="video/*"
+                    onChange={handleFileChange}
+                  />
+                </div>
+
+                {/* Loading overlay */}
+                {loading && (
+                  <div className="mt-3 rounded-md border bg-white px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <svg
+                        aria-hidden="true"
+                        className="h-5 w-5 animate-spin"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <circle cx="12" cy="12" r="10" opacity="0.25" />
+                        <path d="M22 12a10 10 0 0 1-10 10" />
+                      </svg>
+                      <p className="text-sm">Uploading… this typically takes under 30 seconds</p>
+                    </div>
+                    <div className="mt-2 h-1 w-full overflow-hidden rounded bg-gray-200">
+                      <div className="h-full w-1/3 animate-[progress_1.1s_ease-in-out_infinite]" />
+                    </div>
+                    <style>{`@keyframes progress {0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}`}</style>
+                  </div>
+                )}
+
+                {/* Import from URL */}
+                <div className="mt-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Import from URL
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Add file URL"
+                    value={importUrl}
+                    onChange={(e) => setImportUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleImportUrl()}
+                    className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-

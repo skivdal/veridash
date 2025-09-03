@@ -7,6 +7,41 @@
   --background-rgb: 214, 219, 220;
 }
 
+
+.welcome-text {
+  position: absolute;
+  top: 3rem;
+  left: 3.5rem;
+  font-size: 4rem;
+  font-style: italic;
+  font-weight: 300;
+  color: #333;
+}
+
+.text-black {
+  font-size: 5rem;
+}
+
+.desc {
+  position: relative;
+  right: -13rem;
+  top: -1rem;
+  font-size: 2.25rem;
+}
+
+.subtitle-shift {
+  position: relative;
+  right: -25rem;
+  font-size: 2.5rem;
+}
+
+
+/* @media (min-width: 640px) {
+  .welcome-text {
+    font-size: 2rem;
+  }
+} */
+
 /*
 @media (prefers-color-scheme: dark) {
   :root {

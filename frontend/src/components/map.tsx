@@ -43,7 +43,7 @@ export default function Map({ videoId }: { videoId: string | undefined }) {
         <p className="mb-2 text-gray-600 italic">Could not find any positional data</p>
       ) : ''}
 
-      <MapContainer center={position} zoom={13} scrollWheelZoom={true} className="h-5/6">
+      <MapContainer key={videoId || "default"} center={position} zoom={13} scrollWheelZoom={true} className="h-5/6">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -60,4 +60,3 @@ export default function Map({ videoId }: { videoId: string | undefined }) {
     </div>
   );
 }
-

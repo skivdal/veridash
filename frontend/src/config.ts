@@ -1,6 +1,5 @@
 const config = {
-  websocketUrl: "ws://localhost:8000/ws",
+  websocketUrl: process.env.NEXT_PUBLIC_WEBSOCKET_URL || "ws://localhost:3001/ws"
 };
 
 export default config;
-
