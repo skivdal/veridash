@@ -13,7 +13,7 @@ export default function Transcription({ videoId, onScrub: handleScrub }: {
 
   if ((data as TranscriptionResponse)?.transcription.language) {
     const d = data as TranscriptionResponse;
-    if (d.transcription.segments.length === 0 || (d.transcription.segments.length == 1 && d.transcription.segments[0].no_speech_prob > 0.4)) {
+    if (d.transcription.segments.length === 0 || (d.transcription.segments.length === 1 && d.transcription.segments[0].no_speech_prob > 0.7)) {
       return (
         <div>
           Transcription/Translation
