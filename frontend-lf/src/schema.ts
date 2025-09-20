@@ -32,11 +32,11 @@ export const MyAppAccount = co.account({
   if (account.root === undefined) {
     const statusReaders = Group.create({ owner: account });
     const transferWriters = Group.create({ owner: account });
-    account.root = AccountRoot.create({
+    account.$jazz.set("root", AccountRoot.create({
       projects: co.list(Project).create([], account),
       status: co.feed(Message).create([], statusReaders),
       fileTransfers: co.feed(Message).create([], transferWriters),
-    }, account);
+    }, account));
   }
 });
 

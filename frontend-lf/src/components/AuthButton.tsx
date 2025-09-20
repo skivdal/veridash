@@ -1,5 +1,5 @@
 import { useAccount } from "jazz-tools/react";
-import { betterAuthClient } from "../lib/authClient";
+import { betterAuthClient } from "../util/authClient";
 import { useIsAuthenticated } from "jazz-tools/react";
 
 export function AuthButton() {
