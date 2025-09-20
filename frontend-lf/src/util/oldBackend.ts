@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Project } from "../schema";
-import { co } from "jazz-tools";
+import type { co } from "jazz-tools";
 import type {
   BackendError as OldBackendError,
   BackendProgress as OldBackendProgress,
@@ -36,7 +36,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   if (data.messageType === "source") {
     const msg = data as OldSourceResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,
@@ -55,7 +55,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   else if (data.messageType === "metadata") {
     const msg = data as OldMetadataResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,
@@ -74,7 +74,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   else if (data.messageType === "transcription") {
     const msg = data as OldTranscriptionResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,
@@ -96,7 +96,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   else if (data.messageType === "map") {
     const msg = data as OldMapResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,
@@ -114,7 +114,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   else if (data.messageType === "keyframes") {
     const msg = data as OldKeyFramesResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,
@@ -132,7 +132,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   else if (data.messageType === "objectdetection") {
     const msg = data as OldObjDetectResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,
@@ -151,7 +151,7 @@ function handleMessage(data: OldBackendMessage, project: co.loaded<typeof Projec
   else if (data.messageType === "stitching") {
     const msg = data as OldStitchingResponse;
 
-    project.jobState?.push(BackendMessage.create({
+    project.jobState?.$jazz.push(BackendMessage.create({
       videoId: msg.videoId,
       filename: msg.filename,
       imageId: msg.imageId,

@@ -1,19 +1,42 @@
-import { useAccount, usePasskeyAuth } from "jazz-tools/react";
-import { APPLICATION_NAME } from "../main";
+import { useAccount } from "jazz-tools/react";
+import { betterAuthClient } from "../lib/authClient";
+import { useIsAuthenticated } from "jazz-tools/react";
 
 export function AuthButton() {
-  const { logOut } = useAccount();
-
-  const auth = usePasskeyAuth({
-    appName: APPLICATION_NAME,
-  });
+  const { me, logOut } = useAccount();
+  const isAuthenticated = useIsAuthenticated();
 
   function handleLogOut() {
     logOut();
     window.history.pushState({}, "", "/");
   }
+  
+  async function handleSignUp() {
+    await betterAuthClient.signUp.email(
+      {
+        email: "email1@example.com",
+        password: "password",
+        name: "John Doe",
+      },
+      {
+        onSuccess: async () => {
+          // Don't forget to update the profile's name. It's not done automatically.
+          if (me?.profile) {
+            me.profile.$jazz.set("name", "John Doe");
+          }
+        },
+      }
+    );
+  }
+  
+  async function handleSignIn() {
+    await betterAuthClient.signIn.email({
+      email: "email1@example.com",
+      password: "password",
+    });
+  }
 
-  if (auth.state === "signedIn") {
+  if (isAuthenticated) {
     return (
       <button
         onClick={handleLogOut}
@@ -26,12 +49,12 @@ export function AuthButton() {
   return (
     <div>
       <button
-        onClick={() => auth.signUp("")}
+        onClick={handleSignUp}
       >
         Sign up
       </button>
       <button
-        onClick={() => auth.logIn()}
+        onClick={handleSignIn}
       >
         Log in
       </button>

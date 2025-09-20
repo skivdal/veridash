@@ -53,11 +53,11 @@ function App() {
       <p>Hello, {me.profile.name}</p>
 
       <input type="text" ref={inputNameRef}></input>
-      <button onClick={() => {
+      <button type="button" onClick={() => {
         if (!inputNameRef.current)
           return;
 
-        me.profile.name = inputNameRef.current?.value;
+        me.profile.$jazz.set("name", inputNameRef.current?.value);
       }}>Submit</button>
 
       <AuthStateIndicator />

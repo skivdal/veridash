@@ -64,8 +64,8 @@ function Projects() {
         });
 
         if (me) {
-          me.root.projects?.push(proj);
-          setActiveProjectId(proj.id);
+          me.root.projects?.$jazz.push(proj);
+          setActiveProjectId(proj.$jazz.id);
         } else {
           console.error("No me found");
         }
@@ -79,18 +79,21 @@ function Projects() {
       <p>Existing projects:</p>
       <ul>
         {me?.root.projects?.map(p => {
-          if (p)
-            return <li key={p.id}>
+          if (p) {
+            return <li key={p.$jazz.id}>
               <span
                 onClick={async () => {
-                  setActiveProjectId(p.id);
+                  setActiveProjectId(p.$jazz.id);
                 }}
                 style={{
                   color: "blue", textDecoration: "underline", cursor: "pointer"
                 }}>
                 {p.name}
-              </span> ({p.id})
+              </span> ({p.$jazz.id})
             </li>
+          } else {
+            return <></>;
+          }
         })}
       </ul>
 
