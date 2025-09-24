@@ -44,7 +44,7 @@ services:
     image: ghcr.io/skivdal/veridash-frontend
     container_name: frontend
     ports:
-      - 127.0.0.1:3000:80
+      - 127.0.0.1:3000:3000
     restart: always
 
   postgres:  # TODO: load schema
