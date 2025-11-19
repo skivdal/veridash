@@ -2,31 +2,15 @@
 
 Video fact checking and verification dashboard
 
-## Developing
-
-Ensure you have a working development setup by following the guide for [local development setup](#Local-development-setup).
-
-Development plans and task allocation is done using Github Issues in this repository, connected to [this Github project](https://github.com/users/skivdal/projects/1).
-The life of a new feature will look something like this:
-1. Feature is imagined, and an issue is created in the repo
-2. This issue is assigned to a person, and added to the "veridash - development" project board with the status of 'ready'.
-3. The feature is described in sufficient detail
-4. Issue assignee creates a branch out of main for this feature, and moves the issue to the 'in progress' column of the project board.
-5. Assignee implements the feature on their branch
-6. Assignee creates a pull request documenting how the issue was solved, and marks it with "closing #\[issue number\]"
-7. Assignee merges the pull request into the main branch. Alternatively, for larger features, another participant can review the pull request first.
-8. Assignee moves the issue to the 'Done' column of the project board.
-
 ## Local development setup
 
 This project is divided into two subdirectories: `frontend/` and `backend/`.
 
-The frontend is a Next.js (React) appliation that requires Node and NPM.
-I'm using *Node v20.11.0*, and *npm 10.2.4*. Node v20 or later should work. NPM version is probably not too important.
+The frontend is a Next.js (React) appliation that requires Node and (p)NPM.
 
 The backend is written in Python, divided into a FastAPI application for handling requests and responses over a WebSocket.
 There's also a Celery application responsible for handling heavy tasks. 
-You will need *Python 3.12*, *ffmpeg*, and a *postgresql client library* installed on your system.
+You will need *Python 3.12+*, *ffmpeg*, and a *postgresql client library* installed on your system.
 
 We also depend on three services, PostgreSQL as a database, Valkey (Redis fork) for handling job scheduling and semaphores, and Minio as a file storage service.
 Further, we use the OpenAI API for doing translations using GPT.
@@ -135,14 +119,13 @@ Transcription task might take a while the first time as the Whisper model will h
 
 #### Installing dependencies
 
-Navigate to the `frontend/` directory. Executing `npm install` should grab all required dependencies.
+Navigate to the `frontend/` directory. Executing `pnpm install` should grab all required dependencies.
 
-If you want to add an additional dependency in the future: `npm install -S [package-name]`.
-Remembering the `-S` is important as this saves the dependency in `package.json` for other people to install later.
+If you want to add an additional dependency in the future: `pnpm add [package-name]`.
 
 #### Running Next
 
-In the frontend directory: `npm run dev`.
+In the frontend directory: `pnpm run dev`.
 This starts a development server, that will automatically reload the page on file changes.
 The page should be accessible on [localhost:3000](http://localhost:3000)
 

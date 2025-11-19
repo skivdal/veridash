@@ -21,6 +21,8 @@ import Metadata from "@/components/metadata";
 import Transcription from "@/components/transcription";
 import ObjectDetection from "@/components/objectDetection";
 import OsmTags from "@/components/osmTags";
+import useWebSocket from "react-use-websocket";
+import config from "@/config";
 
 const Map = dynamic(() => import("@/components/map"), { ssr: false });
 
@@ -41,6 +43,9 @@ export default function CaseView({ caseId }: { caseId: string }) {
   const [videoId, setVideoId] = useState<string | undefined>(undefined);
   const [scrubTime, setScrubTime] = useState<number | undefined>(undefined);
   const [keyFrameNumber, setKeyFrameNumber] = useState<number | undefined>(undefined);
+
+  // Hack to ensure the WS stays open when switching between modules
+  const _ = useWebSocket(config.websocketUrl, { share: true });
 
   return (
     <div className="flex flex-col h-screen">
@@ -81,8 +86,6 @@ export default function CaseView({ caseId }: { caseId: string }) {
             [background-image:radial-gradient(#d1d5db_1px,transparent_1px)]
             [background-size:16px_16px]
             [background-position:0_0]
-            dark:bg-zinc-900
-            dark:[background-image:radial-gradient(rgba(255,255,255,0.12)_1px,transparent_1px)]
           "
         >
           <div className="pl-2">
