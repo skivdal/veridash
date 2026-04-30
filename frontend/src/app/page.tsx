@@ -50,7 +50,7 @@ export default function Home() {
         
         {/* begin Button */}
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push("/old")}
           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-md text-lg transition w-full max-w-xs"
         >
           Begin
