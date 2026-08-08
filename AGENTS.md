@@ -1,14 +1,17 @@
 # VeriDash repository guidance
 
-For any rebuild or architecture work, read `docs/rebuild-plan.md` before changing
-code. It is the current proposed source of truth and records the recovered design,
-existing analysis graph, target architecture, implementation phases, open product
-and deployment decisions, and acceptance criteria.
+For any rebuild or architecture work, read the local `docs/rebuild-plan.md` before
+changing code. It is deliberately Git-ignored because it contains private local
+context, and records the recovered design, existing analysis graph, target
+architecture, implementation phases, product/deployment decisions, and acceptance
+criteria.
 
-The current `frontend/` and `backend/` are legacy behavior references.
-`figma-recover/` is an imperfect, potentially untracked reconstruction used for
-visual and interaction archaeology. Do not repair, relocate, delete, or import it
-wholesale unless a task specifically requests that work.
+Everything under `old/` is a committed, read-only legacy reference. In particular,
+`old/backend`, `old/frontend`, and `old/veridash-deployment` hold the previous system,
+while `old/figma-recover` is the imperfect reconstructed design. Do not edit, move,
+build, lint, test, or import archived code unless a task specifically requests it.
+The repository root and new `apps/`, `libs/`, `web/`, `db/`, `ansible/`, and
+`deploy/` directories are the rebuild.
 
 Important rebuild invariants:
 

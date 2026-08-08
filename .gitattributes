@@ -1,0 +1,7 @@
+uv.lock linguist-generated=true
+pnpm-lock.yaml linguist-generated=true
+web/openapi.json linguist-generated=true
+web/src/api/generated/** linguist-generated=true
+apps/api/src/veridash_api/db/sqlc/** linguist-generated=true
+apps/scheduler/src/veridash_scheduler/db/sqlc/** linguist-generated=true
+apps/worker/src/veridash_worker/db/sqlc/** linguist-generated=true

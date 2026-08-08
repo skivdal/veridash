@@ -1,0 +1,14 @@
+[project]
+name = "veridash-storage"
+version = "0.1.0"
+description = "VeriDash immutable blob storage contracts"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/veridash_storage"]
+artifacts = ["src/veridash_storage/py.typed"]

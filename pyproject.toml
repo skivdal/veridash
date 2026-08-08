@@ -1,0 +1,96 @@
+[project]
+name = "veridash-workspace"
+version = "0.1.0"
+description = "VeriDash monorepo"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.34.0",
+    "httpx>=0.28.1",
+    "poethepoet>=0.37.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.3.0",
+    "ruff>=0.14.0",
+]
+
+[tool.uv.workspace]
+members = ["apps/*", "libs/*"]
+
+[tool.uv]
+package = false
+
+[tool.poe.tasks]
+fmt = "ruff format apps libs scripts tests"
+"fmt:check" = "ruff format --check apps libs scripts tests"
+lint = "ruff check --fix apps libs scripts tests"
+"lint:check" = "ruff check apps libs scripts tests"
+check = "basedpyright"
+test = "pytest"
+"test:unit" = "pytest -m 'not db'"
+"test:db" = "pytest -m db"
+"db:new" = "dbmate --migrations-dir db/migrations --no-dump-schema new"
+"db:up" = "dbmate --migrations-dir db/migrations --no-dump-schema up"
+"db:rollback" = "dbmate --migrations-dir db/migrations --no-dump-schema rollback"
+"db:check" = "python scripts/check_migrations.py"
+sqlc = [
+    { cmd = "sqlc generate -f apps/api/sqlc.yaml" },
+    { cmd = "sqlc generate -f apps/scheduler/sqlc.yaml" },
+    { cmd = "sqlc generate -f apps/worker/sqlc.yaml" },
+]
+"sqlc:check" = "python scripts/check_sqlc_diff.py"
+"ci:generated" = [
+    { ref = "db:check" },
+    { ref = "sqlc:check" },
+    { ref = "api:openapi:check" },
+    { ref = "web:api:check" },
+]
+"ci:fast" = [
+    { ref = "fmt:check" },
+    { ref = "lint:check" },
+    { ref = "check" },
+    { ref = "ci:generated" },
+    { ref = "test:unit" },
+]
+"ci:all" = [{ ref = "ci:fast" }, { ref = "test:db" }]
+api = "uvicorn veridash_api.main:app --reload"
+scheduler = "veridash-scheduler"
+worker = "veridash-worker"
+"api:openapi" = "python scripts/export_openapi.py"
+"api:openapi:check" = [
+    { ref = "api:openapi" },
+    { cmd = "git diff --exit-code -- web/openapi.json" },
+]
+"web:api:generate" = "pnpm --dir web api:generate"
+"web:api:check" = [
+    { ref = "web:api:generate" },
+    { cmd = "git diff --exit-code -- web/src/api/generated" },
+]
+"web:dev" = "pnpm --dir web dev"
+"web:check" = "pnpm --dir web check"
+"web:build" = "pnpm --dir web build"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["old", "**/db/sqlc", "web"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["apps", "libs", "tests"]
+asyncio_mode = "auto"
+markers = [
+    "db: marks tests that require a migrated PostgreSQL database",
+]
+addopts = "-ra --doctest-modules --import-mode=importlib --ignore-glob=**/db/sqlc/*.py"
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+include = ["apps", "libs", "scripts", "tests"]
+exclude = ["old", "**/__pycache__", "**/db/sqlc"]
