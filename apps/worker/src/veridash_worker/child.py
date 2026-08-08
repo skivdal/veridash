@@ -77,7 +77,7 @@ def run_child(request: ChildRequest, protocol_stream: TextIO) -> int:
             protocol_stream=protocol_stream,
         )
         with contextlib.redirect_stdout(sys.stderr):
-            result = module.run(context, {}, parameters)
+            result = module.run(context, request.inputs, parameters)
         if len(module.manifest.outputs) != 1:
             raise RuntimeError("single-result child adapter requires exactly one output")
         output_name = module.manifest.outputs[0].name

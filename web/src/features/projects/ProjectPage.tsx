@@ -18,14 +18,10 @@ import {
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
+import { MetadataCard } from "./MetadataCard";
 import { useProjectEvents } from "./projectEvents";
 
 const modulePlaceholders = [
-  [
-    "Metadata",
-    "Container, stream, and embedded metadata will appear here.",
-    "probe_media",
-  ],
   [
     "Frames",
     "Extracted frames and stitching controls will appear here.",
@@ -47,7 +43,11 @@ const modulePlaceholders = [
     "extract_coordinates",
   ],
 ] as const;
-const moduleNames = ["Source", ...modulePlaceholders.map(([name]) => name)];
+const moduleNames = [
+  "Source",
+  "Metadata",
+  ...modulePlaceholders.map(([name]) => name),
+];
 
 interface ProjectPageProps {
   projectId: string;
@@ -299,6 +299,18 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
           <SourceMediaPanel
             projectId={projectId}
             projectState={projectData.state}
+          />
+          <MetadataCard
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "probe_media",
+            )}
+            cancelPendingJobId={
+              cancelAnalysis.isPending
+                ? cancelAnalysis.variables?.jobId
+                : undefined
+            }
+            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
           />
           {modulePlaceholders.map(([name, description, moduleId]) => (
             <AnalysisCard

@@ -1,11 +1,21 @@
 """Versioned JSON-lines protocol between a worker supervisor and one child."""
 
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 from veridash_core import ErrorKind
 
 PROTOCOL_VERSION = 1
+
+
+class FileInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path: Path
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    size_bytes: int = Field(ge=0)
+    media_type: str = Field(min_length=1, max_length=255)
 
 
 class ChildRequest(BaseModel):
@@ -16,6 +26,7 @@ class ChildRequest(BaseModel):
     implementation_version: str
     attempt_number: int = Field(ge=1)
     parameters: dict[str, JsonValue]
+    inputs: dict[str, FileInput] = Field(default_factory=dict)
 
 
 class HeartbeatMessage(BaseModel):

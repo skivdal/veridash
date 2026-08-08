@@ -183,7 +183,12 @@ WITH target AS MATERIALIZED (
     JOIN target
         ON target.module_id = cached.module_id
         AND target.implementation_version = cached.implementation_version
+    JOIN analysis_definition AS definition
+        ON definition.module_id = target.module_id
+        AND definition.implementation_version = target.implementation_version
     WHERE
+        COALESCE((definition.manifest->>'cacheable')::BOOLEAN, TRUE)
+        AND
         cached.state = 'succeeded'
         AND cached.cache_key = sqlc.arg(cache_key)
         AND cached.id <> target.id

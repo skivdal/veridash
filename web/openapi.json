@@ -1,6 +1,72 @@
 {
   "components": {
     "schemas": {
+      "AnalysisArtifactResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "json_payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "output_name": {
+            "title": "Output Name",
+            "type": "string"
+          },
+          "schema_id": {
+            "title": "Schema Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "sha256_hex": {
+            "title": "Sha256 Hex",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "output_name",
+          "kind",
+          "sha256_hex",
+          "size_bytes",
+          "media_type",
+          "json_payload",
+          "schema_id",
+          "schema_version",
+          "created_at"
+        ],
+        "title": "AnalysisArtifactResponse",
+        "type": "object"
+      },
       "AnalysisAttemptResponse": {
         "properties": {
           "attempt_number": {
@@ -386,6 +452,7 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "JsonValue": {},
       "LoginRequest": {
         "properties": {
           "password": {
@@ -1342,6 +1409,93 @@
           }
         },
         "summary": "List Project Analyses",
+        "tags": [
+          "analyses"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/analyses/{job_id}/artifacts": {
+      "get": {
+        "operationId": "list_project_analysis_artifacts_api_projects__project_id__analyses__job_id__artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AnalysisArtifactResponse"
+                  },
+                  "title": "Response List Project Analysis Artifacts Api Projects  Project Id  Analyses  Job Id  Artifacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Analysis not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List Project Analysis Artifacts",
         "tags": [
           "analyses"
         ]

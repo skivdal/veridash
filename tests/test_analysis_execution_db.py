@@ -4,15 +4,22 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
+import subprocess
+from collections.abc import AsyncIterator
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
-from veridash_analysis import manifest_document, manifest_hash
+from veridash_analysis import AnalysisRegistry, manifest_document, manifest_hash
+from veridash_analysis.modules import production_manifests
 from veridash_analysis.synthetic import SyntheticAnalysisModule
 from veridash_api.db.sqlc import models as api_models
 from veridash_api.db.sqlc.analyses import AsyncQuerier as ApiAnalysisQuerier
+from veridash_api.services.analyses import list_project_analysis_artifacts
+from veridash_api.services.analysis_plans import create_automatic_analysis_dag
 from veridash_core import ResourceClass
 from veridash_scheduler.config import Settings as SchedulerSettings
 from veridash_scheduler.db.sqlc import models as scheduler_models
@@ -24,6 +31,7 @@ from veridash_scheduler.db.sqlc.analysis import (
     RegisterAnalysisDefinitionParams,
 )
 from veridash_scheduler.reconcile import reconcile_connection, reconcile_once
+from veridash_storage import FilesystemBlobStore
 from veridash_worker.config import Settings as WorkerSettings
 from veridash_worker.db.sqlc import models as worker_models
 from veridash_worker.db.sqlc.attempts import AsyncQuerier as WorkerAttemptQuerier
@@ -92,6 +100,34 @@ async def _create_uploaded_project(connection: AsyncConnection) -> tuple[int, UU
         {"media_id": media_id, "project_id": project_id, "source_hash": source_hash},
     )
     return user_id, project_id, media_id
+
+
+def _tiny_video(path: Path) -> bytes:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None or shutil.which("ffprobe") is None:
+        pytest.skip("ffmpeg and ffprobe are required for probe integration")
+    subprocess.run(
+        (
+            ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=16x16:d=0.2",
+            "-an",
+            "-c:v",
+            "mpeg4",
+            "-y",
+            str(path),
+        ),
+        check=True,
+    )
+    return path.read_bytes()
+
+
+async def _byte_chunks(content: bytes) -> AsyncIterator[bytes]:
+    yield content
 
 
 async def _register_definition(
@@ -779,6 +815,149 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
                         DELETE FROM analysis_definition
                         WHERE module_id = 'synthetic_test'
                             AND implementation_version = '1.0.0'
+                        """
+                    )
+                )
+        await engine.dispose()
+
+
+@pytest.mark.db
+async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    engine = create_async_engine(database_url)
+    store = FilesystemBlobStore(tmp_path / "data")
+    user_id: int | None = None
+    project_id: UUID | None = None
+    try:
+        content = _tiny_video(tmp_path / "probe-source.mp4")
+        async with engine.begin() as connection:
+            user_id, project_id, media_id = await _create_uploaded_project(connection)
+        await store.stage(str(media_id), _byte_chunks(content), max_bytes=len(content) + 1)
+        blob = store.publish(store.staging_path(str(media_id)), media_type="video/mp4")
+        registry = AnalysisRegistry(production_manifests())
+        assert [manifest.module_id for manifest in registry.automatic_plan()] == ["probe_media"]
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    """
+                    UPDATE source_media
+                    SET
+                        size_bytes = :size_bytes,
+                        sha256_hex = :sha256,
+                        blob_key = :sha256
+                    WHERE id = :media_id
+                    """
+                ),
+                {
+                    "media_id": media_id,
+                    "size_bytes": blob.size_bytes,
+                    "sha256": blob.sha256,
+                },
+            )
+            await create_automatic_analysis_dag(
+                connection,
+                registry,
+                project_id=project_id,
+                source_media_id=media_id,
+                source_sha256=blob.sha256,
+            )
+
+        scheduler_settings = SchedulerSettings(database_url=database_url)
+        assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 1
+        worker_settings = WorkerSettings(
+            database_url=database_url,
+            data_root=tmp_path / "data",
+            lease_seconds=30,
+            heartbeat_interval_seconds=0.1,
+        )
+        claim = await claim_once(
+            engine,
+            resource_class=ResourceClass.CPU,
+            worker_id="probe-integration-test",
+            settings=worker_settings,
+        )
+        assert claim is not None
+        assert claim.module_id == "probe_media"
+        outcome = await supervise_attempt(engine, claim, worker_settings)
+        assert outcome.state == "succeeded"
+
+        async with engine.connect() as connection:
+            assert user_id is not None
+            authorized_artifacts = await list_project_analysis_artifacts(
+                connection,
+                user_id=user_id,
+                project_id=project_id,
+                job_id=claim.job_id,
+            )
+            assert len(authorized_artifacts) == 1
+            assert authorized_artifacts[0].schema_id == "veridash.probe_media.raw"
+            artifact = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT artifact.json_payload, artifact.schema_id
+                        FROM analysis_artifact AS artifact
+                        JOIN analysis_job_artifact AS output
+                            ON output.artifact_id = artifact.id
+                        WHERE output.job_id = :job_id AND output.output_name = 'result'
+                        """
+                    ),
+                    {"job_id": claim.job_id},
+                )
+            ).one()
+            assert artifact.schema_id == "veridash.probe_media.raw"
+            assert artifact.json_payload["source_sha256"] == blob.sha256
+            assert any(
+                stream.get("codec_type") == "video"
+                for stream in artifact.json_payload["probe"]["streams"]
+            )
+        assert not (tmp_path / "data" / "scratch" / "attempts" / str(claim.id)).exists()
+    finally:
+        if project_id is not None:
+            async with engine.begin() as connection:
+                for statement in (
+                    "DELETE FROM project_event WHERE project_id = :project_id",
+                    "DELETE FROM project_analysis_result WHERE project_id = :project_id",
+                    """
+                    DELETE FROM analysis_job_artifact
+                    WHERE job_id IN (
+                        SELECT id FROM analysis_job WHERE project_id = :project_id
+                    )
+                    """,
+                    """
+                    DELETE FROM analysis_artifact
+                    WHERE producer_attempt_id IN (
+                        SELECT id FROM analysis_job_attempt WHERE project_id = :project_id
+                    )
+                    """,
+                    """
+                    UPDATE analysis_job
+                    SET
+                        state = 'failed',
+                        winning_attempt_id = NULL,
+                        failure_kind = 'internal_bug',
+                        public_failure_message = 'test cleanup',
+                        finished_at = now()
+                    WHERE project_id = :project_id AND state = 'succeeded'
+                    """,
+                    "DELETE FROM analysis_job WHERE project_id = :project_id",
+                    "DELETE FROM source_media WHERE project_id = :project_id",
+                    "DELETE FROM project WHERE id = :project_id",
+                ):
+                    await connection.execute(text(statement), {"project_id": project_id})
+                if user_id is not None:
+                    await connection.execute(
+                        text("DELETE FROM app_user WHERE id = :user_id"),
+                        {"user_id": user_id},
+                    )
+                await connection.execute(
+                    text(
+                        """
+                        DELETE FROM analysis_definition
+                        WHERE module_id = 'probe_media' AND implementation_version = '1.0.0'
                         """
                     )
                 )

@@ -4,11 +4,13 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import signal
 import sys
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -18,6 +20,7 @@ from veridash_analysis import (
     CHILD_MESSAGE_ADAPTER,
     ChildRequest,
     ErrorMessage,
+    FileInput,
     HeartbeatMessage,
     ModuleManifest,
     ProgressMessage,
@@ -26,6 +29,7 @@ from veridash_analysis import (
 )
 from veridash_analysis.modules import get_builtin_module
 from veridash_core import ArtifactKind, ErrorKind, ResourceClass
+from veridash_storage import FilesystemBlobStore
 
 from veridash_worker.config import Settings
 from veridash_worker.db.sqlc import models
@@ -158,8 +162,24 @@ async def supervise_attempt(
     settings: Settings,
 ) -> AttemptOutcome:
     """Run one child and make its terminal result durable if the lease remains valid."""
+    scratch_directory = settings.data_root / "scratch" / "attempts" / str(claim.id)
     try:
-        request, manifest = _validated_request_and_manifest(claim)
+        inputs = _materialize_inputs(claim, settings, scratch_directory)
+        return await _supervise_child(engine, claim, settings, inputs)
+    except ChildProtocolError as exception:
+        return await _fail_internal(engine, claim, str(exception), "", settings)
+    finally:
+        shutil.rmtree(scratch_directory, ignore_errors=True)
+
+
+async def _supervise_child(
+    engine: AsyncEngine,
+    claim: ClaimReadyAnalysisJobRow,
+    settings: Settings,
+    inputs: dict[str, FileInput],
+) -> AttemptOutcome:
+    try:
+        request, manifest = _validated_request_and_manifest(claim, inputs)
     except ChildProtocolError as exception:
         return await _fail_internal(engine, claim, str(exception), "", settings)
     process = await asyncio.create_subprocess_exec(
@@ -336,6 +356,7 @@ async def supervise_attempt(
 
 def _validated_request_and_manifest(
     claim: ClaimReadyAnalysisJobRow,
+    inputs: dict[str, FileInput],
 ) -> tuple[ChildRequest, ModuleManifest]:
     try:
         persisted = ModuleManifest.model_validate(claim.manifest)
@@ -353,9 +374,46 @@ def _validated_request_and_manifest(
             implementation_version=claim.implementation_version,
             attempt_number=claim.attempt_number,
             parameters=parameters,
+            inputs=inputs,
         ),
         installed,
     )
+
+
+def _materialize_inputs(
+    claim: ClaimReadyAnalysisJobRow,
+    settings: Settings,
+    scratch_directory: Path,
+) -> dict[str, FileInput]:
+    try:
+        module = get_builtin_module(claim.module_id)
+    except KeyError as exception:
+        raise ChildProtocolError("claimed job does not match an installed module") from exception
+    if not module.manifest.requires_source_file:
+        return {}
+    if (
+        claim.source_sha256 is None
+        or claim.source_blob_key != claim.source_sha256
+        or claim.source_size_bytes is None
+        or claim.source_media_type is None
+    ):
+        raise ChildProtocolError("claimed job source has no valid immutable blob identity")
+    scratch_directory.mkdir(mode=0o750, parents=True, exist_ok=False)
+    try:
+        path = FilesystemBlobStore(settings.data_root).materialize(
+            claim.source_sha256,
+            scratch_directory / "source-video",
+        )
+    except (FileNotFoundError, OSError, ValueError) as exception:
+        raise ChildProtocolError("source blob could not be materialized") from exception
+    return {
+        "source_video": FileInput(
+            path=path,
+            sha256=claim.source_sha256,
+            size_bytes=claim.source_size_bytes,
+            media_type=claim.source_media_type,
+        )
+    }
 
 
 def child_environment() -> dict[str, str]:

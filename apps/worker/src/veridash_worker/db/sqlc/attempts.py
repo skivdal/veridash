@@ -104,6 +104,10 @@ WITH candidate AS MATERIALIZED (
         job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key,
         definition.resource_class,
         definition.manifest,
+        source_media.sha256_hex AS source_sha256,
+        source_media.blob_key AS source_blob_key,
+        source_media.size_bytes AS source_size_bytes,
+        source_media.media_type AS source_media_type,
         (
             SELECT count(*) + 1
             FROM analysis_job_attempt AS previous_attempt
@@ -113,6 +117,7 @@ WITH candidate AS MATERIALIZED (
     JOIN analysis_definition AS definition
         ON definition.module_id = job.module_id
         AND definition.implementation_version = job.implementation_version
+    JOIN source_media ON source_media.id = job.source_media_id
     WHERE
         job.state = 'ready'
         AND job.cancel_requested_at IS NULL
@@ -186,7 +191,11 @@ SELECT
     updated_job.cache_key,
     updated_job.source_media_id,
     candidate.resource_class,
-    candidate.manifest
+    candidate.manifest,
+    candidate.source_sha256,
+    candidate.source_blob_key,
+    candidate.source_size_bytes,
+    candidate.source_media_type
 FROM inserted_attempt
 JOIN updated_job ON updated_job.id = inserted_attempt.job_id
 JOIN candidate ON candidate.id = inserted_attempt.job_id
@@ -232,6 +241,10 @@ class ClaimReadyAnalysisJobRow:
     source_media_id: uuid.UUID
     resource_class: models.AnalysisResourceClass
     manifest: Any
+    source_sha256: Optional[str]
+    source_blob_key: Optional[str]
+    source_size_bytes: Optional[int]
+    source_media_type: Optional[str]
 
 
 COMPLETE_ANALYSIS_ATTEMPT = """-- name: complete_analysis_attempt \\:one
@@ -722,6 +735,10 @@ class AsyncQuerier:
             source_media_id=row[25],
             resource_class=row[26],
             manifest=row[27],
+            source_sha256=row[28],
+            source_blob_key=row[29],
+            source_size_bytes=row[30],
+            source_media_type=row[31],
         )
 
     async def complete_analysis_attempt(self, *, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[CompleteAnalysisAttemptRow]:

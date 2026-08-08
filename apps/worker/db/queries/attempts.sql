@@ -4,6 +4,10 @@ WITH candidate AS MATERIALIZED (
         job.*,
         definition.resource_class,
         definition.manifest,
+        source_media.sha256_hex AS source_sha256,
+        source_media.blob_key AS source_blob_key,
+        source_media.size_bytes AS source_size_bytes,
+        source_media.media_type AS source_media_type,
         (
             SELECT count(*) + 1
             FROM analysis_job_attempt AS previous_attempt
@@ -13,6 +17,7 @@ WITH candidate AS MATERIALIZED (
     JOIN analysis_definition AS definition
         ON definition.module_id = job.module_id
         AND definition.implementation_version = job.implementation_version
+    JOIN source_media ON source_media.id = job.source_media_id
     WHERE
         job.state = 'ready'
         AND job.cancel_requested_at IS NULL
@@ -86,7 +91,11 @@ SELECT
     updated_job.cache_key,
     updated_job.source_media_id,
     candidate.resource_class,
-    candidate.manifest
+    candidate.manifest,
+    candidate.source_sha256,
+    candidate.source_blob_key,
+    candidate.source_size_bytes,
+    candidate.source_media_type
 FROM inserted_attempt
 JOIN updated_job ON updated_job.id = inserted_attempt.job_id
 JOIN candidate ON candidate.id = inserted_attempt.job_id;

@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from veridash_api.auth.dependencies import ApiSettings, CurrentSession, MutationSession
 from veridash_api.database import DatabaseConnection, DatabaseEngine
 from veridash_api.errors import ApiProblem
-from veridash_api.models import PROBLEM_RESPONSE, AnalysisJobResponse
+from veridash_api.models import PROBLEM_RESPONSE, AnalysisArtifactResponse, AnalysisJobResponse
 from veridash_api.services import analyses as analysis_service
 from veridash_api.services import events as event_service
 from veridash_api.services.auth import authentication_required_problem, resolve_session
@@ -54,6 +54,28 @@ async def cancel_project_analysis(
     session: MutationSession,
 ) -> AnalysisJobResponse:
     return await analysis_service.cancel_project_analysis(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+        job_id=job_id,
+    )
+
+
+@router.get(
+    "/projects/{project_id}/analyses/{job_id}/artifacts",
+    response_model=list[AnalysisArtifactResponse],
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        404: {**PROBLEM_RESPONSE, "description": "Analysis not found"},
+    },
+)
+async def list_project_analysis_artifacts(
+    project_id: UUID,
+    job_id: UUID,
+    connection: DatabaseConnection,
+    session: CurrentSession,
+) -> list[AnalysisArtifactResponse]:
+    return await analysis_service.list_project_analysis_artifacts(
         connection,
         user_id=session.user_id,
         project_id=project_id,

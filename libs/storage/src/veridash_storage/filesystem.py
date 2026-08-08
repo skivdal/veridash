@@ -108,6 +108,16 @@ class FilesystemBlobStore:
     def exists(self, sha256: str) -> bool:
         return self._blob_path(sha256).is_file()
 
+    def materialize(self, sha256: str, destination: Path) -> Path:
+        """Hard-link an immutable blob to one explicit worker-owned path."""
+        source = self._blob_path(sha256).resolve(strict=True)
+        resolved_parent = destination.parent.resolve(strict=True)
+        resolved_destination = resolved_parent / destination.name
+        if resolved_destination.exists():
+            raise FileExistsError("materialized blob destination already exists")
+        os.link(source, resolved_destination)
+        return resolved_destination
+
     def discard_staging(self, staging_id: str) -> None:
         staging_path = self.staging_path(staging_id)
         if staging_path.is_file():

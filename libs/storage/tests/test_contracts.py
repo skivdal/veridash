@@ -28,6 +28,10 @@ async def test_filesystem_store_stages_publishes_and_deduplicates(tmp_path: Path
     assert store.exists(staged.sha256)
     with store.open(staged.sha256) as content:
         assert content.read() == b"video-bytes"
+    materialized_root = tmp_path / "attempt"
+    materialized_root.mkdir()
+    materialized = store.materialize(staged.sha256, materialized_root / "source")
+    assert materialized.read_bytes() == b"video-bytes"
 
     second_id = str(uuid4())
     await store.stage(second_id, _chunks(b"video-bytes"), max_bytes=100)

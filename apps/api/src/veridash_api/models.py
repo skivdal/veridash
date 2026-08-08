@@ -3,7 +3,7 @@
 import datetime
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -122,6 +122,19 @@ class AnalysisJobResponse(BaseModel):
     created_at: datetime.datetime
     updated_at: datetime.datetime
     attempts: list[AnalysisAttemptResponse]
+
+
+class AnalysisArtifactResponse(BaseModel):
+    id: uuid.UUID
+    output_name: str
+    kind: str
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    json_payload: JsonValue | None
+    schema_id: str
+    schema_version: int
+    created_at: datetime.datetime
 
 
 class ProblemResponse(BaseModel):

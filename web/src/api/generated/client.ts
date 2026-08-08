@@ -24,6 +24,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AnalysisArtifactResponse,
   AnalysisJobResponse,
   CreateProjectRequest,
   HTTPValidationError,
@@ -1259,6 +1260,149 @@ export function useListProjectAnalysesApiProjectsProjectIdAnalysesGet<TData = Aw
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse200 = {
+  data: AnalysisArtifactResponse[]
+  status: 200
+}
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponseSuccess = (listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse200) & {
+  headers: Headers;
+};
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponseError = (listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse401 | listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse404 | listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse422 | listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse500) & {
+  headers: Headers;
+};
+
+export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse = (listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponseSuccess | listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponseError)
+
+export const getListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetUrl = (projectId: string,
+    jobId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/analyses/${jobId}/artifacts`
+}
+
+/**
+ * @summary List Project Analysis Artifacts
+ */
+export const listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet = async (projectId: string,
+    jobId: string, options?: RequestInit): Promise<listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse> => {
+
+  return apiFetch<listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse>(getListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetUrl(projectId,jobId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetQueryKey = (projectId: string,
+    jobId: string,) => {
+    return [
+    `/api/projects/${projectId}/analyses/${jobId}/artifacts`
+    ] as const;
+    }
+
+
+export const getListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetQueryOptions = <TData = Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(projectId: string,
+    jobId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetQueryKey(projectId,jobId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>> = ({ signal }) => listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet(projectId,jobId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined && jobId !== null && jobId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>>
+export type ListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetQueryError = ErrorType<ProblemResponse | HTTPValidationError>
+
+
+export function useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet<TData = Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    jobId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet<TData = Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    jobId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet<TData = Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    jobId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Project Analysis Artifacts
+ */
+
+export function useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet<TData = Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    jobId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetQueryOptions(projectId,jobId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

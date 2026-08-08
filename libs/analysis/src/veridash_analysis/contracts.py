@@ -54,6 +54,7 @@ class ModuleManifest(BaseModel):
     max_attempts: int = Field(default=3, ge=1, le=100)
     priority: int = Field(default=0, ge=-32768, le=32767)
     cacheable: bool = True
+    requires_source_file: bool = False
     fingerprints: tuple[ImplementationFingerprint, ...] = ()
     progress_stages: tuple[ProgressStage, ...] = ()
     outputs: tuple[OutputSpec, ...] = ()

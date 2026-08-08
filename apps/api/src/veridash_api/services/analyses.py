@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from veridash_api.db.sqlc.analyses import AsyncQuerier
 from veridash_api.errors import ApiProblem
-from veridash_api.models import AnalysisAttemptResponse, AnalysisJobResponse
+from veridash_api.models import (
+    AnalysisArtifactResponse,
+    AnalysisAttemptResponse,
+    AnalysisJobResponse,
+)
 from veridash_api.services.projects import get_project
 
 PARAMETER_DOCUMENT = TypeAdapter(dict[str, object])
@@ -106,3 +110,29 @@ async def cancel_project_analysis(
         if analysis.id == job_id:
             return analysis
     raise RuntimeError("canceled analysis disappeared from its project snapshot")
+
+
+async def list_project_analysis_artifacts(
+    connection: AsyncConnection,
+    *,
+    user_id: int,
+    project_id: UUID,
+    job_id: UUID,
+) -> list[AnalysisArtifactResponse]:
+    await get_project(connection, user_id=user_id, project_id=project_id)
+    queries = AsyncQuerier(connection)
+    job = await queries.get_analysis_job(job_id=job_id, user_id=user_id)
+    if job is None or job.project_id != project_id:
+        raise ApiProblem(
+            status=404,
+            code="analysis_job_not_found",
+            title="Analysis not found",
+            detail="The requested analysis does not exist.",
+        )
+    return [
+        AnalysisArtifactResponse.model_validate(artifact, from_attributes=True)
+        async for artifact in queries.list_analysis_job_artifacts(
+            job_id=job_id,
+            user_id=user_id,
+        )
+    ]

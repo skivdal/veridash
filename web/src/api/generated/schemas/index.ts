@@ -5,12 +5,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './analysisArtifactResponse';
 export * from './analysisAttemptResponse';
 export * from './analysisJobResponse';
 export * from './analysisJobResponseParameters';
 export * from './createProjectRequest';
 export * from './healthResponse';
 export * from './hTTPValidationError';
+export * from './jsonValue';
 export * from './loginRequest';
 export * from './problemResponse';
 export * from './projectResponse';

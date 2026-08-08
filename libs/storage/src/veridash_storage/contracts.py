@@ -36,6 +36,8 @@ class BlobStore(Protocol):
 
     def exists(self, sha256: str) -> bool: ...
 
+    def materialize(self, sha256: str, destination: Path) -> Path: ...
+
 
 class UploadBlobStore(BlobStore, Protocol):
     """Blob storage plus durable, replaceable upload staging."""

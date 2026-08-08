@@ -402,6 +402,15 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             )
             assert cancel_again.status_code == 200
             assert cancel_again.json()["finished_at"] == canceled_job["finished_at"]
+            artifacts = await client.get(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/artifacts"
+            )
+            assert artifacts.status_code == 200
+            assert artifacts.json() == []
+            wrong_project_artifacts = await client.get(
+                f"/api/projects/{other_project_id}/analyses/{derived_job['id']}/artifacts"
+            )
+            assert wrong_project_artifacts.status_code == 404
 
             event_stream = await client.get(f"/api/projects/{project['id']}/events?after=0")
             assert event_stream.status_code == 200

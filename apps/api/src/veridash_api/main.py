@@ -7,6 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from veridash_analysis import AnalysisRegistry
+from veridash_analysis.modules import production_manifests
 from veridash_storage import FilesystemBlobStore, UploadBlobStore
 
 from veridash_api.config import Settings
@@ -28,7 +29,7 @@ def create_app(
 ) -> FastAPI:
     """Create an API instance; external connections begin only in ASGI lifespan."""
     resolved_settings = settings or Settings()
-    resolved_analysis_registry = analysis_registry or AnalysisRegistry(())
+    resolved_analysis_registry = analysis_registry or AnalysisRegistry(production_manifests())
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
