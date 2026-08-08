@@ -44,6 +44,18 @@ class RenameProjectRequest(BaseModel):
         return normalized
 
 
+class SaveProjectNoteRequest(BaseModel):
+    body: str = Field(max_length=100_000)
+    expected_revision: int = Field(ge=0)
+
+
+class ProjectNoteResponse(BaseModel):
+    project_id: uuid.UUID
+    body: str
+    revision: int
+    updated_at: datetime.datetime
+
+
 class ReserveSourceMediaRequest(BaseModel):
     original_filename: str = Field(min_length=1, max_length=512)
 

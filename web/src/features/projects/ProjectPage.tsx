@@ -22,6 +22,7 @@ import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
 import { FramesCard } from "./FramesCard";
 import { MapCard } from "./MapCard";
 import { MetadataCard } from "./MetadataCard";
+import { NotesCard } from "./NotesCard";
 import { useProjectEvents } from "./projectEvents";
 
 const modulePlaceholders = [
@@ -386,18 +387,10 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
               onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
             />
           ))}
-          <article className="analysis-card notes-card">
-            <div className="analysis-card-heading">
-              <h2>Notes</h2>
-              <span className="status-pill status-pill-human">
-                Journalist authored
-              </span>
-            </div>
-            <p>
-              Your project notes will be saved separately from machine-produced
-              results.
-            </p>
-          </article>
+          <NotesCard
+            projectId={projectId}
+            readOnly={projectData.state === "archived"}
+          />
         </section>
       </main>
     </div>

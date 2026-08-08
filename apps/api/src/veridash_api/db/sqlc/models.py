@@ -218,6 +218,15 @@ class ProjectEvent:
 
 
 @dataclasses.dataclass()
+class ProjectNote:
+    project_id: uuid.UUID
+    body: str
+    revision: int
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+@dataclasses.dataclass()
 class SourceMedium:
     id: uuid.UUID
     project_id: uuid.UUID

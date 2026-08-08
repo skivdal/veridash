@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from veridash_api.db.sqlc import models as database_models
-from veridash_api.db.sqlc.projects import AsyncQuerier
+from veridash_api.db.sqlc.projects import AsyncQuerier, GetProjectNoteRow, SaveProjectNoteRow
 from veridash_api.errors import ApiProblem
 
 
@@ -93,3 +93,43 @@ async def restore_project(
     if project is None:
         raise project_not_found_problem()
     return project
+
+
+async def get_project_note(
+    connection: AsyncConnection,
+    *,
+    user_id: int,
+    project_id: UUID,
+) -> GetProjectNoteRow:
+    note = await AsyncQuerier(connection).get_project_note(
+        project_id=project_id,
+        user_id=user_id,
+    )
+    if note is None:
+        raise project_not_found_problem()
+    return note
+
+
+async def save_project_note(
+    connection: AsyncConnection,
+    *,
+    user_id: int,
+    project_id: UUID,
+    body: str,
+    expected_revision: int,
+) -> SaveProjectNoteRow:
+    note = await AsyncQuerier(connection).save_project_note(
+        body=body,
+        expected_revision=expected_revision,
+        project_id=project_id,
+        user_id=user_id,
+    )
+    if note is not None:
+        return note
+    await get_project(connection, user_id=user_id, project_id=project_id)
+    raise ApiProblem(
+        status=409,
+        code="note_revision_conflict",
+        title="Notes changed",
+        detail="Reload the saved notes before editing further.",
+    )

@@ -152,9 +152,10 @@ describe("projects routing", () => {
 
   it("shows timestamped immutable frames and opens the review surface", async () => {
     let retryRequested = false;
+    let savedNoteBody: string | undefined;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url === "/api/auth/me") {
           return jsonResponse({ user: { id: 1, username: "journalist" } });
@@ -272,6 +273,27 @@ describe("projects routing", () => {
             },
           ]);
         }
+        if (url === "/api/projects/project-id/note") {
+          if (init?.method === "PUT") {
+            const request = JSON.parse(String(init.body)) as {
+              body: string;
+              expected_revision: number;
+            };
+            savedNoteBody = request.body;
+            return jsonResponse({
+              project_id: "project-id",
+              body: request.body,
+              revision: request.expected_revision + 1,
+              updated_at: "2026-08-08T12:00:04Z",
+            });
+          }
+          return jsonResponse({
+            project_id: "project-id",
+            body: "Initial verification note",
+            revision: 1,
+            updated_at: "2026-08-08T12:00:03Z",
+          });
+        }
         if (url === "/api/projects/project-id/analyses/metadata-job/retry") {
           retryRequested = true;
           return jsonResponse({});
@@ -365,6 +387,19 @@ describe("projects routing", () => {
         .getByRole("link", { name: "Open Google Street View" })
         .getAttribute("href"),
     ).toContain("map_action=pano");
+    const notes = screen.getByRole("textbox", { name: "Project notes" });
+    expect((notes as HTMLTextAreaElement).value).toBe(
+      "Initial verification note",
+    );
+    fireEvent.change(notes, {
+      target: { value: "Saved journalist observation" },
+    });
+    await waitFor(
+      () => expect(savedNoteBody).toBe("Saved journalist observation"),
+      {
+        timeout: 2_000,
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Retry analysis" }));
     await waitFor(() => expect(retryRequested).toBe(true));
   });

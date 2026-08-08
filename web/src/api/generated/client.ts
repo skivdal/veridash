@@ -31,9 +31,11 @@ import type {
   HealthResponse,
   LoginRequest,
   ProblemResponse,
+  ProjectNoteResponse,
   ProjectResponse,
   RenameProjectRequest,
   ReserveSourceMediaRequest,
+  SaveProjectNoteRequest,
   SessionResponse,
   SourceMediaResponse,
   StreamProjectEventsApiProjectsProjectIdEventsGetParams
@@ -2312,6 +2314,257 @@ export const useReserveSourceMediaApiProjectsProjectIdMediaPost = <TError = Erro
         TContext
       > => {
       return useMutation(getReserveSourceMediaApiProjectsProjectIdMediaPostMutationOptions(options), queryClient);
+    }
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponse200 = {
+  data: ProjectNoteResponse
+  status: 200
+}
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponseSuccess = (getProjectNoteApiProjectsProjectIdNoteGetResponse200) & {
+  headers: Headers;
+};
+export type getProjectNoteApiProjectsProjectIdNoteGetResponseError = (getProjectNoteApiProjectsProjectIdNoteGetResponse401 | getProjectNoteApiProjectsProjectIdNoteGetResponse404 | getProjectNoteApiProjectsProjectIdNoteGetResponse422 | getProjectNoteApiProjectsProjectIdNoteGetResponse500) & {
+  headers: Headers;
+};
+
+export type getProjectNoteApiProjectsProjectIdNoteGetResponse = (getProjectNoteApiProjectsProjectIdNoteGetResponseSuccess | getProjectNoteApiProjectsProjectIdNoteGetResponseError)
+
+export const getGetProjectNoteApiProjectsProjectIdNoteGetUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/note`
+}
+
+/**
+ * @summary Get Project Note
+ */
+export const getProjectNoteApiProjectsProjectIdNoteGet = async (projectId: string, options?: RequestInit): Promise<getProjectNoteApiProjectsProjectIdNoteGetResponse> => {
+
+  return apiFetch<getProjectNoteApiProjectsProjectIdNoteGetResponse>(getGetProjectNoteApiProjectsProjectIdNoteGetUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectNoteApiProjectsProjectIdNoteGetQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/note`
+    ] as const;
+    }
+
+
+export const getGetProjectNoteApiProjectsProjectIdNoteGetQueryOptions = <TData = Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectNoteApiProjectsProjectIdNoteGetQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>> = ({ signal }) => getProjectNoteApiProjectsProjectIdNoteGet(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetProjectNoteApiProjectsProjectIdNoteGetQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>>
+export type GetProjectNoteApiProjectsProjectIdNoteGetQueryError = ErrorType<ProblemResponse | HTTPValidationError>
+
+
+export function useGetProjectNoteApiProjectsProjectIdNoteGet<TData = Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProjectNoteApiProjectsProjectIdNoteGet<TData = Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProjectNoteApiProjectsProjectIdNoteGet<TData = Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Project Note
+ */
+
+export function useGetProjectNoteApiProjectsProjectIdNoteGet<TData = Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectNoteApiProjectsProjectIdNoteGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetProjectNoteApiProjectsProjectIdNoteGetQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse200 = {
+  data: ProjectNoteResponse
+  status: 200
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponseSuccess = (saveProjectNoteApiProjectsProjectIdNotePutResponse200) & {
+  headers: Headers;
+};
+export type saveProjectNoteApiProjectsProjectIdNotePutResponseError = (saveProjectNoteApiProjectsProjectIdNotePutResponse401 | saveProjectNoteApiProjectsProjectIdNotePutResponse403 | saveProjectNoteApiProjectsProjectIdNotePutResponse404 | saveProjectNoteApiProjectsProjectIdNotePutResponse409 | saveProjectNoteApiProjectsProjectIdNotePutResponse422 | saveProjectNoteApiProjectsProjectIdNotePutResponse500) & {
+  headers: Headers;
+};
+
+export type saveProjectNoteApiProjectsProjectIdNotePutResponse = (saveProjectNoteApiProjectsProjectIdNotePutResponseSuccess | saveProjectNoteApiProjectsProjectIdNotePutResponseError)
+
+export const getSaveProjectNoteApiProjectsProjectIdNotePutUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/note`
+}
+
+/**
+ * @summary Save Project Note
+ */
+export const saveProjectNoteApiProjectsProjectIdNotePut = async (projectId: string,
+    saveProjectNoteRequest: SaveProjectNoteRequest, options?: RequestInit): Promise<saveProjectNoteApiProjectsProjectIdNotePutResponse> => {
+
+  return apiFetch<saveProjectNoteApiProjectsProjectIdNotePutResponse>(getSaveProjectNoteApiProjectsProjectIdNotePutUrl(projectId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveProjectNoteRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveProjectNoteApiProjectsProjectIdNotePutMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveProjectNoteApiProjectsProjectIdNotePut>>, TError,{projectId: string;data: BodyType<SaveProjectNoteRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveProjectNoteApiProjectsProjectIdNotePut>>, TError,{projectId: string;data: BodyType<SaveProjectNoteRequest>}, TContext> => {
+
+const mutationKey = ['saveProjectNoteApiProjectsProjectIdNotePut'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveProjectNoteApiProjectsProjectIdNotePut>>, {projectId: string;data: BodyType<SaveProjectNoteRequest>}> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  saveProjectNoteApiProjectsProjectIdNotePut(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveProjectNoteApiProjectsProjectIdNotePutMutationResult = NonNullable<Awaited<ReturnType<typeof saveProjectNoteApiProjectsProjectIdNotePut>>>
+    export type SaveProjectNoteApiProjectsProjectIdNotePutMutationBody = BodyType<SaveProjectNoteRequest>
+    export type SaveProjectNoteApiProjectsProjectIdNotePutMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Save Project Note
+ */
+export const useSaveProjectNoteApiProjectsProjectIdNotePut = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveProjectNoteApiProjectsProjectIdNotePut>>, TError,{projectId: string;data: BodyType<SaveProjectNoteRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveProjectNoteApiProjectsProjectIdNotePut>>,
+        TError,
+        {projectId: string;data: BodyType<SaveProjectNoteRequest>},
+        TContext
+      > => {
+      return useMutation(getSaveProjectNoteApiProjectsProjectIdNotePutMutationOptions(options), queryClient);
     }
 
 export type restoreProjectApiProjectsProjectIdRestorePostResponse200 = {

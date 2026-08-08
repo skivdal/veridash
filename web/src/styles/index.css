@@ -559,8 +559,41 @@ h2 {
 }
 
 .notes-card {
+  grid-column: span 2;
   border-color: #e6d8b8;
   background: #fffdf7;
+}
+
+.notes-editor {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  margin-top: 18px;
+  border: 1px solid #d9cba8;
+  border-radius: 12px;
+  background: white;
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.55;
+  padding: 14px;
+}
+
+.notes-editor:focus {
+  border-color: var(--color-primary);
+  outline: 3px solid rgb(0 101 244 / 14%);
+}
+
+.notes-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--color-muted);
+}
+
+.notes-footer [role="alert"] {
+  color: var(--color-danger);
 }
 
 .source-media-card {

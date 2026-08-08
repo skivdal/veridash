@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import {
   getGetProjectApiProjectsProjectIdGetQueryKey,
+  getGetProjectNoteApiProjectsProjectIdNoteGetQueryKey,
   getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryKey,
   getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey,
 } from "../../api/generated/client";
@@ -62,6 +63,12 @@ export function useProjectEvents(
       if (eventType === undefined || eventType.startsWith("project.")) {
         void queryClient.invalidateQueries({
           queryKey: getGetProjectApiProjectsProjectIdGetQueryKey(projectId),
+        });
+      }
+      if (eventType === undefined || eventType === "project.note_updated") {
+        void queryClient.invalidateQueries({
+          queryKey:
+            getGetProjectNoteApiProjectsProjectIdNoteGetQueryKey(projectId),
         });
       }
     });

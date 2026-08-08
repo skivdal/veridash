@@ -2,6 +2,8 @@
 # versions:
 #   sqlc v1.31.1
 # source: projects.sql
+import dataclasses
+import datetime
 from typing import AsyncIterator, Optional
 import uuid
 
@@ -37,6 +39,27 @@ LIMIT 1
 """
 
 
+GET_PROJECT_NOTE = """-- name: get_project_note \\:one
+SELECT
+    project.id AS project_id,
+    COALESCE(note.body, '') AS body,
+    COALESCE(note.revision, 0)\\:\\:BIGINT AS revision,
+    COALESCE(note.updated_at, project.created_at) AS updated_at
+FROM project
+LEFT JOIN project_note AS note ON note.project_id = project.id
+WHERE project.id = :p1 AND project.user_id = :p2
+LIMIT 1
+"""
+
+
+@dataclasses.dataclass()
+class GetProjectNoteRow:
+    project_id: uuid.UUID
+    body: str
+    revision: int
+    updated_at: datetime.datetime
+
+
 LIST_PROJECTS = """-- name: list_projects \\:many
 SELECT id, user_id, title, state, created_at, updated_at, archived_at
 FROM project
@@ -62,6 +85,57 @@ SET
 WHERE id = :p1 AND user_id = :p2
 RETURNING id, user_id, title, state, created_at, updated_at, archived_at
 """
+
+
+SAVE_PROJECT_NOTE = """-- name: save_project_note \\:one
+WITH authorized AS (
+    SELECT project.id
+    FROM project
+    WHERE project.id = :p1 AND project.user_id = :p2
+), saved AS (
+    INSERT INTO project_note (project_id, body, revision)
+    SELECT authorized.id, :p3, 1
+    FROM authorized
+    WHERE
+        :p4\\:\\:BIGINT = 0
+        OR EXISTS (
+            SELECT 1
+            FROM project_note AS current_note
+            WHERE
+                current_note.project_id = authorized.id
+                AND current_note.revision = :p4
+        )
+    ON CONFLICT (project_id) DO UPDATE
+    SET
+        body = EXCLUDED.body,
+        revision = project_note.revision + 1,
+        updated_at = now()
+    WHERE project_note.revision = :p4
+    RETURNING project_id, body, revision, updated_at
+), touched_project AS (
+    UPDATE project
+    SET updated_at = saved.updated_at
+    FROM saved
+    WHERE project.id = saved.project_id
+), event AS (
+    INSERT INTO project_event (project_id, event_type, source, payload)
+    SELECT
+        saved.project_id,
+        'project.note_updated',
+        'user',
+        jsonb_build_object('revision', saved.revision)
+    FROM saved
+)
+SELECT project_id, body, revision, updated_at FROM saved
+"""
+
+
+@dataclasses.dataclass()
+class SaveProjectNoteRow:
+    project_id: uuid.UUID
+    body: str
+    revision: int
+    updated_at: datetime.datetime
 
 
 class AsyncQuerier:
@@ -110,6 +184,17 @@ class AsyncQuerier:
             archived_at=row[6],
         )
 
+    async def get_project_note(self, *, project_id: uuid.UUID, user_id: int) -> Optional[GetProjectNoteRow]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_PROJECT_NOTE), {"p1": project_id, "p2": user_id})).first()
+        if row is None:
+            return None
+        return GetProjectNoteRow(
+            project_id=row[0],
+            body=row[1],
+            revision=row[2],
+            updated_at=row[3],
+        )
+
     async def list_projects(self, *, user_id: int) -> AsyncIterator[models.Project]:
         result = await self._conn.stream(sqlalchemy.text(LIST_PROJECTS), {"p1": user_id})
         async for row in result:
@@ -149,4 +234,20 @@ class AsyncQuerier:
             created_at=row[4],
             updated_at=row[5],
             archived_at=row[6],
+        )
+
+    async def save_project_note(self, *, project_id: uuid.UUID, user_id: int, body: str, expected_revision: int) -> Optional[SaveProjectNoteRow]:
+        row = (await self._conn.execute(sqlalchemy.text(SAVE_PROJECT_NOTE), {
+            "p1": project_id,
+            "p2": user_id,
+            "p3": body,
+            "p4": expected_revision,
+        })).first()
+        if row is None:
+            return None
+        return SaveProjectNoteRow(
+            project_id=row[0],
+            body=row[1],
+            revision=row[2],
+            updated_at=row[3],
         )

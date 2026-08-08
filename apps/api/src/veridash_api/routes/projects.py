@@ -10,8 +10,10 @@ from veridash_api.database import DatabaseConnection
 from veridash_api.models import (
     PROBLEM_RESPONSE,
     CreateProjectRequest,
+    ProjectNoteResponse,
     ProjectResponse,
     RenameProjectRequest,
+    SaveProjectNoteRequest,
 )
 from veridash_api.services import projects as project_service
 
@@ -74,6 +76,54 @@ async def get_project(
         project_id=project_id,
     )
     return ProjectResponse.model_validate(project)
+
+
+@router.get(
+    "/{project_id}/note",
+    response_model=ProjectNoteResponse,
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        404: {**PROBLEM_RESPONSE, "description": "Project not found"},
+    },
+)
+async def get_project_note(
+    project_id: UUID,
+    connection: DatabaseConnection,
+    session: CurrentSession,
+) -> ProjectNoteResponse:
+    note = await project_service.get_project_note(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+    )
+    return ProjectNoteResponse.model_validate(note, from_attributes=True)
+
+
+@router.put(
+    "/{project_id}/note",
+    response_model=ProjectNoteResponse,
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        403: {**PROBLEM_RESPONSE, "description": "CSRF check failed"},
+        404: {**PROBLEM_RESPONSE, "description": "Project not found"},
+        409: {**PROBLEM_RESPONSE, "description": "Note revision conflict"},
+        422: {**PROBLEM_RESPONSE, "description": "Invalid request"},
+    },
+)
+async def save_project_note(
+    project_id: UUID,
+    payload: SaveProjectNoteRequest,
+    connection: DatabaseConnection,
+    session: MutationSession,
+) -> ProjectNoteResponse:
+    note = await project_service.save_project_note(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+        body=payload.body,
+        expected_revision=payload.expected_revision,
+    )
+    return ProjectNoteResponse.model_validate(note, from_attributes=True)
 
 
 PROJECT_MUTATION_RESPONSES: dict[int | str, dict[str, Any]] = {
