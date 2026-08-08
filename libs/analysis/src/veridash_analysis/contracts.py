@@ -76,6 +76,9 @@ class ModuleManifest(BaseModel):
 class RunContext(Protocol):
     """Execution services supplied by the worker wrapper."""
 
+    @property
+    def attempt_number(self) -> int: ...
+
     def heartbeat(self) -> None: ...
 
     def report_progress(
@@ -94,6 +97,7 @@ class AnalysisModule(Protocol):
     """Interface implemented by independently testable analysis kernels."""
 
     manifest: ModuleManifest
+    parameter_model: type[BaseModel]
 
     def run(
         self,

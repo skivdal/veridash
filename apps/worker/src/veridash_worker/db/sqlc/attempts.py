@@ -18,6 +18,7 @@ WITH candidate AS MATERIALIZED (
     SELECT
         job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key,
         definition.resource_class,
+        definition.manifest,
         (
             SELECT count(*) + 1
             FROM analysis_job_attempt AS previous_attempt
@@ -99,7 +100,8 @@ SELECT
     updated_job.request_key,
     updated_job.cache_key,
     updated_job.source_media_id,
-    candidate.resource_class
+    candidate.resource_class,
+    candidate.manifest
 FROM inserted_attempt
 JOIN updated_job ON updated_job.id = inserted_attempt.job_id
 JOIN candidate ON candidate.id = inserted_attempt.job_id
@@ -144,6 +146,7 @@ class ClaimReadyAnalysisJobRow:
     cache_key: Optional[str]
     source_media_id: uuid.UUID
     resource_class: models.AnalysisResourceClass
+    manifest: Any
 
 
 COMPLETE_ANALYSIS_ATTEMPT = """-- name: complete_analysis_attempt \\:one
@@ -265,19 +268,19 @@ WITH eligible AS MATERIALIZED (
     UPDATE analysis_job AS job
     SET
         state = CASE
-            WHEN :p7\\:\\:TIMESTAMPTZ IS NOT NULL
+            WHEN :p7\\:\\:INT IS NOT NULL
                 AND eligible.attempt_number < eligible.max_attempts
             THEN 'retry_wait'\\:\\:analysis_job_state
             ELSE 'failed'\\:\\:analysis_job_state
         END,
         next_attempt_at = CASE
-            WHEN :p7\\:\\:TIMESTAMPTZ IS NOT NULL
+            WHEN :p7\\:\\:INT IS NOT NULL
                 AND eligible.attempt_number < eligible.max_attempts
-            THEN :p7\\:\\:TIMESTAMPTZ
+            THEN now() + make_interval(secs => :p7\\:\\:INT)
             ELSE NULL
         END,
         finished_at = CASE
-            WHEN :p7\\:\\:TIMESTAMPTZ IS NOT NULL
+            WHEN :p7\\:\\:INT IS NOT NULL
                 AND eligible.attempt_number < eligible.max_attempts
             THEN NULL
             ELSE now()
@@ -327,7 +330,7 @@ class FailAnalysisAttemptParams:
     public_error_message: Optional[str]
     diagnostic_id: Optional[uuid.UUID]
     diagnostic_details: Optional[Any]
-    next_attempt_at: Optional[datetime.datetime]
+    retry_delay_seconds: Optional[int]
 
 
 @dataclasses.dataclass()
@@ -355,6 +358,81 @@ class FailAnalysisAttemptRow:
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
     cache_key: Optional[str]
+
+
+PUBLISH_JSON_ANALYSIS_ARTIFACT = """-- name: publish_json_analysis_artifact \\:one
+WITH eligible AS MATERIALIZED (
+    SELECT attempt.id, attempt.job_id
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.id = :p1
+        AND attempt.lease_token = :p2
+        AND attempt.state = 'running'
+        AND job.state = 'running'
+    FOR UPDATE OF attempt, job
+), artifact AS (
+    INSERT INTO analysis_artifact (
+        id,
+        producer_attempt_id,
+        kind,
+        sha256_hex,
+        size_bytes,
+        media_type,
+        json_payload,
+        schema_id,
+        schema_version
+    )
+    SELECT
+        :p3,
+        eligible.id,
+        'json',
+        :p4,
+        :p5,
+        :p6,
+        :p7\\:\\:JSONB,
+        :p8,
+        :p9
+    FROM eligible
+    RETURNING id, producer_attempt_id, kind, sha256_hex, size_bytes, media_type, blob_key, json_payload, schema_id, schema_version, created_at
+), output AS (
+    INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+    SELECT eligible.job_id, artifact.id, :p10
+    FROM artifact
+    JOIN eligible ON eligible.id = artifact.producer_attempt_id
+    RETURNING job_id
+)
+SELECT artifact.id, artifact.producer_attempt_id, artifact.kind, artifact.sha256_hex, artifact.size_bytes, artifact.media_type, artifact.blob_key, artifact.json_payload, artifact.schema_id, artifact.schema_version, artifact.created_at FROM artifact JOIN output ON TRUE
+"""
+
+
+@dataclasses.dataclass()
+class PublishJsonAnalysisArtifactParams:
+    attempt_id: uuid.UUID
+    lease_token: uuid.UUID
+    artifact_id: uuid.UUID
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    json_payload: Any
+    schema_id: str
+    schema_version: int
+    output_name: str
+
+
+@dataclasses.dataclass()
+class PublishJsonAnalysisArtifactRow:
+    id: uuid.UUID
+    producer_attempt_id: uuid.UUID
+    kind: models.AnalysisArtifactKind
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    blob_key: Optional[str]
+    json_payload: Optional[Any]
+    schema_id: str
+    schema_version: int
+    created_at: datetime.datetime
 
 
 RENEW_ANALYSIS_ATTEMPT_LEASE = """-- name: renew_analysis_attempt_lease \\:one
@@ -492,6 +570,7 @@ class AsyncQuerier:
             cache_key=row[24],
             source_media_id=row[25],
             resource_class=row[26],
+            manifest=row[27],
         )
 
     async def complete_analysis_attempt(self, *, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[CompleteAnalysisAttemptRow]:
@@ -532,7 +611,7 @@ class AsyncQuerier:
             "p4": arg.public_error_message,
             "p5": arg.diagnostic_id,
             "p6": arg.diagnostic_details,
-            "p7": arg.next_attempt_at,
+            "p7": arg.retry_delay_seconds,
         })).first()
         if row is None:
             return None
@@ -560,6 +639,35 @@ class AsyncQuerier:
             updated_at=row[20],
             winning_attempt_id=row[21],
             cache_key=row[22],
+        )
+
+    async def publish_json_analysis_artifact(self, arg: PublishJsonAnalysisArtifactParams) -> Optional[PublishJsonAnalysisArtifactRow]:
+        row = (await self._conn.execute(sqlalchemy.text(PUBLISH_JSON_ANALYSIS_ARTIFACT), {
+            "p1": arg.attempt_id,
+            "p2": arg.lease_token,
+            "p3": arg.artifact_id,
+            "p4": arg.sha256_hex,
+            "p5": arg.size_bytes,
+            "p6": arg.media_type,
+            "p7": arg.json_payload,
+            "p8": arg.schema_id,
+            "p9": arg.schema_version,
+            "p10": arg.output_name,
+        })).first()
+        if row is None:
+            return None
+        return PublishJsonAnalysisArtifactRow(
+            id=row[0],
+            producer_attempt_id=row[1],
+            kind=row[2],
+            sha256_hex=row[3],
+            size_bytes=row[4],
+            media_type=row[5],
+            blob_key=row[6],
+            json_payload=row[7],
+            schema_id=row[8],
+            schema_version=row[9],
+            created_at=row[10],
         )
 
     async def renew_analysis_attempt_lease(self, *, lease_seconds: int, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[models.AnalysisJobAttempt]:

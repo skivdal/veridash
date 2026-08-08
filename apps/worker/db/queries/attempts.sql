@@ -3,6 +3,7 @@ WITH candidate AS MATERIALIZED (
     SELECT
         job.*,
         definition.resource_class,
+        definition.manifest,
         (
             SELECT count(*) + 1
             FROM analysis_job_attempt AS previous_attempt
@@ -84,7 +85,8 @@ SELECT
     updated_job.request_key,
     updated_job.cache_key,
     updated_job.source_media_id,
-    candidate.resource_class
+    candidate.resource_class,
+    candidate.manifest
 FROM inserted_attempt
 JOIN updated_job ON updated_job.id = inserted_attempt.job_id
 JOIN candidate ON candidate.id = inserted_attempt.job_id;
@@ -201,6 +203,50 @@ WITH eligible AS MATERIALIZED (
 )
 SELECT * FROM updated_job;
 
+-- name: PublishJsonAnalysisArtifact :one
+WITH eligible AS MATERIALIZED (
+    SELECT attempt.id, attempt.job_id
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.id = sqlc.arg(attempt_id)
+        AND attempt.lease_token = sqlc.arg(lease_token)
+        AND attempt.state = 'running'
+        AND job.state = 'running'
+    FOR UPDATE OF attempt, job
+), artifact AS (
+    INSERT INTO analysis_artifact (
+        id,
+        producer_attempt_id,
+        kind,
+        sha256_hex,
+        size_bytes,
+        media_type,
+        json_payload,
+        schema_id,
+        schema_version
+    )
+    SELECT
+        sqlc.arg(artifact_id),
+        eligible.id,
+        'json',
+        sqlc.arg(sha256_hex),
+        sqlc.arg(size_bytes),
+        sqlc.arg(media_type),
+        sqlc.arg(json_payload)::JSONB,
+        sqlc.arg(schema_id),
+        sqlc.arg(schema_version)
+    FROM eligible
+    RETURNING *
+), output AS (
+    INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+    SELECT eligible.job_id, artifact.id, sqlc.arg(output_name)
+    FROM artifact
+    JOIN eligible ON eligible.id = artifact.producer_attempt_id
+    RETURNING job_id
+)
+SELECT artifact.* FROM artifact JOIN output ON TRUE;
+
 -- name: FailAnalysisAttempt :one
 WITH eligible AS MATERIALIZED (
     SELECT
@@ -233,19 +279,19 @@ WITH eligible AS MATERIALIZED (
     UPDATE analysis_job AS job
     SET
         state = CASE
-            WHEN sqlc.narg(next_attempt_at)::TIMESTAMPTZ IS NOT NULL
+            WHEN sqlc.narg(retry_delay_seconds)::INT IS NOT NULL
                 AND eligible.attempt_number < eligible.max_attempts
             THEN 'retry_wait'::analysis_job_state
             ELSE 'failed'::analysis_job_state
         END,
         next_attempt_at = CASE
-            WHEN sqlc.narg(next_attempt_at)::TIMESTAMPTZ IS NOT NULL
+            WHEN sqlc.narg(retry_delay_seconds)::INT IS NOT NULL
                 AND eligible.attempt_number < eligible.max_attempts
-            THEN sqlc.narg(next_attempt_at)::TIMESTAMPTZ
+            THEN now() + make_interval(secs => sqlc.narg(retry_delay_seconds)::INT)
             ELSE NULL
         END,
         finished_at = CASE
-            WHEN sqlc.narg(next_attempt_at)::TIMESTAMPTZ IS NOT NULL
+            WHEN sqlc.narg(retry_delay_seconds)::INT IS NOT NULL
                 AND eligible.attempt_number < eligible.max_attempts
             THEN NULL
             ELSE now()

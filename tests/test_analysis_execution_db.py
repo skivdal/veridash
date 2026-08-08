@@ -3,14 +3,16 @@
 import hashlib
 import json
 import os
-from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
+from veridash_analysis import manifest_document, manifest_hash
+from veridash_analysis.synthetic import SyntheticAnalysisModule
 from veridash_api.db.sqlc import models as api_models
 from veridash_api.db.sqlc.analyses import AsyncQuerier as ApiAnalysisQuerier
+from veridash_core import ResourceClass
 from veridash_scheduler.config import Settings as SchedulerSettings
 from veridash_scheduler.db.sqlc import models as scheduler_models
 from veridash_scheduler.db.sqlc.analysis import (
@@ -20,7 +22,8 @@ from veridash_scheduler.db.sqlc.analysis import (
     CreateAnalysisJobParams,
     RegisterAnalysisDefinitionParams,
 )
-from veridash_scheduler.reconcile import reconcile_connection
+from veridash_scheduler.reconcile import reconcile_connection, reconcile_once
+from veridash_worker.config import Settings as WorkerSettings
 from veridash_worker.db.sqlc import models as worker_models
 from veridash_worker.db.sqlc.attempts import AsyncQuerier as WorkerAttemptQuerier
 from veridash_worker.db.sqlc.attempts import (
@@ -28,6 +31,7 @@ from veridash_worker.db.sqlc.attempts import (
     FailAnalysisAttemptParams,
     ReportAnalysisAttemptProgressParams,
 )
+from veridash_worker.supervisor import claim_once, supervise_attempt
 
 
 async def _create_uploaded_project(connection: AsyncConnection) -> tuple[int, UUID, UUID]:
@@ -263,13 +267,6 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             )
             assert stale_progress is None
 
-            completed_probe = await worker.complete_analysis_attempt(
-                attempt_id=first_attempt_id,
-                lease_token=first_lease_token,
-            )
-            assert completed_probe is not None
-            assert completed_probe.state == worker_models.AnalysisJobState.SUCCEEDED
-
             artifact_id = uuid4()
             await connection.execute(
                 text(
@@ -313,6 +310,13 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 ),
                 {"job_id": probe_job_id, "artifact_id": artifact_id},
             )
+
+            completed_probe = await worker.complete_analysis_attempt(
+                attempt_id=first_attempt_id,
+                lease_token=first_lease_token,
+            )
+            assert completed_probe is not None
+            assert completed_probe.state == worker_models.AnalysisJobState.SUCCEEDED
 
             second_user_id, second_project_id, second_media_id = await _create_uploaded_project(
                 connection
@@ -362,7 +366,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                     public_error_message="A temporary worker error occurred.",
                     diagnostic_id=uuid4(),
                     diagnostic_details=json.dumps({"test": True}),
-                    next_attempt_at=datetime.now(UTC) - timedelta(seconds=1),
+                    retry_delay_seconds=0,
                 )
             )
             assert retry_wait is not None
@@ -393,7 +397,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                     public_error_message="No coordinates were present.",
                     diagnostic_id=None,
                     diagnostic_details=None,
-                    next_attempt_at=datetime.now(UTC) + timedelta(minutes=5),
+                    retry_delay_seconds=300,
                 )
             )
             assert terminal_failure is not None
@@ -484,4 +488,181 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             )
             await transaction.rollback()
     finally:
+        await engine.dispose()
+
+
+@pytest.mark.db
+async def test_supervisor_isolates_child_and_atomically_publishes_result() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    engine = create_async_engine(database_url)
+    user_id: int | None = None
+    project_id: UUID | None = None
+    try:
+        manifest = SyntheticAnalysisModule.manifest
+        async with engine.begin() as connection:
+            user_id, project_id, media_id = await _create_uploaded_project(connection)
+            scheduler = SchedulerAnalysisQuerier(connection)
+            registered = await scheduler.register_analysis_definition(
+                RegisterAnalysisDefinitionParams(
+                    module_id=manifest.module_id,
+                    implementation_version=manifest.version,
+                    display_name=manifest.display_name,
+                    result_schema_version=manifest.result_schema_version,
+                    resource_class=scheduler_models.AnalysisResourceClass.CPU,
+                    automatic=manifest.automatic,
+                    manifest_hash=manifest_hash(manifest),
+                    manifest=manifest_document(manifest),
+                )
+            )
+            assert registered is not None
+            job_id = await _create_job(
+                scheduler,
+                project_id=project_id,
+                media_id=media_id,
+                module_id=manifest.module_id,
+                cache_character=uuid4().hex[0],
+            )
+            await connection.execute(
+                text("UPDATE analysis_job SET parameters = :parameters WHERE id = :job_id"),
+                {
+                    "job_id": job_id,
+                    "parameters": json.dumps({"steps": 2, "fail_attempts": 1}),
+                },
+            )
+
+        scheduler_settings = SchedulerSettings(
+            database_url=database_url,
+            worker_lost_retry_delay_seconds=0,
+        )
+        worker_settings = WorkerSettings(
+            database_url=database_url,
+            lease_seconds=30,
+            heartbeat_interval_seconds=1,
+            retry_delay_seconds=0,
+        )
+        assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 1
+
+        first_claim = await claim_once(
+            engine,
+            resource_class=ResourceClass.CPU,
+            worker_id="supervisor-integration-test",
+            settings=worker_settings,
+        )
+        assert first_claim is not None
+        first_outcome = await supervise_attempt(engine, first_claim, worker_settings)
+        assert first_outcome.state == "retry_wait"
+
+        assert (await reconcile_once(engine, scheduler_settings)).released_retries == 1
+        second_claim = await claim_once(
+            engine,
+            resource_class=ResourceClass.CPU,
+            worker_id="supervisor-integration-test",
+            settings=worker_settings,
+        )
+        assert second_claim is not None
+        second_outcome = await supervise_attempt(engine, second_claim, worker_settings)
+        assert second_outcome.state == "succeeded"
+
+        async with engine.connect() as connection:
+            job = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT state, winning_attempt_id
+                        FROM analysis_job
+                        WHERE id = :job_id
+                        """
+                    ),
+                    {"job_id": job_id},
+                )
+            ).one()
+            assert job.state == "succeeded"
+            assert job.winning_attempt_id == second_claim.id
+            attempts = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT attempt_number, state, progress_completed, progress_total
+                        FROM analysis_job_attempt
+                        WHERE job_id = :job_id
+                        ORDER BY attempt_number
+                        """
+                    ),
+                    {"job_id": job_id},
+                )
+            ).all()
+            assert [attempt.state for attempt in attempts] == ["failed", "succeeded"]
+            assert attempts[1].progress_completed == 2
+            assert attempts[1].progress_total == 2
+            artifact = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT a.kind, a.media_type, a.json_payload, a.schema_id
+                        FROM analysis_artifact AS a
+                        JOIN analysis_job_artifact AS output ON output.artifact_id = a.id
+                        WHERE output.job_id = :job_id AND output.output_name = 'result'
+                        """
+                    ),
+                    {"job_id": job_id},
+                )
+            ).one()
+            assert artifact.kind == "json"
+            assert artifact.media_type == "application/json"
+            assert artifact.json_payload == {
+                "steps_completed": 2,
+                "deterministic_value": "synthetic:2",
+            }
+            assert artifact.schema_id == "veridash.synthetic_test"
+    finally:
+        if project_id is not None:
+            async with engine.begin() as connection:
+                cleanup_statements = (
+                    "DELETE FROM project_event WHERE project_id = :project_id",
+                    "DELETE FROM project_analysis_result WHERE project_id = :project_id",
+                    """
+                    DELETE FROM analysis_job_artifact
+                    WHERE job_id IN (
+                        SELECT id FROM analysis_job WHERE project_id = :project_id
+                    )
+                    """,
+                    """
+                    DELETE FROM analysis_artifact
+                    WHERE producer_attempt_id IN (
+                        SELECT id FROM analysis_job_attempt WHERE project_id = :project_id
+                    )
+                    """,
+                    """
+                    UPDATE analysis_job
+                    SET
+                        state = 'failed',
+                        winning_attempt_id = NULL,
+                        failure_kind = 'internal_bug',
+                        public_failure_message = 'test cleanup',
+                        finished_at = now()
+                    WHERE project_id = :project_id AND state = 'succeeded'
+                    """,
+                    "DELETE FROM analysis_job WHERE project_id = :project_id",
+                    "DELETE FROM source_media WHERE project_id = :project_id",
+                    "DELETE FROM project WHERE id = :project_id",
+                )
+                for statement in cleanup_statements:
+                    await connection.execute(text(statement), {"project_id": project_id})
+                if user_id is not None:
+                    await connection.execute(
+                        text("DELETE FROM app_user WHERE id = :user_id"),
+                        {"user_id": user_id},
+                    )
+                await connection.execute(
+                    text(
+                        """
+                        DELETE FROM analysis_definition
+                        WHERE module_id = 'synthetic_test'
+                            AND implementation_version = '1.0.0'
+                        """
+                    )
+                )
         await engine.dispose()
