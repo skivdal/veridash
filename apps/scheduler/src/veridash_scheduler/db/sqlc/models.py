@@ -4,8 +4,51 @@
 import dataclasses
 import datetime
 import enum
-from typing import Optional
+from typing import Any, Optional
 import uuid
+
+
+class AnalysisArtifactKind(str, enum.Enum):
+    BLOB = "blob"
+    JSON = "json"
+
+
+class AnalysisAttemptState(str, enum.Enum):
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELED = "canceled"
+    LOST = "lost"
+
+
+class AnalysisErrorKind(str, enum.Enum):
+    INVALID_INPUT = "invalid_input"
+    DEPENDENCY_FAILED = "dependency_failed"
+    TRANSIENT_INFRASTRUCTURE = "transient_infrastructure"
+    RESOURCE_EXHAUSTED = "resource_exhausted"
+    WORKER_LOST = "worker_lost"
+    STALLED = "stalled"
+    RATE_LIMITED = "rate_limited"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    CANCELED = "canceled"
+    INTERNAL_BUG = "internal_bug"
+
+
+class AnalysisJobState(str, enum.Enum):
+    WAITING_FOR_DEPENDENCIES = "waiting_for_dependencies"
+    READY = "ready"
+    RUNNING = "running"
+    RETRY_WAIT = "retry_wait"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+    CANCELED = "canceled"
+
+
+class AnalysisResourceClass(str, enum.Enum):
+    CPU = "cpu"
+    GPU = "gpu"
+    TRANSLATION = "translation"
 
 
 class MediaUploadState(str, enum.Enum):
@@ -14,9 +57,111 @@ class MediaUploadState(str, enum.Enum):
     FAILED = "failed"
 
 
+class ProjectEventSource(str, enum.Enum):
+    API = "api"
+    SCHEDULER = "scheduler"
+    WORKER = "worker"
+    USER = "user"
+    SYSTEM = "system"
+
+
 class ProjectState(str, enum.Enum):
     ACTIVE = "active"
     ARCHIVED = "archived"
+
+
+@dataclasses.dataclass()
+class AnalysisArtifact:
+    id: uuid.UUID
+    producer_attempt_id: uuid.UUID
+    kind: AnalysisArtifactKind
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    blob_key: Optional[str]
+    json_payload: Optional[Any]
+    schema_id: str
+    schema_version: int
+    created_at: datetime.datetime
+
+
+@dataclasses.dataclass()
+class AnalysisDefinition:
+    module_id: str
+    implementation_version: str
+    display_name: str
+    result_schema_version: int
+    resource_class: AnalysisResourceClass
+    automatic: bool
+    manifest_hash: str
+    manifest: Any
+    created_at: datetime.datetime
+
+
+@dataclasses.dataclass()
+class AnalysisJob:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: AnalysisJobState
+    parameters: Any
+    cache_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+
+
+@dataclasses.dataclass()
+class AnalysisJobArtifact:
+    job_id: uuid.UUID
+    artifact_id: uuid.UUID
+    output_name: str
+    created_at: datetime.datetime
+
+
+@dataclasses.dataclass()
+class AnalysisJobAttempt:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    job_id: uuid.UUID
+    attempt_number: int
+    state: AnalysisAttemptState
+    worker_id: str
+    lease_token: uuid.UUID
+    lease_expires_at: datetime.datetime
+    heartbeat_at: datetime.datetime
+    progress_stage: Optional[str]
+    progress_completed: Optional[int]
+    progress_total: Optional[int]
+    progress_message: Optional[str]
+    progress_at: Optional[datetime.datetime]
+    error_kind: Optional[AnalysisErrorKind]
+    public_error_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    diagnostic_details: Optional[Any]
+    started_at: datetime.datetime
+    finished_at: Optional[datetime.datetime]
+
+
+@dataclasses.dataclass()
+class AnalysisJobDependency:
+    project_id: uuid.UUID
+    job_id: uuid.UUID
+    depends_on_job_id: uuid.UUID
+    created_at: datetime.datetime
 
 
 @dataclasses.dataclass()
@@ -46,6 +191,29 @@ class Project:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     archived_at: Optional[datetime.datetime]
+
+
+@dataclasses.dataclass()
+class ProjectAnalysisResult:
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    job_id: uuid.UUID
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+@dataclasses.dataclass()
+class ProjectEvent:
+    id: int
+    project_id: uuid.UUID
+    job_id: Optional[uuid.UUID]
+    attempt_id: Optional[uuid.UUID]
+    event_type: str
+    source: ProjectEventSource
+    payload_version: int
+    payload: Any
+    created_at: datetime.datetime
 
 
 @dataclasses.dataclass()

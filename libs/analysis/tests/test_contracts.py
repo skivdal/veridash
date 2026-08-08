@@ -7,6 +7,7 @@ from veridash_core.resources import ResourceClass
 def test_manifest_is_lightweight_and_frozen() -> None:
     manifest = ModuleManifest(
         module_id="probe_media",
+        display_name="Media metadata",
         version="1.0.0",
         result_schema_version=1,
         resource_class=ResourceClass.CPU,
@@ -22,6 +23,7 @@ def test_manifest_rejects_display_names_as_ids() -> None:
     with pytest.raises(ValidationError):
         ModuleManifest(
             module_id="Probe Media",
+            display_name="Media metadata",
             version="1.0.0",
             result_schema_version=1,
             resource_class=ResourceClass.CPU,

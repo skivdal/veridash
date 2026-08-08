@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from veridash_core.resources import ResourceClass
 
 
@@ -17,18 +17,44 @@ class ProgressStage(BaseModel):
     stall_after_seconds: int | None = Field(default=None, gt=0)
 
 
+class ImplementationFingerprint(BaseModel):
+    """A named tool, model, prompt, or provider revision affecting output."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$", max_length=100)
+    value: str = Field(min_length=1, max_length=500)
+
+
 class ModuleManifest(BaseModel):
     """Scheduler-visible metadata that imports no heavy analysis dependencies."""
 
     model_config = ConfigDict(frozen=True)
 
     module_id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
-    version: str
+    display_name: str = Field(min_length=1, max_length=200)
+    version: str = Field(min_length=1, max_length=100)
     result_schema_version: int = Field(ge=1)
     resource_class: ResourceClass
     dependencies: tuple[str, ...] = ()
     automatic: bool = True
+    max_attempts: int = Field(default=3, ge=1, le=100)
+    priority: int = Field(default=0, ge=-32768, le=32767)
+    cacheable: bool = True
+    fingerprints: tuple[ImplementationFingerprint, ...] = ()
     progress_stages: tuple[ProgressStage, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_named_members(self) -> "ModuleManifest":
+        if self.module_id in self.dependencies:
+            raise ValueError("an analysis module cannot depend on itself")
+        if len(set(self.dependencies)) != len(self.dependencies):
+            raise ValueError("analysis dependencies must be unique")
+        if len({item.key for item in self.progress_stages}) != len(self.progress_stages):
+            raise ValueError("progress stage keys must be unique")
+        if len({item.name for item in self.fingerprints}) != len(self.fingerprints):
+            raise ValueError("implementation fingerprint names must be unique")
+        return self
 
 
 class RunContext(Protocol):
