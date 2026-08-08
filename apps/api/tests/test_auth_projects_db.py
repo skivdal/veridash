@@ -1,6 +1,9 @@
 """Authenticated project lifecycle against a real migrated PostgreSQL database."""
 
 import os
+import shutil
+import subprocess
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -10,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from veridash_api.auth.passwords import hash_password
 from veridash_api.config import Settings
 from veridash_api.main import create_app
+from veridash_storage import FilesystemBlobStore
 
 
 async def _create_test_user(engine: AsyncEngine, username: str, password: str) -> None:
@@ -47,6 +51,20 @@ async def _delete_test_users(engine: AsyncEngine, usernames: list[str]) -> None:
         await connection.execute(
             text(
                 """
+                DELETE FROM source_media
+                WHERE project_id IN (
+                    SELECT project.id
+                    FROM project
+                    JOIN app_user ON app_user.id = project.user_id
+                    WHERE app_user.username = ANY(:usernames)
+                )
+                """
+            ),
+            {"usernames": usernames},
+        )
+        await connection.execute(
+            text(
+                """
                 DELETE FROM project
                 WHERE user_id IN (SELECT id FROM app_user WHERE username = ANY(:usernames))
                 """
@@ -67,8 +85,34 @@ async def _clear_test_throttle(engine: AsyncEngine, remote_address: str) -> None
         )
 
 
+def _create_tiny_video(path: Path) -> bytes:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        pytest.skip("ffmpeg is required for media ingestion integration tests")
+    subprocess.run(
+        [
+            ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=16x16:d=0.2",
+            "-an",
+            "-c:v",
+            "mpeg4",
+            "-y",
+            str(path),
+        ],
+        check=True,
+    )
+    return path.read_bytes()
+
+
 @pytest.mark.db
-async def test_session_and_project_lifecycle_survives_api_restart() -> None:
+async def test_session_project_and_media_lifecycle_survives_api_restart(
+    tmp_path: Path,
+) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if database_url is None:
         pytest.skip("TEST_DATABASE_URL is not configured")
@@ -79,13 +123,15 @@ async def test_session_and_project_lifecycle_survives_api_restart() -> None:
     password = "correct horse battery staple"
     engine = create_async_engine(database_url)
     settings = Settings(database_url=database_url, session_cookie_secure=False)
+    store = FilesystemBlobStore(tmp_path / "data")
+    video_bytes = _create_tiny_video(tmp_path / "source.mp4")
     remote_address = "198.51.100.10"
     await _create_test_user(engine, username, password)
     await _create_test_user(engine, other_username, password)
     other_project_id = await _create_test_project(engine, other_username)
 
     try:
-        app = create_app(settings=settings, database_engine=engine)
+        app = create_app(settings=settings, database_engine=engine, blob_store=store)
         async with AsyncClient(
             transport=ASGITransport(app=app, client=(remote_address, 123)),
             base_url="http://test",
@@ -200,9 +246,102 @@ async def test_session_and_project_lifecycle_survives_api_restart() -> None:
             assert unauthorized_archive.status_code == 404
             assert unauthorized_archive.json()["code"] == "project_not_found"
 
+            reserve_media = await client.post(
+                f"/api/projects/{project['id']}/media",
+                json={"original_filename": "source.mp4"},
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert reserve_media.status_code == 200
+            media = reserve_media.json()
+            assert media["upload_state"] == "pending"
+
+            reserve_again = await client.post(
+                f"/api/projects/{project['id']}/media",
+                json={"original_filename": "different-name.mp4"},
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert reserve_again.status_code == 200
+            assert reserve_again.json()["id"] == media["id"]
+            assert reserve_again.json()["original_filename"] == "different-name.mp4"
+
+            invalid_content = await client.put(
+                f"/api/uploads/{media['id']}/content",
+                content=b"not a video",
+                headers={
+                    "Content-Type": "video/mp4",
+                    "X-CSRF-Token": csrf_token,
+                },
+            )
+            assert invalid_content.status_code == 200
+            assert invalid_content.json()["size_bytes"] == len(b"not a video")
+
+            invalid_complete = await client.post(
+                f"/api/uploads/{media['id']}/complete",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert invalid_complete.status_code == 422
+            assert invalid_complete.json()["code"] == "invalid_media"
+
+            failed_media = await client.get(f"/api/projects/{project['id']}/media")
+            assert failed_media.status_code == 200
+            assert failed_media.json()["upload_state"] == "failed"
+
+            upload_content = await client.put(
+                f"/api/uploads/{media['id']}/content",
+                content=video_bytes,
+                headers={
+                    "Content-Type": "text/plain",
+                    "X-CSRF-Token": csrf_token,
+                },
+            )
+            assert upload_content.status_code == 200
+            assert upload_content.json()["upload_state"] == "pending"
+
+            complete = await client.post(
+                f"/api/uploads/{media['id']}/complete",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert complete.status_code == 200
+            media = complete.json()
+            assert media["upload_state"] == "uploaded"
+            assert media["media_type"] == "video/mp4"
+            assert media["size_bytes"] == len(video_bytes)
+
+            rejected_replacement = await client.put(
+                f"/api/uploads/{media['id']}/content",
+                content=video_bytes,
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert rejected_replacement.status_code == 409
+            assert rejected_replacement.json()["code"] == "source_media_finalized"
+
+            full_content = await client.get(f"/api/media/{media['id']}/content")
+            assert full_content.status_code == 200
+            assert full_content.content == video_bytes
+            assert full_content.headers["Accept-Ranges"] == "bytes"
+
+            ranged_content = await client.get(
+                f"/api/media/{media['id']}/content",
+                headers={"Range": "bytes=2-9"},
+            )
+            assert ranged_content.status_code == 206
+            assert ranged_content.content == video_bytes[2:10]
+            assert ranged_content.headers["Content-Range"] == (f"bytes 2-9/{len(video_bytes)}")
+
+            invalid_range = await client.get(
+                f"/api/media/{media['id']}/content",
+                headers={"Range": f"bytes={len(video_bytes)}-"},
+            )
+            assert invalid_range.status_code == 416
+            assert invalid_range.headers["Content-Range"] == f"bytes */{len(video_bytes)}"
+
             persisted_cookies = Cookies(client.cookies)
 
-        restarted_app = create_app(settings=settings, database_engine=engine)
+        restarted_app = create_app(
+            settings=settings,
+            database_engine=engine,
+            blob_store=store,
+        )
         async with AsyncClient(
             transport=ASGITransport(app=restarted_app, client=(remote_address, 124)),
             base_url="http://test",
@@ -216,6 +355,17 @@ async def test_session_and_project_lifecycle_survives_api_restart() -> None:
             assert persisted_project.status_code == 200
             assert persisted_project.json()["title"] == "Renamed investigation"
             assert persisted_project.json()["state"] == "active"
+
+            persisted_media = await restarted_client.get(f"/api/projects/{project['id']}/media")
+            assert persisted_media.status_code == 200
+            assert persisted_media.json()["sha256_hex"] == media["sha256_hex"]
+
+            persisted_range = await restarted_client.get(
+                f"/api/media/{media['id']}/content",
+                headers={"Range": "bytes=-5"},
+            )
+            assert persisted_range.status_code == 206
+            assert persisted_range.content == video_bytes[-5:]
 
             csrf_token = restarted_client.cookies.get(settings.csrf_cookie_name)
             assert csrf_token is not None

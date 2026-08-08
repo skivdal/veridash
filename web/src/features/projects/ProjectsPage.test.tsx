@@ -95,4 +95,49 @@ describe("projects routing", () => {
     ).toBeDefined();
     expect(screen.getByText("journalist")).toBeDefined();
   });
+
+  it("shows the source-video uploader for a project without media", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/auth/me") {
+          return jsonResponse({ user: { id: 1, username: "journalist" } });
+        }
+        if (url === "/api/projects/project-id") {
+          return jsonResponse({
+            id: "project-id",
+            title: "Source review",
+            state: "active",
+            created_at: "2026-08-08T12:00:00Z",
+            updated_at: "2026-08-08T12:00:00Z",
+            archived_at: null,
+          });
+        }
+        if (url === "/api/projects/project-id/media") {
+          return jsonResponse(
+            {
+              type: "urn:veridash:problem:media_not_found",
+              title: "Source video not found",
+              status: 404,
+              detail: "The requested source video does not exist.",
+              code: "media_not_found",
+            },
+            404,
+          );
+        }
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    renderAt("/projects/project-id");
+
+    expect(
+      await screen.findByRole("heading", { name: "Source review" }),
+    ).toBeDefined();
+    expect(
+      await screen.findByRole("heading", { name: "Source video" }),
+    ).toBeDefined();
+    expect(screen.getByLabelText("Choose video")).toBeDefined();
+  });
 });

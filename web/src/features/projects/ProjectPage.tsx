@@ -13,9 +13,9 @@ import {
   useRestoreProjectApiProjectsProjectIdRestorePost,
 } from "../../api/generated/client";
 import { AppHeader } from "../../components/AppHeader";
+import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
 
 const modulePlaceholders = [
-  ["Source", "Upload one source video to begin the automatic analysis."],
   ["Metadata", "Container, stream, and embedded metadata will appear here."],
   ["Frames", "Extracted frames and stitching controls will appear here."],
   [
@@ -25,6 +25,7 @@ const modulePlaceholders = [
   ["Object Detection", "Detected objects will remain linked to source frames."],
   ["Map", "Verified embedded coordinates can be inspected here."],
 ] as const;
+const moduleNames = ["Source", ...modulePlaceholders.map(([name]) => name)];
 
 interface ProjectPageProps {
   projectId: string;
@@ -157,7 +158,7 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             </Link>
             <h1>{projectData.title}</h1>
             <p className="workspace-meta">
-              Saved project · {projectData.state} · No source video yet
+              Saved project · {projectData.state}
             </p>
           </div>
           <div className="workspace-actions">
@@ -191,9 +192,11 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
                 {archiveProject.isPending ? "Archiving…" : "Archive project"}
               </button>
             )}
-            <button className="button button-primary" type="button" disabled>
-              Upload video
-            </button>
+            {projectData.state === "active" ? (
+              <a className="button button-primary" href="#source-media">
+                Source video
+              </a>
+            ) : null}
           </div>
         </div>
 
@@ -231,12 +234,16 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
         )}
 
         <ul className="analysis-chips" aria-label="Dashboard modules">
-          {modulePlaceholders.map(([name]) => (
+          {moduleNames.map((name) => (
             <li key={name}>{name}</li>
           ))}
         </ul>
 
         <section className="dashboard-grid" aria-label="Analysis dashboard">
+          <SourceMediaPanel
+            projectId={projectId}
+            projectState={projectData.state}
+          />
           {modulePlaceholders.map(([name, description]) => (
             <article className="analysis-card" key={name}>
               <div className="analysis-card-heading">

@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.44",
     "uvicorn>=0.38.0",
     "veridash-core",
+    "veridash-storage",
 ]
 
 [project.scripts]
@@ -27,3 +28,4 @@ artifacts = ["src/veridash_api/py.typed"]
 
 [tool.uv.sources]
 veridash-core = { workspace = true }
+veridash-storage = { workspace = true }

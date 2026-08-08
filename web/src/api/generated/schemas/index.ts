@@ -7,9 +7,14 @@
 
 export * from './createProjectRequest';
 export * from './healthResponse';
+export * from './hTTPValidationError';
 export * from './loginRequest';
 export * from './problemResponse';
 export * from './projectResponse';
 export * from './renameProjectRequest';
+export * from './reserveSourceMediaRequest';
 export * from './sessionResponse';
+export * from './sourceMediaResponse';
 export * from './userResponse';
+export * from './validationError';
+export * from './validationErrorCtx';

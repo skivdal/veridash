@@ -569,6 +569,7 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
     { name = "veridash-core" },
+    { name = "veridash-storage" },
 ]
 
 [package.metadata]
@@ -580,6 +581,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.44" },
     { name = "uvicorn", specifier = ">=0.38.0" },
     { name = "veridash-core", editable = "libs/core" },
+    { name = "veridash-storage", editable = "libs/storage" },
 ]
 
 [[package]]
@@ -612,6 +614,12 @@ requires-dist = [
 name = "veridash-storage"
 version = "0.1.0"
 source = { editable = "libs/storage" }
+dependencies = [
+    { name = "anyio" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "anyio", specifier = ">=4.11.0" }]
 
 [[package]]
 name = "veridash-worker"

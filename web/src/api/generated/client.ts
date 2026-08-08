@@ -25,12 +25,15 @@ import type {
 
 import type {
   CreateProjectRequest,
+  HTTPValidationError,
   HealthResponse,
   LoginRequest,
   ProblemResponse,
   ProjectResponse,
   RenameProjectRequest,
-  SessionResponse
+  ReserveSourceMediaRequest,
+  SessionResponse,
+  SourceMediaResponse
 } from './schemas';
 
 import { apiFetch } from '../fetcher';
@@ -493,6 +496,156 @@ export function useHealthApiHealthGet<TData = Awaited<ReturnType<typeof healthAp
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getHealthApiHealthGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse206 = {
+  data: void
+  status: 206
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse416 = {
+  data: ProblemResponse
+  status: 416
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponseSuccess = (streamSourceMediaApiMediaMediaIdContentGetResponse200 | streamSourceMediaApiMediaMediaIdContentGetResponse206) & {
+  headers: Headers;
+};
+export type streamSourceMediaApiMediaMediaIdContentGetResponseError = (streamSourceMediaApiMediaMediaIdContentGetResponse401 | streamSourceMediaApiMediaMediaIdContentGetResponse404 | streamSourceMediaApiMediaMediaIdContentGetResponse409 | streamSourceMediaApiMediaMediaIdContentGetResponse416 | streamSourceMediaApiMediaMediaIdContentGetResponse422 | streamSourceMediaApiMediaMediaIdContentGetResponse500) & {
+  headers: Headers;
+};
+
+export type streamSourceMediaApiMediaMediaIdContentGetResponse = (streamSourceMediaApiMediaMediaIdContentGetResponseSuccess | streamSourceMediaApiMediaMediaIdContentGetResponseError)
+
+export const getStreamSourceMediaApiMediaMediaIdContentGetUrl = (mediaId: string,) => {
+
+
+
+
+  return `/api/media/${mediaId}/content`
+}
+
+/**
+ * @summary Stream Source Media
+ */
+export const streamSourceMediaApiMediaMediaIdContentGet = async (mediaId: string, options?: RequestInit): Promise<streamSourceMediaApiMediaMediaIdContentGetResponse> => {
+
+  return apiFetch<streamSourceMediaApiMediaMediaIdContentGetResponse>(getStreamSourceMediaApiMediaMediaIdContentGetUrl(mediaId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStreamSourceMediaApiMediaMediaIdContentGetQueryKey = (mediaId: string,) => {
+    return [
+    `/api/media/${mediaId}/content`
+    ] as const;
+    }
+
+
+export const getStreamSourceMediaApiMediaMediaIdContentGetQueryOptions = <TData = Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(mediaId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamSourceMediaApiMediaMediaIdContentGetQueryKey(mediaId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>> = ({ signal }) => streamSourceMediaApiMediaMediaIdContentGet(mediaId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: mediaId !== null && mediaId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type StreamSourceMediaApiMediaMediaIdContentGetQueryResult = NonNullable<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>>
+export type StreamSourceMediaApiMediaMediaIdContentGetQueryError = ErrorType<ProblemResponse | HTTPValidationError>
+
+
+export function useStreamSourceMediaApiMediaMediaIdContentGet<TData = Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ mediaId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamSourceMediaApiMediaMediaIdContentGet<TData = Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ mediaId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamSourceMediaApiMediaMediaIdContentGet<TData = Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ mediaId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream Source Media
+ */
+
+export function useStreamSourceMediaApiMediaMediaIdContentGet<TData = Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ mediaId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamSourceMediaApiMediaMediaIdContentGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getStreamSourceMediaApiMediaMediaIdContentGetQueryOptions(mediaId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -1091,6 +1244,262 @@ export const useArchiveProjectApiProjectsProjectIdArchivePost = <TError = ErrorT
       return useMutation(getArchiveProjectApiProjectsProjectIdArchivePostMutationOptions(options), queryClient);
     }
 
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse200 = {
+  data: SourceMediaResponse
+  status: 200
+}
+
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponseSuccess = (getProjectSourceMediaApiProjectsProjectIdMediaGetResponse200) & {
+  headers: Headers;
+};
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponseError = (getProjectSourceMediaApiProjectsProjectIdMediaGetResponse401 | getProjectSourceMediaApiProjectsProjectIdMediaGetResponse404 | getProjectSourceMediaApiProjectsProjectIdMediaGetResponse422 | getProjectSourceMediaApiProjectsProjectIdMediaGetResponse500) & {
+  headers: Headers;
+};
+
+export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse = (getProjectSourceMediaApiProjectsProjectIdMediaGetResponseSuccess | getProjectSourceMediaApiProjectsProjectIdMediaGetResponseError)
+
+export const getGetProjectSourceMediaApiProjectsProjectIdMediaGetUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/media`
+}
+
+/**
+ * @summary Get Project Source Media
+ */
+export const getProjectSourceMediaApiProjectsProjectIdMediaGet = async (projectId: string, options?: RequestInit): Promise<getProjectSourceMediaApiProjectsProjectIdMediaGetResponse> => {
+
+  return apiFetch<getProjectSourceMediaApiProjectsProjectIdMediaGetResponse>(getGetProjectSourceMediaApiProjectsProjectIdMediaGetUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryKey = (projectId: string,) => {
+    return [
+    `/api/projects/${projectId}/media`
+    ] as const;
+    }
+
+
+export const getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryOptions = <TData = Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>> = ({ signal }) => getProjectSourceMediaApiProjectsProjectIdMediaGet(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetProjectSourceMediaApiProjectsProjectIdMediaGetQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>>
+export type GetProjectSourceMediaApiProjectsProjectIdMediaGetQueryError = ErrorType<ProblemResponse | HTTPValidationError>
+
+
+export function useGetProjectSourceMediaApiProjectsProjectIdMediaGet<TData = Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProjectSourceMediaApiProjectsProjectIdMediaGet<TData = Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProjectSourceMediaApiProjectsProjectIdMediaGet<TData = Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Project Source Media
+ */
+
+export function useGetProjectSourceMediaApiProjectsProjectIdMediaGet<TData = Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProjectSourceMediaApiProjectsProjectIdMediaGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse200 = {
+  data: SourceMediaResponse
+  status: 200
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse413 = {
+  data: ProblemResponse
+  status: 413
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponseSuccess = (reserveSourceMediaApiProjectsProjectIdMediaPostResponse200) & {
+  headers: Headers;
+};
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponseError = (reserveSourceMediaApiProjectsProjectIdMediaPostResponse401 | reserveSourceMediaApiProjectsProjectIdMediaPostResponse403 | reserveSourceMediaApiProjectsProjectIdMediaPostResponse404 | reserveSourceMediaApiProjectsProjectIdMediaPostResponse409 | reserveSourceMediaApiProjectsProjectIdMediaPostResponse413 | reserveSourceMediaApiProjectsProjectIdMediaPostResponse422 | reserveSourceMediaApiProjectsProjectIdMediaPostResponse500) & {
+  headers: Headers;
+};
+
+export type reserveSourceMediaApiProjectsProjectIdMediaPostResponse = (reserveSourceMediaApiProjectsProjectIdMediaPostResponseSuccess | reserveSourceMediaApiProjectsProjectIdMediaPostResponseError)
+
+export const getReserveSourceMediaApiProjectsProjectIdMediaPostUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/media`
+}
+
+/**
+ * @summary Reserve Source Media
+ */
+export const reserveSourceMediaApiProjectsProjectIdMediaPost = async (projectId: string,
+    reserveSourceMediaRequest: ReserveSourceMediaRequest, options?: RequestInit): Promise<reserveSourceMediaApiProjectsProjectIdMediaPostResponse> => {
+
+  return apiFetch<reserveSourceMediaApiProjectsProjectIdMediaPostResponse>(getReserveSourceMediaApiProjectsProjectIdMediaPostUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reserveSourceMediaRequest)
+  }
+);}
+
+
+
+
+
+export const getReserveSourceMediaApiProjectsProjectIdMediaPostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reserveSourceMediaApiProjectsProjectIdMediaPost>>, TError,{projectId: string;data: BodyType<ReserveSourceMediaRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reserveSourceMediaApiProjectsProjectIdMediaPost>>, TError,{projectId: string;data: BodyType<ReserveSourceMediaRequest>}, TContext> => {
+
+const mutationKey = ['reserveSourceMediaApiProjectsProjectIdMediaPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reserveSourceMediaApiProjectsProjectIdMediaPost>>, {projectId: string;data: BodyType<ReserveSourceMediaRequest>}> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  reserveSourceMediaApiProjectsProjectIdMediaPost(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReserveSourceMediaApiProjectsProjectIdMediaPostMutationResult = NonNullable<Awaited<ReturnType<typeof reserveSourceMediaApiProjectsProjectIdMediaPost>>>
+    export type ReserveSourceMediaApiProjectsProjectIdMediaPostMutationBody = BodyType<ReserveSourceMediaRequest>
+    export type ReserveSourceMediaApiProjectsProjectIdMediaPostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Reserve Source Media
+ */
+export const useReserveSourceMediaApiProjectsProjectIdMediaPost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reserveSourceMediaApiProjectsProjectIdMediaPost>>, TError,{projectId: string;data: BodyType<ReserveSourceMediaRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reserveSourceMediaApiProjectsProjectIdMediaPost>>,
+        TError,
+        {projectId: string;data: BodyType<ReserveSourceMediaRequest>},
+        TContext
+      > => {
+      return useMutation(getReserveSourceMediaApiProjectsProjectIdMediaPostMutationOptions(options), queryClient);
+    }
+
 export type restoreProjectApiProjectsProjectIdRestorePostResponse200 = {
   data: ProjectResponse
   status: 200
@@ -1199,4 +1608,250 @@ export const useRestoreProjectApiProjectsProjectIdRestorePost = <TError = ErrorT
         TContext
       > => {
       return useMutation(getRestoreProjectApiProjectsProjectIdRestorePostMutationOptions(options), queryClient);
+    }
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse200 = {
+  data: SourceMediaResponse
+  status: 200
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse413 = {
+  data: ProblemResponse
+  status: 413
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse503 = {
+  data: ProblemResponse
+  status: 503
+}
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponseSuccess = (completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse200) & {
+  headers: Headers;
+};
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponseError = (completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse401 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse403 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse404 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse409 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse413 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse422 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse500 | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse503) & {
+  headers: Headers;
+};
+
+export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse = (completeSourceMediaUploadApiUploadsMediaIdCompletePostResponseSuccess | completeSourceMediaUploadApiUploadsMediaIdCompletePostResponseError)
+
+export const getCompleteSourceMediaUploadApiUploadsMediaIdCompletePostUrl = (mediaId: string,) => {
+
+
+
+
+  return `/api/uploads/${mediaId}/complete`
+}
+
+/**
+ * @summary Complete Source Media Upload
+ */
+export const completeSourceMediaUploadApiUploadsMediaIdCompletePost = async (mediaId: string, options?: RequestInit): Promise<completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse> => {
+
+  return apiFetch<completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse>(getCompleteSourceMediaUploadApiUploadsMediaIdCompletePostUrl(mediaId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteSourceMediaUploadApiUploadsMediaIdCompletePostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeSourceMediaUploadApiUploadsMediaIdCompletePost>>, TError,{mediaId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeSourceMediaUploadApiUploadsMediaIdCompletePost>>, TError,{mediaId: string}, TContext> => {
+
+const mutationKey = ['completeSourceMediaUploadApiUploadsMediaIdCompletePost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeSourceMediaUploadApiUploadsMediaIdCompletePost>>, {mediaId: string}> = (props) => {
+          const {mediaId} = props ?? {};
+
+          return  completeSourceMediaUploadApiUploadsMediaIdCompletePost(mediaId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteSourceMediaUploadApiUploadsMediaIdCompletePostMutationResult = NonNullable<Awaited<ReturnType<typeof completeSourceMediaUploadApiUploadsMediaIdCompletePost>>>
+
+    export type CompleteSourceMediaUploadApiUploadsMediaIdCompletePostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Complete Source Media Upload
+ */
+export const useCompleteSourceMediaUploadApiUploadsMediaIdCompletePost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeSourceMediaUploadApiUploadsMediaIdCompletePost>>, TError,{mediaId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof completeSourceMediaUploadApiUploadsMediaIdCompletePost>>,
+        TError,
+        {mediaId: string},
+        TContext
+      > => {
+      return useMutation(getCompleteSourceMediaUploadApiUploadsMediaIdCompletePostMutationOptions(options), queryClient);
+    }
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse200 = {
+  data: SourceMediaResponse
+  status: 200
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse413 = {
+  data: ProblemResponse
+  status: 413
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponseSuccess = (uploadSourceMediaContentApiUploadsMediaIdContentPutResponse200) & {
+  headers: Headers;
+};
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponseError = (uploadSourceMediaContentApiUploadsMediaIdContentPutResponse401 | uploadSourceMediaContentApiUploadsMediaIdContentPutResponse403 | uploadSourceMediaContentApiUploadsMediaIdContentPutResponse404 | uploadSourceMediaContentApiUploadsMediaIdContentPutResponse409 | uploadSourceMediaContentApiUploadsMediaIdContentPutResponse413 | uploadSourceMediaContentApiUploadsMediaIdContentPutResponse422 | uploadSourceMediaContentApiUploadsMediaIdContentPutResponse500) & {
+  headers: Headers;
+};
+
+export type uploadSourceMediaContentApiUploadsMediaIdContentPutResponse = (uploadSourceMediaContentApiUploadsMediaIdContentPutResponseSuccess | uploadSourceMediaContentApiUploadsMediaIdContentPutResponseError)
+
+export const getUploadSourceMediaContentApiUploadsMediaIdContentPutUrl = (mediaId: string,) => {
+
+
+
+
+  return `/api/uploads/${mediaId}/content`
+}
+
+/**
+ * @summary Upload Source Media Content
+ */
+export const uploadSourceMediaContentApiUploadsMediaIdContentPut = async (mediaId: string,
+    uploadSourceMediaContentApiUploadsMediaIdContentPutBody: Blob, options?: RequestInit): Promise<uploadSourceMediaContentApiUploadsMediaIdContentPutResponse> => {
+
+  return apiFetch<uploadSourceMediaContentApiUploadsMediaIdContentPutResponse>(getUploadSourceMediaContentApiUploadsMediaIdContentPutUrl(mediaId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
+    body: uploadSourceMediaContentApiUploadsMediaIdContentPutBody
+  }
+);}
+
+
+
+
+
+export const getUploadSourceMediaContentApiUploadsMediaIdContentPutMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSourceMediaContentApiUploadsMediaIdContentPut>>, TError,{mediaId: string;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadSourceMediaContentApiUploadsMediaIdContentPut>>, TError,{mediaId: string;data: BodyType<Blob>}, TContext> => {
+
+const mutationKey = ['uploadSourceMediaContentApiUploadsMediaIdContentPut'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadSourceMediaContentApiUploadsMediaIdContentPut>>, {mediaId: string;data: BodyType<Blob>}> = (props) => {
+          const {mediaId,data} = props ?? {};
+
+          return  uploadSourceMediaContentApiUploadsMediaIdContentPut(mediaId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadSourceMediaContentApiUploadsMediaIdContentPutMutationResult = NonNullable<Awaited<ReturnType<typeof uploadSourceMediaContentApiUploadsMediaIdContentPut>>>
+    export type UploadSourceMediaContentApiUploadsMediaIdContentPutMutationBody = BodyType<Blob>
+    export type UploadSourceMediaContentApiUploadsMediaIdContentPutMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Upload Source Media Content
+ */
+export const useUploadSourceMediaContentApiUploadsMediaIdContentPut = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadSourceMediaContentApiUploadsMediaIdContentPut>>, TError,{mediaId: string;data: BodyType<Blob>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadSourceMediaContentApiUploadsMediaIdContentPut>>,
+        TError,
+        {mediaId: string;data: BodyType<Blob>},
+        TContext
+      > => {
+      return useMutation(getUploadSourceMediaContentApiUploadsMediaIdContentPutMutationOptions(options), queryClient);
     }

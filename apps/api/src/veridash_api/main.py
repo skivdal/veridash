@@ -6,12 +6,14 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from veridash_storage import FilesystemBlobStore, UploadBlobStore
 
 from veridash_api.config import Settings
 from veridash_api.errors import install_error_handlers
 from veridash_api.models import PROBLEM_RESPONSE
 from veridash_api.routes.auth import router as auth_router
 from veridash_api.routes.health import router as health_router
+from veridash_api.routes.media import router as media_router
 from veridash_api.routes.projects import router as projects_router
 
 
@@ -19,6 +21,7 @@ def create_app(
     *,
     settings: Settings | None = None,
     database_engine: AsyncEngine | None = None,
+    blob_store: UploadBlobStore | None = None,
 ) -> FastAPI:
     """Create an API instance; external connections begin only in ASGI lifespan."""
     resolved_settings = settings or Settings()
@@ -30,6 +33,9 @@ def create_app(
             pool_pre_ping=True,
         )
         application.state.database_engine = engine
+        application.state.blob_store = blob_store or FilesystemBlobStore(
+            resolved_settings.data_root
+        )
         try:
             yield
         finally:
@@ -45,10 +51,13 @@ def create_app(
     app.state.settings = resolved_settings
     if database_engine is not None:
         app.state.database_engine = database_engine
+    if blob_store is not None:
+        app.state.blob_store = blob_store
     install_error_handlers(app)
     app.include_router(health_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(projects_router, prefix="/api")
+    app.include_router(media_router, prefix="/api")
     return app
 
 

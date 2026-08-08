@@ -21,7 +21,7 @@ export type BodyType<TBody> = TBody;
 
 const unsafeMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-function readCookie(name: string): string | undefined {
+export function readCookie(name: string): string | undefined {
   const prefix = `${encodeURIComponent(name)}=`;
   const item = document.cookie
     .split(";")

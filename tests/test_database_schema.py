@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 
 @pytest.mark.db
-async def test_project_accepts_only_one_source_video() -> None:
+async def test_source_media_cardinality_and_state_constraints() -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if database_url is None:
         pytest.skip("TEST_DATABASE_URL is not configured")
@@ -35,6 +35,7 @@ async def test_project_accepts_only_one_source_video() -> None:
                 )
                 user_id = result.scalar_one()
                 project_id = uuid4()
+                media_id = uuid4()
                 await connection.execute(
                     text(
                         """
@@ -51,7 +52,7 @@ async def test_project_accepts_only_one_source_video() -> None:
                         VALUES (:id, :project_id, :filename)
                         """
                     ),
-                    {"id": uuid4(), "project_id": project_id, "filename": "first.mp4"},
+                    {"id": media_id, "project_id": project_id, "filename": "first.mp4"},
                 )
 
                 with pytest.raises(IntegrityError):
@@ -64,6 +65,19 @@ async def test_project_accepts_only_one_source_video() -> None:
                     """,
                             ),
                             {"id": uuid4(), "project_id": project_id, "filename": "second.mp4"},
+                        )
+
+                with pytest.raises(IntegrityError):
+                    async with connection.begin_nested():
+                        await connection.execute(
+                            text(
+                                """
+                                UPDATE source_media
+                                SET sha256_hex = :sha256
+                                WHERE id = :id
+                                """
+                            ),
+                            {"id": media_id, "sha256": "0" * 64},
                         )
             finally:
                 await transaction.rollback()

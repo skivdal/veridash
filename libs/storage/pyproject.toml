@@ -3,7 +3,7 @@ name = "veridash-storage"
 version = "0.1.0"
 description = "VeriDash immutable blob storage contracts"
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = ["anyio>=4.11.0"]
 
 [build-system]
 requires = ["hatchling"]
