@@ -47,7 +47,7 @@ export function MetadataCard({
       ) &&
       job.cancel_requested_at === null;
     return (
-      <article className="analysis-card">
+      <article className="analysis-card" id="metadata">
         <div className="analysis-card-heading">
           <h2>Metadata</h2>
           <span className="status-pill">{status}</span>
@@ -88,7 +88,7 @@ export function MetadataCard({
   }
 
   return (
-    <article className="analysis-card metadata-card">
+    <article className="analysis-card metadata-card" id="metadata">
       <div className="analysis-card-heading">
         <div>
           <p className="card-eyebrow">Raw source facts</p>

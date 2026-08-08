@@ -88,7 +88,7 @@ export function NotesCard({
         : "Waiting to save…";
 
   return (
-    <article className="analysis-card notes-card">
+    <article className="analysis-card notes-card" id="notes">
       <div className="analysis-card-heading">
         <div>
           <p className="card-eyebrow">Journalist authored</p>

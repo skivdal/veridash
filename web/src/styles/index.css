@@ -12,7 +12,7 @@
   --color-border: #dde3ec;
   --color-muted: #667085;
   --color-heading: #101828;
-  --shadow-card: 0 18px 45px rgb(19 33 68 / 8%);
+  --shadow-card: 0 10px 28px rgb(19 33 68 / 8%);
 }
 
 * {
@@ -44,9 +44,18 @@ a {
 
 .app-canvas {
   min-height: 100vh;
-  background-color: #f8fafc;
-  background-image: radial-gradient(circle, #d4dbe6 1px, transparent 1px);
-  background-size: 22px 22px;
+  background-color: #f7f7f7;
+  background-image:
+    linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 88%) 0,
+      rgb(255 255 255 / 42%) 230px,
+      transparent 520px
+    ),
+    radial-gradient(circle, #d2d5da 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    20px 20px;
 }
 
 .app-header {
@@ -54,19 +63,19 @@ a {
   z-index: 10;
   top: 0;
   display: flex;
-  min-height: 68px;
+  min-height: 76px;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--color-border);
   background: rgb(255 255 255 / 94%);
-  padding: 0 32px;
+  padding: 0 28px;
   backdrop-filter: blur(12px);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   color: #111827;
   font-size: 19px;
   font-weight: 750;
@@ -75,14 +84,38 @@ a {
 }
 
 .brand-mark {
+  width: 42px;
+  height: 42px;
+}
+
+.brand-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #090909;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.brand-copy {
   display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--color-primary);
-  color: white;
-  font-size: 16px;
+  line-height: 1;
+}
+
+.brand-copy strong {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.brand-copy small {
+  margin-top: 5px;
+  color: #525866;
+  font-size: 9px;
+  font-weight: 620;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
 }
 
 .account-actions {
@@ -193,6 +226,12 @@ h2 {
   margin-top: 8px;
 }
 
+.account-actions .button {
+  min-height: 34px;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgb(16 24 40 / 7%);
+}
+
 .auth-shell,
 .loading-shell {
   display: grid;
@@ -262,10 +301,14 @@ h2 {
 
 .projects-shell,
 .workspace-shell {
-  width: min(100%, 1280px);
-  min-height: calc(100vh - 69px);
+  width: min(100%, 1440px);
+  min-height: calc(100vh - 77px);
   margin: 0 auto;
   padding: 58px 32px 80px;
+}
+
+.workspace-shell {
+  padding-top: 28px;
 }
 
 .projects-heading,
@@ -274,6 +317,10 @@ h2 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 28px;
+}
+
+.workspace-heading {
+  align-items: center;
 }
 
 .create-project-card {
@@ -453,7 +500,7 @@ h2 {
 
 .back-link {
   display: inline-block;
-  margin-bottom: 16px;
+  margin-bottom: 9px;
   color: #34547e;
   font-size: 14px;
   font-weight: 700;
@@ -461,11 +508,12 @@ h2 {
 }
 
 .workspace-heading h1 {
-  font-size: clamp(32px, 4vw, 46px);
+  font-size: clamp(25px, 3vw, 32px);
+  letter-spacing: -0.025em;
 }
 
 .workspace-meta {
-  margin: 12px 0 0;
+  margin: 6px 0 0;
   color: var(--color-muted);
   font-size: 14px;
 }
@@ -475,6 +523,14 @@ h2 {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 9px;
+}
+
+.workspace-actions .button {
+  min-height: 36px;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgb(16 24 40 / 7%);
+  font-size: 13px;
+  padding: 7px 13px;
 }
 
 .rename-project-form {
@@ -493,38 +549,75 @@ h2 {
   margin-top: 14px;
 }
 
+.module-navigation {
+  margin: 30px auto 26px;
+}
+
 .analysis-chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 32px 0 20px;
+  gap: 11px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .analysis-chips li {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: white;
-  color: #475467;
+  min-width: 0;
+  flex: 1;
+}
+
+.analysis-chips a {
+  display: flex;
+  min-height: 43px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--color-primary);
+  border-radius: 9px;
+  background: #deecff;
+  box-shadow: 0 2px 7px rgb(16 24 40 / 8%);
+  color: var(--color-primary);
   font-size: 12px;
-  font-weight: 700;
-  padding: 7px 11px;
+  font-weight: 720;
+  padding: 8px 10px;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.analysis-chips a:hover {
+  background: #cfe2ff;
+  transform: translateY(-1px);
+}
+
+.analysis-chips a span {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-primary);
+  border-radius: 50%;
+  background: white;
+  font-size: 9px;
 }
 
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 28px;
 }
 
 .analysis-card {
-  min-height: 190px;
+  min-height: 280px;
+  scroll-margin-top: 110px;
   border: 1px solid var(--color-border);
   border-radius: 16px;
   background: white;
-  box-shadow: 0 8px 24px rgb(19 33 68 / 5%);
-  padding: 21px;
+  box-shadow: var(--shadow-card);
+  padding: 22px;
 }
 
 .analysis-card p {
@@ -559,7 +652,6 @@ h2 {
 }
 
 .notes-card {
-  grid-column: span 2;
   border-color: #e6d8b8;
   background: #fffdf7;
 }
@@ -597,7 +689,6 @@ h2 {
 }
 
 .source-media-card {
-  grid-column: span 2;
   min-height: 280px;
 }
 
@@ -690,7 +781,7 @@ h2 {
 
 .uploaded-source {
   display: grid;
-  grid-template-columns: minmax(240px, 1.5fr) minmax(190px, 0.8fr);
+  grid-template-columns: 1fr;
   align-items: center;
   gap: 20px;
   margin-top: 20px;
@@ -723,15 +814,15 @@ h2 {
 }
 
 .metadata-card {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .frames-card {
-  grid-column: span 3;
+  grid-column: auto;
 }
 
 .map-card-found {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .analysis-card .coordinate-readout {
@@ -948,7 +1039,7 @@ h2 {
 
 .metadata-facts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin: 18px 0;
 }
@@ -1121,12 +1212,13 @@ h2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .source-media-card {
-    grid-column: span 2;
+  .analysis-chips {
+    overflow-x: auto;
+    padding: 2px 2px 8px;
   }
 
-  .frames-card {
-    grid-column: span 2;
+  .analysis-chips li {
+    min-width: 145px;
   }
 
   .frame-review-grid {
@@ -1145,6 +1237,10 @@ h2 {
   }
 
   .username {
+    display: none;
+  }
+
+  .brand-copy small {
     display: none;
   }
 

@@ -117,7 +117,7 @@ export function FramesCard({
           100
         : undefined;
     return (
-      <article className="analysis-card frames-card">
+      <article className="analysis-card frames-card" id="frames">
         <div className="analysis-card-heading">
           <h2>Frames</h2>
           <span className="status-pill">{stateLabel(job)}</span>
@@ -164,7 +164,7 @@ export function FramesCard({
   }
 
   return (
-    <article className="analysis-card frames-card">
+    <article className="analysis-card frames-card" id="frames">
       <div className="analysis-card-heading">
         <div>
           <p className="card-eyebrow">Source-linked evidence</p>

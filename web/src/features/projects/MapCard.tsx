@@ -48,7 +48,7 @@ export function MapCard({
       ) &&
       job.cancel_requested_at === null;
     return (
-      <article className="analysis-card map-card">
+      <article className="analysis-card map-card" id="map">
         <div className="analysis-card-heading">
           <h2>Map</h2>
           <span className="status-pill">{stateLabel(job)}</span>
@@ -92,7 +92,7 @@ export function MapCard({
         "The source contains conflicting embedded coordinates, so VeriDash did not choose one.",
     };
     return (
-      <article className="analysis-card map-card">
+      <article className="analysis-card map-card" id="map">
         <div className="analysis-card-heading">
           <div>
             <p className="card-eyebrow">Embedded metadata only</p>
@@ -113,7 +113,7 @@ export function MapCard({
   const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${latitude},${longitude}`)}`;
   const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${encodeURIComponent(`${latitude},${longitude}`)}`;
   return (
-    <article className="analysis-card map-card map-card-found">
+    <article className="analysis-card map-card map-card-found" id="map">
       <div className="analysis-card-heading">
         <div>
           <p className="card-eyebrow">Embedded metadata only</p>

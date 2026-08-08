@@ -27,8 +27,8 @@ import { useProjectEvents } from "./projectEvents";
 
 const modulePlaceholders = [
   [
-    "Transcription",
-    "Timestamped source-language transcription will appear here.",
+    "Transcription & Translation",
+    "Timestamped source-language speech and its separate translation will appear here.",
     "transcribe",
   ],
   [
@@ -37,13 +37,15 @@ const modulePlaceholders = [
     "detect_objects",
   ],
 ] as const;
-const moduleNames = [
-  "Source",
-  "Metadata",
-  "Frames",
-  "Map",
-  ...modulePlaceholders.map(([name]) => name),
-];
+const moduleNavigation = [
+  ["Source", "source-media"],
+  ["Frames", "frames"],
+  ["Transcription & Translation", "transcribe"],
+  ["Object Detection", "detect_objects"],
+  ["Metadata", "metadata"],
+  ["Map", "map"],
+  ["Notes", "notes"],
+] as const;
 
 interface ProjectPageProps {
   projectId: string;
@@ -300,34 +302,23 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
           </p>
         )}
 
-        <ul className="analysis-chips" aria-label="Dashboard modules">
-          {moduleNames.map((name) => (
-            <li key={name}>{name}</li>
-          ))}
-        </ul>
+        <nav className="module-navigation" aria-label="Dashboard modules">
+          <ul className="analysis-chips">
+            {moduleNavigation.map(([name, target]) => (
+              <li key={target}>
+                <a href={`#${target}`}>
+                  <span aria-hidden="true">✓</span>
+                  {name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         <section className="dashboard-grid" aria-label="Analysis dashboard">
           <SourceMediaPanel
             projectId={projectId}
             projectState={projectData.state}
-          />
-          <MetadataCard
-            projectId={projectId}
-            job={analysisJobs.find(
-              (candidate) => candidate.module_id === "probe_media",
-            )}
-            cancelPendingJobId={
-              cancelAnalysis.isPending
-                ? cancelAnalysis.variables?.jobId
-                : undefined
-            }
-            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
-            retryPendingJobId={
-              retryAnalysis.isPending
-                ? retryAnalysis.variables?.jobId
-                : undefined
-            }
-            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
           />
           <FramesCard
             projectId={projectId}
@@ -351,6 +342,47 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             )}
             readOnly={projectData.state === "archived"}
           />
+          {modulePlaceholders.map(([name, description, moduleId]) => (
+            <AnalysisCard
+              description={description}
+              job={analysisJobs.find(
+                (candidate) => candidate.module_id === moduleId,
+              )}
+              key={name}
+              moduleId={moduleId}
+              name={name}
+              cancelPendingJobId={
+                cancelAnalysis.isPending
+                  ? cancelAnalysis.variables?.jobId
+                  : undefined
+              }
+              onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+              retryPendingJobId={
+                retryAnalysis.isPending
+                  ? retryAnalysis.variables?.jobId
+                  : undefined
+              }
+              onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
+            />
+          ))}
+          <MetadataCard
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "probe_media",
+            )}
+            cancelPendingJobId={
+              cancelAnalysis.isPending
+                ? cancelAnalysis.variables?.jobId
+                : undefined
+            }
+            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+            retryPendingJobId={
+              retryAnalysis.isPending
+                ? retryAnalysis.variables?.jobId
+                : undefined
+            }
+            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
+          />
           <MapCard
             projectId={projectId}
             job={analysisJobs.find(
@@ -369,28 +401,6 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             }
             onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
           />
-          {modulePlaceholders.map(([name, description, moduleId]) => (
-            <AnalysisCard
-              description={description}
-              job={analysisJobs.find(
-                (candidate) => candidate.module_id === moduleId,
-              )}
-              key={name}
-              name={name}
-              cancelPendingJobId={
-                cancelAnalysis.isPending
-                  ? cancelAnalysis.variables?.jobId
-                  : undefined
-              }
-              onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
-              retryPendingJobId={
-                retryAnalysis.isPending
-                  ? retryAnalysis.variables?.jobId
-                  : undefined
-              }
-              onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
-            />
-          ))}
           <NotesCard
             projectId={projectId}
             readOnly={projectData.state === "archived"}
@@ -409,6 +419,7 @@ function AnalysisCard({
   onCancel,
   retryPendingJobId,
   onRetry,
+  moduleId,
 }: {
   name: string;
   description: string;
@@ -417,6 +428,7 @@ function AnalysisCard({
   onCancel: (jobId: string) => void;
   retryPendingJobId: string | undefined;
   onRetry: (jobId: string) => void;
+  moduleId: string;
 }) {
   const latestAttempt = job?.attempts.at(-1);
   const progress =
@@ -440,7 +452,7 @@ function AnalysisCard({
     job.cancel_requested_at === null;
 
   return (
-    <article className="analysis-card">
+    <article className="analysis-card" id={moduleId}>
       <div className="analysis-card-heading">
         <h2>{name}</h2>
         <span
