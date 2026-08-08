@@ -30,6 +30,14 @@ class AppUser:
 
 
 @dataclasses.dataclass()
+class LoginThrottle:
+    remote_address: str
+    window_started_at: datetime.datetime
+    failed_attempts: int
+    locked_until: Optional[datetime.datetime]
+
+
+@dataclasses.dataclass()
 class Project:
     id: uuid.UUID
     user_id: int

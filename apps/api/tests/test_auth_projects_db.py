@@ -1,0 +1,219 @@
+"""Authenticated project lifecycle against a real migrated PostgreSQL database."""
+
+import os
+from uuid import uuid4
+
+import pytest
+from httpx import ASGITransport, AsyncClient, Cookies
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from veridash_api.auth.passwords import hash_password
+from veridash_api.config import Settings
+from veridash_api.main import create_app
+
+
+async def _create_test_user(engine: AsyncEngine, username: str, password: str) -> None:
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                """
+                INSERT INTO app_user (username, password_hash)
+                VALUES (:username, :password_hash)
+                """
+            ),
+            {"username": username, "password_hash": hash_password(password)},
+        )
+
+
+async def _create_test_project(engine: AsyncEngine, username: str) -> str:
+    project_id = uuid4()
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                """
+                INSERT INTO project (id, user_id, title)
+                SELECT :project_id, id, 'Another user project'
+                FROM app_user
+                WHERE username = :username
+                """
+            ),
+            {"project_id": project_id, "username": username},
+        )
+    return str(project_id)
+
+
+async def _delete_test_users(engine: AsyncEngine, usernames: list[str]) -> None:
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                """
+                DELETE FROM project
+                WHERE user_id IN (SELECT id FROM app_user WHERE username = ANY(:usernames))
+                """
+            ),
+            {"usernames": usernames},
+        )
+        await connection.execute(
+            text("DELETE FROM app_user WHERE username = ANY(:usernames)"),
+            {"usernames": usernames},
+        )
+
+
+async def _clear_test_throttle(engine: AsyncEngine, remote_address: str) -> None:
+    async with engine.begin() as connection:
+        await connection.execute(
+            text("DELETE FROM login_throttle WHERE remote_address = :remote_address"),
+            {"remote_address": remote_address},
+        )
+
+
+@pytest.mark.db
+async def test_session_and_project_lifecycle_survives_api_restart() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    suffix = uuid4().hex
+    username = f"api-test-{suffix}"
+    other_username = f"api-test-other-{suffix}"
+    password = "correct horse battery staple"
+    engine = create_async_engine(database_url)
+    settings = Settings(database_url=database_url, session_cookie_secure=False)
+    remote_address = "198.51.100.10"
+    await _create_test_user(engine, username, password)
+    await _create_test_user(engine, other_username, password)
+    other_project_id = await _create_test_project(engine, other_username)
+
+    try:
+        app = create_app(settings=settings, database_engine=engine)
+        async with AsyncClient(
+            transport=ASGITransport(app=app, client=(remote_address, 123)),
+            base_url="http://test",
+        ) as client:
+            unauthenticated = await client.get("/api/projects")
+            assert unauthenticated.status_code == 401
+            assert unauthenticated.json()["code"] == "authentication_required"
+
+            invalid_login = await client.post(
+                "/api/auth/login",
+                json={"username": username, "password": "incorrect"},
+            )
+            assert invalid_login.status_code == 401
+            assert invalid_login.json()["code"] == "invalid_credentials"
+
+            login = await client.post(
+                "/api/auth/login",
+                json={"username": f"  {username.upper()}  ", "password": password},
+            )
+            assert login.status_code == 200
+            assert login.json()["user"]["username"] == username
+            assert "HttpOnly" in login.headers.get_list("set-cookie")[0]
+
+            rejected_create = await client.post(
+                "/api/projects",
+                json={"title": "First investigation"},
+            )
+            assert rejected_create.status_code == 403
+            assert rejected_create.json()["code"] == "csrf_check_failed"
+
+            csrf_token = client.cookies.get(settings.csrf_cookie_name)
+            assert csrf_token is not None
+            create = await client.post(
+                "/api/projects",
+                json={"title": "  First investigation  "},
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert create.status_code == 201
+            project = create.json()
+            assert project["title"] == "First investigation"
+            assert project["state"] == "active"
+
+            invalid_create = await client.post(
+                "/api/projects",
+                json={"title": "   "},
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert invalid_create.status_code == 422
+            assert invalid_create.json()["code"] == "invalid_request"
+
+            projects = await client.get("/api/projects")
+            assert projects.status_code == 200
+            assert [item["id"] for item in projects.json()] == [project["id"]]
+
+            project_detail = await client.get(f"/api/projects/{project['id']}")
+            assert project_detail.status_code == 200
+            assert project_detail.json() == project
+
+            missing = await client.get(f"/api/projects/{uuid4()}")
+            assert missing.status_code == 404
+            assert missing.json()["code"] == "project_not_found"
+
+            unauthorized_project = await client.get(f"/api/projects/{other_project_id}")
+            assert unauthorized_project.status_code == 404
+            assert unauthorized_project.json()["code"] == "project_not_found"
+
+            persisted_cookies = Cookies(client.cookies)
+
+        restarted_app = create_app(settings=settings, database_engine=engine)
+        async with AsyncClient(
+            transport=ASGITransport(app=restarted_app, client=(remote_address, 124)),
+            base_url="http://test",
+            cookies=persisted_cookies,
+        ) as restarted_client:
+            current_user = await restarted_client.get("/api/auth/me")
+            assert current_user.status_code == 200
+            assert current_user.json()["user"]["username"] == username
+
+            csrf_token = restarted_client.cookies.get(settings.csrf_cookie_name)
+            assert csrf_token is not None
+            logout = await restarted_client.post(
+                "/api/auth/logout",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert logout.status_code == 204
+
+            logged_out = await restarted_client.get("/api/auth/me")
+            assert logged_out.status_code == 401
+    finally:
+        await _delete_test_users(engine, [username, other_username])
+        await _clear_test_throttle(engine, remote_address)
+        await engine.dispose()
+
+
+@pytest.mark.db
+async def test_failed_logins_are_throttled_across_requests() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    username = f"api-throttle-test-{uuid4().hex}"
+    password = "correct horse battery staple"
+    remote_address = "198.51.100.11"
+    engine = create_async_engine(database_url)
+    settings = Settings(database_url=database_url, session_cookie_secure=False)
+    await _create_test_user(engine, username, password)
+
+    try:
+        app = create_app(settings=settings, database_engine=engine)
+        async with AsyncClient(
+            transport=ASGITransport(app=app, client=(remote_address, 123)),
+            base_url="http://test",
+        ) as client:
+            for _attempt in range(5):
+                rejected = await client.post(
+                    "/api/auth/login",
+                    json={"username": username, "password": "incorrect"},
+                )
+                assert rejected.status_code == 401
+
+            throttled = await client.post(
+                "/api/auth/login",
+                json={"username": username, "password": password},
+            )
+            assert throttled.status_code == 429
+            assert throttled.json()["code"] == "login_throttled"
+            assert throttled.headers["Retry-After"] == "900"
+    finally:
+        await _delete_test_users(engine, [username])
+        await _clear_test_throttle(engine, remote_address)
+        await engine.dispose()

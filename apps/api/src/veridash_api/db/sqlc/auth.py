@@ -2,7 +2,10 @@
 # versions:
 #   sqlc v1.31.1
 # source: auth.sql
+import dataclasses
+import datetime
 from typing import Optional
+import uuid
 
 import sqlalchemy
 import sqlalchemy.ext.asyncio
@@ -10,11 +13,54 @@ import sqlalchemy.ext.asyncio
 from veridash_api.db.sqlc import models
 
 
+CLEAR_LOGIN_FAILURES = """-- name: clear_login_failures \\:exec
+DELETE FROM login_throttle
+WHERE remote_address = :p1
+"""
+
+
+CREATE_SESSION = """-- name: create_session \\:one
+INSERT INTO user_session (id, user_id, token_hash, expires_at)
+VALUES (
+    :p1,
+    :p2,
+    :p3,
+    :p4
+)
+RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, revoked_at
+"""
+
+
 CREATE_USER = """-- name: create_user \\:one
 INSERT INTO app_user (username, password_hash)
 VALUES (:p1, :p2)
 RETURNING id, username, password_hash, is_enabled, created_at, updated_at
 """
+
+
+GET_ACTIVE_SESSION_USER = """-- name: get_active_session_user \\:one
+SELECT
+    app_user.id AS user_id,
+    app_user.username,
+    user_session.id AS session_id,
+    user_session.expires_at
+FROM user_session
+JOIN app_user ON app_user.id = user_session.user_id
+WHERE
+    user_session.token_hash = :p1
+    AND user_session.revoked_at IS NULL
+    AND user_session.expires_at > now()
+    AND app_user.is_enabled
+LIMIT 1
+"""
+
+
+@dataclasses.dataclass()
+class GetActiveSessionUserRow:
+    user_id: int
+    username: str
+    session_id: uuid.UUID
+    expires_at: datetime.datetime
 
 
 GET_USER_BY_USERNAME = """-- name: get_user_by_username \\:one
@@ -25,9 +71,95 @@ LIMIT 1
 """
 
 
+IS_LOGIN_BLOCKED = """-- name: is_login_blocked \\:one
+SELECT EXISTS (
+    SELECT 1
+    FROM login_throttle
+    WHERE
+        remote_address = :p1
+        AND locked_until > now()
+) AS is_blocked
+"""
+
+
+RECORD_LOGIN_FAILURE = """-- name: record_login_failure \\:exec
+INSERT INTO login_throttle (remote_address)
+VALUES (:p1)
+ON CONFLICT (remote_address) DO UPDATE
+SET
+    window_started_at = CASE
+        WHEN login_throttle.window_started_at < now() - interval '15 minutes' THEN now()
+        ELSE login_throttle.window_started_at
+    END,
+    failed_attempts = CASE
+        WHEN login_throttle.window_started_at < now() - interval '15 minutes' THEN 1
+        ELSE login_throttle.failed_attempts + 1
+    END,
+    locked_until = CASE
+        WHEN login_throttle.window_started_at < now() - interval '15 minutes' THEN NULL
+        WHEN login_throttle.failed_attempts + 1 >= 5 THEN now() + interval '15 minutes'
+        ELSE login_throttle.locked_until
+    END
+"""
+
+
+REVOKE_SESSION = """-- name: revoke_session \\:exec
+UPDATE user_session
+SET revoked_at = now()
+WHERE token_hash = :p1 AND revoked_at IS NULL
+"""
+
+
+REVOKE_USER_SESSIONS = """-- name: revoke_user_sessions \\:exec
+UPDATE user_session
+SET revoked_at = now()
+WHERE user_id = :p1 AND revoked_at IS NULL
+"""
+
+
+TOUCH_SESSION = """-- name: touch_session \\:exec
+UPDATE user_session
+SET last_seen_at = now()
+WHERE
+    token_hash = :p1
+    AND revoked_at IS NULL
+    AND expires_at > now()
+    AND last_seen_at < now() - interval '5 minutes'
+"""
+
+
+UPDATE_USER_PASSWORD = """-- name: update_user_password \\:exec
+UPDATE app_user
+SET password_hash = :p1, updated_at = now()
+WHERE id = :p2
+"""
+
+
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
+
+    async def clear_login_failures(self, *, remote_address: str) -> None:
+        await self._conn.execute(sqlalchemy.text(CLEAR_LOGIN_FAILURES), {"p1": remote_address})
+
+    async def create_session(self, *, id: uuid.UUID, user_id: int, token_hash: memoryview, expires_at: datetime.datetime) -> Optional[models.UserSession]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_SESSION), {
+            "p1": id,
+            "p2": user_id,
+            "p3": token_hash,
+            "p4": expires_at,
+        })).first()
+        if row is None:
+            return None
+        return models.UserSession(
+            id=row[0],
+            user_id=row[1],
+            token_hash=row[2],
+            created_at=row[3],
+            expires_at=row[4],
+            last_seen_at=row[5],
+            revoked_at=row[6],
+        )
 
     async def create_user(self, *, username: str, password_hash: str) -> Optional[models.AppUser]:
         row = (await self._conn.execute(sqlalchemy.text(CREATE_USER), {"p1": username, "p2": password_hash})).first()
@@ -42,6 +174,17 @@ class AsyncQuerier:
             updated_at=row[5],
         )
 
+    async def get_active_session_user(self, *, token_hash: memoryview) -> Optional[GetActiveSessionUserRow]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_ACTIVE_SESSION_USER), {"p1": token_hash})).first()
+        if row is None:
+            return None
+        return GetActiveSessionUserRow(
+            user_id=row[0],
+            username=row[1],
+            session_id=row[2],
+            expires_at=row[3],
+        )
+
     async def get_user_by_username(self, *, username: str) -> Optional[models.AppUser]:
         row = (await self._conn.execute(sqlalchemy.text(GET_USER_BY_USERNAME), {"p1": username})).first()
         if row is None:
@@ -54,3 +197,24 @@ class AsyncQuerier:
             created_at=row[4],
             updated_at=row[5],
         )
+
+    async def is_login_blocked(self, *, remote_address: str) -> Optional[bool]:
+        row = (await self._conn.execute(sqlalchemy.text(IS_LOGIN_BLOCKED), {"p1": remote_address})).first()
+        if row is None:
+            return None
+        return row[0]
+
+    async def record_login_failure(self, *, remote_address: str) -> None:
+        await self._conn.execute(sqlalchemy.text(RECORD_LOGIN_FAILURE), {"p1": remote_address})
+
+    async def revoke_session(self, *, token_hash: memoryview) -> None:
+        await self._conn.execute(sqlalchemy.text(REVOKE_SESSION), {"p1": token_hash})
+
+    async def revoke_user_sessions(self, *, user_id: int) -> None:
+        await self._conn.execute(sqlalchemy.text(REVOKE_USER_SESSIONS), {"p1": user_id})
+
+    async def touch_session(self, *, token_hash: memoryview) -> None:
+        await self._conn.execute(sqlalchemy.text(TOUCH_SESSION), {"p1": token_hash})
+
+    async def update_user_password(self, *, password_hash: str, user_id: int) -> None:
+        await self._conn.execute(sqlalchemy.text(UPDATE_USER_PASSWORD), {"p1": password_hash, "p2": user_id})
