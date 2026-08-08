@@ -1,15 +1,11 @@
 """Idempotent creation of the server-owned automatic analysis DAG."""
 
-import json
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 from veridash_analysis import (
     AnalysisRegistry,
-    analysis_cache_key,
-    analysis_request_key,
-    manifest_document,
-    manifest_hash,
+    build_automatic_analysis_plan,
 )
 
 from veridash_api.db.sqlc import models as database_models
@@ -31,11 +27,9 @@ async def create_automatic_analysis_dag(
     """Create every registered automatic node and edge exactly once."""
     queries = AsyncQuerier(connection)
     jobs_by_module: dict[str, UUID] = {}
-    request_keys_by_module: dict[str, str] = {}
 
-    for manifest in registry.automatic_plan():
-        document = manifest_document(manifest)
-        fingerprint = manifest_hash(manifest)
+    for item in build_automatic_analysis_plan(registry, source_sha256=source_sha256):
+        manifest = item.manifest
         definition = await queries.register_analysis_definition(
             RegisterAnalysisDefinitionParams(
                 module_id=manifest.module_id,
@@ -44,35 +38,18 @@ async def create_automatic_analysis_dag(
                 result_schema_version=manifest.result_schema_version,
                 resource_class=database_models.AnalysisResourceClass(manifest.resource_class.value),
                 automatic=manifest.automatic,
-                manifest_hash=fingerprint,
-                manifest=document,
+                manifest_hash=item.manifest_hash,
+                manifest=item.manifest_document,
             )
         )
         if definition is None:
             raise RuntimeError("analysis definition registration returned no row")
-        if definition.manifest_hash != fingerprint:
+        if definition.manifest_hash != item.manifest_hash:
             raise RuntimeError(
                 "analysis definition version was reused with a different manifest: "
                 f"{manifest.module_id}@{manifest.version}"
             )
 
-        dependency_request_keys = {
-            dependency: request_keys_by_module[dependency] for dependency in manifest.dependencies
-        }
-        request_key = analysis_request_key(
-            manifest,
-            source_sha256=source_sha256,
-            parameters=manifest.default_parameters,
-            dependency_request_keys=dependency_request_keys,
-        )
-        cache_key = None
-        if not manifest.dependencies:
-            cache_key = analysis_cache_key(
-                manifest,
-                source_sha256=source_sha256,
-                parameters=manifest.default_parameters,
-                dependency_artifact_hashes={},
-            )
         job = await queries.create_automatic_analysis_job(
             CreateAutomaticAnalysisJobParams(
                 id=uuid4(),
@@ -80,14 +57,9 @@ async def create_automatic_analysis_dag(
                 source_media_id=source_media_id,
                 module_id=manifest.module_id,
                 implementation_version=manifest.version,
-                parameters=json.dumps(
-                    manifest.default_parameters,
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                ),
-                request_key=request_key,
-                cache_key=cache_key,
+                parameters=item.parameters_document,
+                request_key=item.request_key,
+                cache_key=item.cache_key,
                 priority=manifest.priority,
                 max_attempts=manifest.max_attempts,
             )
@@ -95,7 +67,6 @@ async def create_automatic_analysis_dag(
         if job is None:
             raise RuntimeError("automatic analysis job creation returned no row")
         jobs_by_module[manifest.module_id] = job.id
-        request_keys_by_module[manifest.module_id] = job.request_key
 
         for dependency in manifest.dependencies:
             await queries.add_automatic_analysis_dependency(

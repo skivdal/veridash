@@ -133,6 +133,8 @@ SELECT
     job.implementation_version,
     definition.display_name,
     definition.resource_class,
+    definition.result_schema_version,
+    definition.manifest,
     job.state,
     job.parameters,
     job.request_key,
@@ -170,6 +172,8 @@ class GetAnalysisJobRow:
     implementation_version: str
     display_name: str
     resource_class: models.AnalysisResourceClass
+    result_schema_version: int
+    manifest: Any
     state: models.AnalysisJobState
     parameters: Any
     request_key: str
@@ -323,6 +327,8 @@ SELECT
     job.implementation_version,
     definition.display_name,
     definition.resource_class,
+    definition.result_schema_version,
+    definition.manifest,
     job.state,
     job.parameters,
     job.request_key,
@@ -360,6 +366,8 @@ class ListProjectAnalysisJobsRow:
     implementation_version: str
     display_name: str
     resource_class: models.AnalysisResourceClass
+    result_schema_version: int
+    manifest: Any
     state: models.AnalysisJobState
     parameters: Any
     request_key: str
@@ -554,6 +562,129 @@ class RequestProjectAnalysisJobCancellationRow:
     cache_key: Optional[str]
 
 
+REQUEST_PROJECT_ANALYSIS_JOB_RETRY = """-- name: request_project_analysis_job_retry \\:one
+WITH RECURSIVE target AS MATERIALIZED (
+    SELECT job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+    FROM analysis_job AS job
+    JOIN project ON project.id = job.project_id
+    WHERE
+        job.id = :p1
+        AND job.project_id = :p2
+        AND project.user_id = :p3
+        AND job.state IN ('failed', 'blocked', 'canceled', 'waiting_for_dependencies')
+        AND (
+            job.state = 'waiting_for_dependencies'
+            OR (
+                SELECT count(*)
+                FROM analysis_job_attempt AS attempt
+                WHERE attempt.job_id = job.id
+            ) < 100
+        )
+    FOR UPDATE OF job
+), retried AS (
+    UPDATE analysis_job AS job
+    SET
+        state = 'waiting_for_dependencies',
+        max_attempts = CASE
+            WHEN target.state = 'waiting_for_dependencies' THEN job.max_attempts
+            ELSE GREATEST(
+                job.max_attempts,
+                (
+                    SELECT count(*) + 1
+                    FROM analysis_job_attempt AS attempt
+                    WHERE attempt.job_id = target.id
+                )\\:\\:SMALLINT
+            )
+        END,
+        next_attempt_at = NULL,
+        ready_at = NULL,
+        finished_at = NULL,
+        cancel_requested_at = NULL,
+        failure_kind = NULL,
+        public_failure_message = NULL,
+        diagnostic_id = NULL,
+        updated_at = CASE
+            WHEN target.state = 'waiting_for_dependencies' THEN job.updated_at
+            ELSE now()
+        END
+    FROM target
+    WHERE job.id = target.id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+), descendant_ids AS (
+    SELECT dependency.job_id
+    FROM analysis_job_dependency AS dependency
+    JOIN target ON target.id = dependency.depends_on_job_id
+    UNION
+    SELECT dependency.job_id
+    FROM analysis_job_dependency AS dependency
+    JOIN descendant_ids ON descendant_ids.job_id = dependency.depends_on_job_id
+), unblocked AS (
+    UPDATE analysis_job AS job
+    SET
+        state = 'waiting_for_dependencies',
+        finished_at = NULL,
+        failure_kind = NULL,
+        public_failure_message = NULL,
+        diagnostic_id = NULL,
+        updated_at = now()
+    FROM descendant_ids
+    WHERE
+        job.id = descendant_ids.job_id
+        AND job.state = 'blocked'
+        AND job.failure_kind = 'dependency_failed'
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+), target_event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        retried.project_id,
+        retried.id,
+        'job.retry_requested',
+        'user',
+        jsonb_build_object('state', retried.state)
+    FROM retried
+    JOIN target ON target.id = retried.id
+    WHERE target.state <> 'waiting_for_dependencies'
+), descendant_events AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        project_id,
+        id,
+        'job.state_changed',
+        'user',
+        jsonb_build_object('state', state, 'reason', 'dependency_retry')
+    FROM unblocked
+)
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM retried
+"""
+
+
+@dataclasses.dataclass()
+class RequestProjectAnalysisJobRetryRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: models.AnalysisJobState
+    parameters: Any
+    request_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[models.AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
+
+
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
@@ -617,24 +748,26 @@ class AsyncQuerier:
             implementation_version=row[4],
             display_name=row[5],
             resource_class=row[6],
-            state=row[7],
-            parameters=row[8],
-            request_key=row[9],
-            cache_key=row[10],
-            priority=row[11],
-            max_attempts=row[12],
-            next_attempt_at=row[13],
-            ready_at=row[14],
-            started_at=row[15],
-            finished_at=row[16],
-            cancel_requested_at=row[17],
-            failure_kind=row[18],
-            public_failure_message=row[19],
-            diagnostic_id=row[20],
-            reused_from_job_id=row[21],
-            winning_attempt_id=row[22],
-            created_at=row[23],
-            updated_at=row[24],
+            result_schema_version=row[7],
+            manifest=row[8],
+            state=row[9],
+            parameters=row[10],
+            request_key=row[11],
+            cache_key=row[12],
+            priority=row[13],
+            max_attempts=row[14],
+            next_attempt_at=row[15],
+            ready_at=row[16],
+            started_at=row[17],
+            finished_at=row[18],
+            cancel_requested_at=row[19],
+            failure_kind=row[20],
+            public_failure_message=row[21],
+            diagnostic_id=row[22],
+            reused_from_job_id=row[23],
+            winning_attempt_id=row[24],
+            created_at=row[25],
+            updated_at=row[26],
         )
 
     async def get_latest_project_event_id(self, *, project_id: uuid.UUID, user_id: int) -> Optional[int]:
@@ -712,24 +845,26 @@ class AsyncQuerier:
                 implementation_version=row[4],
                 display_name=row[5],
                 resource_class=row[6],
-                state=row[7],
-                parameters=row[8],
-                request_key=row[9],
-                cache_key=row[10],
-                priority=row[11],
-                max_attempts=row[12],
-                next_attempt_at=row[13],
-                ready_at=row[14],
-                started_at=row[15],
-                finished_at=row[16],
-                cancel_requested_at=row[17],
-                failure_kind=row[18],
-                public_failure_message=row[19],
-                diagnostic_id=row[20],
-                reused_from_job_id=row[21],
-                winning_attempt_id=row[22],
-                created_at=row[23],
-                updated_at=row[24],
+                result_schema_version=row[7],
+                manifest=row[8],
+                state=row[9],
+                parameters=row[10],
+                request_key=row[11],
+                cache_key=row[12],
+                priority=row[13],
+                max_attempts=row[14],
+                next_attempt_at=row[15],
+                ready_at=row[16],
+                started_at=row[17],
+                finished_at=row[18],
+                cancel_requested_at=row[19],
+                failure_kind=row[20],
+                public_failure_message=row[21],
+                diagnostic_id=row[22],
+                reused_from_job_id=row[23],
+                winning_attempt_id=row[24],
+                created_at=row[25],
+                updated_at=row[26],
             )
 
     async def list_project_events_after(self, *, project_id: uuid.UUID, user_id: int, after_event_id: int, batch_size: int) -> AsyncIterator[models.ProjectEvent]:
@@ -782,6 +917,36 @@ class AsyncQuerier:
         if row is None:
             return None
         return RequestProjectAnalysisJobCancellationRow(
+            id=row[0],
+            project_id=row[1],
+            source_media_id=row[2],
+            module_id=row[3],
+            implementation_version=row[4],
+            state=row[5],
+            parameters=row[6],
+            request_key=row[7],
+            priority=row[8],
+            max_attempts=row[9],
+            next_attempt_at=row[10],
+            ready_at=row[11],
+            started_at=row[12],
+            finished_at=row[13],
+            cancel_requested_at=row[14],
+            failure_kind=row[15],
+            public_failure_message=row[16],
+            diagnostic_id=row[17],
+            reused_from_job_id=row[18],
+            created_at=row[19],
+            updated_at=row[20],
+            winning_attempt_id=row[21],
+            cache_key=row[22],
+        )
+
+    async def request_project_analysis_job_retry(self, *, job_id: uuid.UUID, project_id: uuid.UUID, user_id: int) -> Optional[RequestProjectAnalysisJobRetryRow]:
+        row = (await self._conn.execute(sqlalchemy.text(REQUEST_PROJECT_ANALYSIS_JOB_RETRY), {"p1": job_id, "p2": project_id, "p3": user_id})).first()
+        if row is None:
+            return None
+        return RequestProjectAnalysisJobRetryRow(
             id=row[0],
             project_id=row[1],
             source_media_id=row[2],

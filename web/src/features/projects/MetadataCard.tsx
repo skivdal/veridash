@@ -1,11 +1,14 @@
 import { useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet } from "../../api/generated/client";
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
+import { AnalysisProvenance } from "./AnalysisProvenance";
 
 interface MetadataCardProps {
   projectId: string;
   job: AnalysisJobResponse | undefined;
   cancelPendingJobId: string | undefined;
   onCancel: (jobId: string) => void;
+  retryPendingJobId: string | undefined;
+  onRetry: (jobId: string) => void;
 }
 
 export function MetadataCard({
@@ -13,6 +16,8 @@ export function MetadataCard({
   job,
   cancelPendingJobId,
   onCancel,
+  retryPendingJobId,
+  onRetry,
 }: MetadataCardProps) {
   const artifacts =
     useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet(
@@ -62,6 +67,22 @@ export function MetadataCard({
             {cancelPendingJobId === job.id ? "Canceling…" : "Cancel analysis"}
           </button>
         ) : null}
+        {job !== undefined && ["failed", "canceled"].includes(job.state) ? (
+          <button
+            className="button button-secondary"
+            type="button"
+            disabled={retryPendingJobId === job.id}
+            onClick={() => onRetry(job.id)}
+          >
+            {retryPendingJobId === job.id ? "Retrying…" : "Retry analysis"}
+          </button>
+        ) : null}
+        {job?.diagnostic_id === null ||
+        job?.diagnostic_id === undefined ? null : (
+          <small className="diagnostic-reference">
+            Error reference: {job.diagnostic_id}
+          </small>
+        )}
       </article>
     );
   }
@@ -112,6 +133,10 @@ export function MetadataCard({
         <summary>Inspect raw FFprobe result</summary>
         <pre className="metadata-raw">{JSON.stringify(probe, null, 2)}</pre>
       </details>
+      <AnalysisProvenance
+        artifacts={artifacts.data?.status === 200 ? artifacts.data.data : []}
+        job={job}
+      />
     </article>
   );
 }

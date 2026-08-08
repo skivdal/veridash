@@ -223,6 +223,10 @@
             "title": "Attempts",
             "type": "array"
           },
+          "cacheable": {
+            "title": "Cacheable",
+            "type": "boolean"
+          },
           "cancel_requested_at": {
             "anyOf": [
               {
@@ -283,6 +287,13 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "implementation_fingerprints": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Implementation Fingerprints",
+            "type": "object"
           },
           "implementation_version": {
             "title": "Implementation Version",
@@ -345,6 +356,10 @@
             "title": "Resource Class",
             "type": "string"
           },
+          "result_schema_version": {
+            "title": "Result Schema Version",
+            "type": "integer"
+          },
           "reused": {
             "title": "Reused",
             "type": "boolean"
@@ -382,8 +397,11 @@
           "source_media_id",
           "module_id",
           "implementation_version",
+          "result_schema_version",
           "display_name",
           "resource_class",
+          "cacheable",
+          "implementation_fingerprints",
           "state",
           "parameters",
           "max_attempts",
@@ -1693,6 +1711,109 @@
           }
         },
         "summary": "Cancel Project Analysis",
+        "tags": [
+          "analyses"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/analyses/{job_id}/retry": {
+      "post": {
+        "operationId": "retry_project_analysis_api_projects__project_id__analyses__job_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisJobResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "CSRF check failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Analysis not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Analysis cannot be retried"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Retry Project Analysis",
         "tags": [
           "analyses"
         ]

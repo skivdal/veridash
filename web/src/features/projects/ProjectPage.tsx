@@ -14,6 +14,7 @@ import {
   useListProjectAnalysesApiProjectsProjectIdAnalysesGet,
   useRenameProjectApiProjectsProjectIdPatch,
   useRestoreProjectApiProjectsProjectIdRestorePost,
+  useRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost,
 } from "../../api/generated/client";
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
@@ -121,6 +122,19 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
         },
       },
     });
+  const retryAnalysis =
+    useRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost({
+      mutation: {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({
+            queryKey:
+              getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey(
+                projectId,
+              ),
+          });
+        },
+      },
+    });
 
   if (
     currentUser.error instanceof ApiError &&
@@ -196,7 +210,9 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
           ? restoreProject.error.message
           : cancelAnalysis.error instanceof ApiError
             ? cancelAnalysis.error.message
-            : undefined;
+            : retryAnalysis.error instanceof ApiError
+              ? retryAnalysis.error.message
+              : undefined;
   const lifecycleMutationPending =
     archiveProject.isPending || restoreProject.isPending;
 
@@ -308,6 +324,12 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
                 : undefined
             }
             onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+            retryPendingJobId={
+              retryAnalysis.isPending
+                ? retryAnalysis.variables?.jobId
+                : undefined
+            }
+            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
           />
           <FramesCard
             projectId={projectId}
@@ -320,6 +342,12 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
                 : undefined
             }
             onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+            retryPendingJobId={
+              retryAnalysis.isPending
+                ? retryAnalysis.variables?.jobId
+                : undefined
+            }
+            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
           />
           {modulePlaceholders.map(([name, description, moduleId]) => (
             <AnalysisCard
@@ -335,6 +363,12 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
                   : undefined
               }
               onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+              retryPendingJobId={
+                retryAnalysis.isPending
+                  ? retryAnalysis.variables?.jobId
+                  : undefined
+              }
+              onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
             />
           ))}
           <article className="analysis-card notes-card">
@@ -361,12 +395,16 @@ function AnalysisCard({
   job,
   cancelPendingJobId,
   onCancel,
+  retryPendingJobId,
+  onRetry,
 }: {
   name: string;
   description: string;
   job: AnalysisJobResponse | undefined;
   cancelPendingJobId: string | undefined;
   onCancel: (jobId: string) => void;
+  retryPendingJobId: string | undefined;
+  onRetry: (jobId: string) => void;
 }) {
   const latestAttempt = job?.attempts.at(-1);
   const progress =
@@ -426,6 +464,22 @@ function AnalysisCard({
           {cancelPendingJobId === job.id ? "Canceling…" : "Cancel analysis"}
         </button>
       ) : null}
+      {job !== undefined && ["failed", "canceled"].includes(job.state) ? (
+        <button
+          className="button button-secondary"
+          type="button"
+          disabled={retryPendingJobId === job.id}
+          onClick={() => onRetry(job.id)}
+        >
+          {retryPendingJobId === job.id ? "Retrying…" : "Retry analysis"}
+        </button>
+      ) : null}
+      {job?.diagnostic_id === null ||
+      job?.diagnostic_id === undefined ? null : (
+        <small className="diagnostic-reference">
+          Error reference: {job.diagnostic_id}
+        </small>
+      )}
     </article>
   );
 }

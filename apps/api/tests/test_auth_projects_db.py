@@ -402,6 +402,25 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             )
             assert cancel_again.status_code == 200
             assert cancel_again.json()["finished_at"] == canceled_job["finished_at"]
+            rejected_retry = await client.post(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/retry"
+            )
+            assert rejected_retry.status_code == 403
+            retry = await client.post(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/retry",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert retry.status_code == 200
+            retried_job = retry.json()
+            assert retried_job["state"] == "waiting_for_dependencies"
+            assert retried_job["failure_kind"] is None
+            assert retried_job["cancel_requested_at"] is None
+            retry_again = await client.post(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/retry",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert retry_again.status_code == 200
+            assert retry_again.json()["updated_at"] == retried_job["updated_at"]
             artifacts = await client.get(
                 f"/api/projects/{project['id']}/analyses/{derived_job['id']}/artifacts"
             )
@@ -419,6 +438,7 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             assert '"event_type":"media.uploaded"' in event_stream.text
             assert '"event_type":"job.created"' in event_stream.text
             assert '"event_type":"job.state_changed"' in event_stream.text
+            assert '"event_type":"job.retry_requested"' in event_stream.text
 
             invalid_cursor = await client.get(
                 f"/api/projects/{project['id']}/events",

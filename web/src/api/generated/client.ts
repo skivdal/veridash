@@ -1683,6 +1683,123 @@ export const useCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost
       return useMutation(getCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostMutationOptions(options), queryClient);
     }
 
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse200 = {
+  data: AnalysisJobResponse
+  status: 200
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponseSuccess = (retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse200) & {
+  headers: Headers;
+};
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponseError = (retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse401 | retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse403 | retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse404 | retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse409 | retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse422 | retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse500) & {
+  headers: Headers;
+};
+
+export type retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse = (retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponseSuccess | retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponseError)
+
+export const getRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostUrl = (projectId: string,
+    jobId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/analyses/${jobId}/retry`
+}
+
+/**
+ * @summary Retry Project Analysis
+ */
+export const retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost = async (projectId: string,
+    jobId: string, options?: RequestInit): Promise<retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse> => {
+
+  return apiFetch<retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostResponse>(getRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostUrl(projectId,jobId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostMutationOptions = <TError = ErrorType<ProblemResponse | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost>>, TError,{projectId: string;jobId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost>>, TError,{projectId: string;jobId: string}, TContext> => {
+
+const mutationKey = ['retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost>>, {projectId: string;jobId: string}> = (props) => {
+          const {projectId,jobId} = props ?? {};
+
+          return  retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost(projectId,jobId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostMutationResult = NonNullable<Awaited<ReturnType<typeof retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost>>>
+
+    export type RetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostMutationError = ErrorType<ProblemResponse | HTTPValidationError>
+
+    /**
+ * @summary Retry Project Analysis
+ */
+export const useRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost = <TError = ErrorType<ProblemResponse | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost>>, TError,{projectId: string;jobId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof retryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost>>,
+        TError,
+        {projectId: string;jobId: string},
+        TContext
+      > => {
+      return useMutation(getRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPostMutationOptions(options), queryClient);
+    }
+
 export type archiveProjectApiProjectsProjectIdArchivePostResponse200 = {
   data: ProjectResponse
   status: 200

@@ -62,6 +62,30 @@ async def cancel_project_analysis(
     )
 
 
+@router.post(
+    "/projects/{project_id}/analyses/{job_id}/retry",
+    response_model=AnalysisJobResponse,
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        403: {**PROBLEM_RESPONSE, "description": "CSRF check failed"},
+        404: {**PROBLEM_RESPONSE, "description": "Analysis not found"},
+        409: {**PROBLEM_RESPONSE, "description": "Analysis cannot be retried"},
+    },
+)
+async def retry_project_analysis(
+    project_id: UUID,
+    job_id: UUID,
+    connection: DatabaseConnection,
+    session: MutationSession,
+) -> AnalysisJobResponse:
+    return await analysis_service.retry_project_analysis(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+        job_id=job_id,
+    )
+
+
 @router.get(
     "/projects/{project_id}/analyses/{job_id}/artifacts",
     response_model=list[AnalysisArtifactResponse],

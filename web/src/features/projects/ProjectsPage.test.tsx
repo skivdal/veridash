@@ -1,6 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAppRouter } from "../../router";
@@ -145,6 +151,7 @@ describe("projects routing", () => {
   });
 
   it("shows timestamped immutable frames and opens the review surface", async () => {
+    let retryRequested = false;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -184,8 +191,13 @@ describe("projects routing", () => {
               source_media_id: "media-id",
               module_id: "extract_keyframes",
               implementation_version: "1.0.0",
+              result_schema_version: 1,
               display_name: "Frames",
               resource_class: "cpu",
+              cacheable: false,
+              implementation_fingerprints: {
+                ffmpeg_binary: "deployment-unpinned",
+              },
               state: "succeeded",
               parameters: {},
               max_attempts: 3,
@@ -202,7 +214,38 @@ describe("projects routing", () => {
               updated_at: "2026-08-08T12:00:02Z",
               attempts: [],
             },
+            {
+              id: "metadata-job",
+              project_id: "project-id",
+              source_media_id: "media-id",
+              module_id: "probe_media",
+              implementation_version: "1.0.0",
+              result_schema_version: 1,
+              display_name: "Metadata",
+              resource_class: "cpu",
+              cacheable: false,
+              implementation_fingerprints: {},
+              state: "failed",
+              parameters: {},
+              max_attempts: 3,
+              next_attempt_at: null,
+              ready_at: "2026-08-08T12:00:01Z",
+              started_at: "2026-08-08T12:00:01Z",
+              finished_at: "2026-08-08T12:00:02Z",
+              cancel_requested_at: null,
+              failure_kind: "invalid_input",
+              public_failure_message: "Metadata could not be read.",
+              diagnostic_id: "diagnostic-id",
+              reused: false,
+              created_at: "2026-08-08T12:00:01Z",
+              updated_at: "2026-08-08T12:00:02Z",
+              attempts: [],
+            },
           ]);
+        }
+        if (url === "/api/projects/project-id/analyses/metadata-job/retry") {
+          retryRequested = true;
+          return jsonResponse({});
         }
         if (url === "/api/projects/project-id/analyses/frames-job/artifacts") {
           const common = {
@@ -257,5 +300,10 @@ describe("projects routing", () => {
     expect(
       screen.getByRole("heading", { name: "Extracted frames" }),
     ).toBeDefined();
+    expect(
+      screen.getByText(/cross-project cache reuse is disabled/i),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Retry analysis" }));
+    await waitFor(() => expect(retryRequested).toBe(true));
   });
 });

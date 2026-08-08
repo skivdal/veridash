@@ -53,16 +53,16 @@ WITH inserted AS (
         sqlc.arg(implementation_version),
         sqlc.arg(parameters),
         sqlc.arg(request_key),
-        sqlc.arg(cache_key),
+        sqlc.narg(cache_key),
         sqlc.arg(priority),
         sqlc.arg(max_attempts)
     )
     ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
     RETURNING *
 ), selected AS (
-    SELECT * FROM inserted
+    SELECT inserted.*, TRUE AS created FROM inserted
     UNION ALL
-    SELECT * FROM analysis_job
+    SELECT analysis_job.*, FALSE AS created FROM analysis_job
     WHERE
         project_id = sqlc.arg(project_id)
         AND source_media_id = sqlc.arg(source_media_id)
@@ -80,6 +80,25 @@ WITH inserted AS (
     FROM inserted
 )
 SELECT * FROM selected;
+
+-- name: ListUploadedSourcesMissingAnalysis :many
+SELECT source_media.project_id, source_media.id, source_media.sha256_hex
+FROM source_media
+WHERE
+    source_media.upload_state = 'uploaded'
+    AND source_media.sha256_hex IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM analysis_job AS job
+        WHERE
+            job.project_id = source_media.project_id
+            AND job.source_media_id = source_media.id
+            AND job.module_id = sqlc.arg(module_id)
+            AND job.implementation_version = sqlc.arg(implementation_version)
+    )
+ORDER BY source_media.uploaded_at, source_media.id
+FOR UPDATE OF source_media SKIP LOCKED
+LIMIT sqlc.arg(batch_size);
 
 -- name: AddAnalysisJobDependency :exec
 INSERT INTO analysis_job_dependency (project_id, job_id, depends_on_job_id)

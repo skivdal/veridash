@@ -5,12 +5,15 @@ import type {
   AnalysisArtifactResponse,
   AnalysisJobResponse,
 } from "../../api/generated/schemas";
+import { AnalysisProvenance } from "./AnalysisProvenance";
 
 interface FramesCardProps {
   projectId: string;
   job: AnalysisJobResponse | undefined;
   cancelPendingJobId: string | undefined;
   onCancel: (jobId: string) => void;
+  retryPendingJobId: string | undefined;
+  onRetry: (jobId: string) => void;
 }
 
 interface FrameIndexItem {
@@ -24,6 +27,8 @@ export function FramesCard({
   job,
   cancelPendingJobId,
   onCancel,
+  retryPendingJobId,
+  onRetry,
 }: FramesCardProps) {
   const [expanded, setExpanded] = useState(false);
   const artifacts =
@@ -95,6 +100,22 @@ export function FramesCard({
             {cancelPendingJobId === job.id ? "Canceling…" : "Cancel analysis"}
           </button>
         ) : null}
+        {job !== undefined && ["failed", "canceled"].includes(job.state) ? (
+          <button
+            className="button button-secondary"
+            type="button"
+            disabled={retryPendingJobId === job.id}
+            onClick={() => onRetry(job.id)}
+          >
+            {retryPendingJobId === job.id ? "Retrying…" : "Retry analysis"}
+          </button>
+        ) : null}
+        {job?.diagnostic_id === null ||
+        job?.diagnostic_id === undefined ? null : (
+          <small className="diagnostic-reference">
+            Error reference: {job.diagnostic_id}
+          </small>
+        )}
       </article>
     );
   }
@@ -129,6 +150,7 @@ export function FramesCard({
       >
         Review all frames
       </button>
+      <AnalysisProvenance artifacts={artifactList} job={job} />
       {expanded ? (
         <div className="frame-review-overlay" role="dialog" aria-modal="true">
           <section className="frame-review-surface">

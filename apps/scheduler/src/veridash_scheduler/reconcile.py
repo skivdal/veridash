@@ -3,25 +3,34 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import JsonValue, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from veridash_analysis import (
+    AnalysisRegistry,
     ModuleManifest,
     analysis_cache_key,
+    build_automatic_analysis_plan,
     match_output_spec,
     resolve_output_specs,
 )
 
 from veridash_scheduler.config import Settings
-from veridash_scheduler.db.sqlc.analysis import AsyncQuerier, ListDependentCacheInputsRow
+from veridash_scheduler.db.sqlc import models
+from veridash_scheduler.db.sqlc.analysis import (
+    AsyncQuerier,
+    CreateAnalysisJobParams,
+    ListDependentCacheInputsRow,
+    RegisterAnalysisDefinitionParams,
+)
 
 JSON_OBJECT = TypeAdapter(dict[str, JsonValue])
 
 
 @dataclass(frozen=True, slots=True)
 class ReconcileCounts:
+    planned_jobs: int = 0
     recovered_attempts: int = 0
     released_retries: int = 0
     blocked_jobs: int = 0
@@ -29,17 +38,27 @@ class ReconcileCounts:
     reused_jobs: int = 0
 
 
-async def reconcile_once(engine: AsyncEngine, settings: Settings) -> ReconcileCounts:
+async def reconcile_once(
+    engine: AsyncEngine,
+    settings: Settings,
+    registry: AnalysisRegistry | None = None,
+) -> ReconcileCounts:
     """Run one finite reconciliation transaction and return transition counts."""
     async with engine.begin() as connection:
-        return await reconcile_connection(connection, settings)
+        return await reconcile_connection(connection, settings, registry)
 
 
 async def reconcile_connection(
     connection: AsyncConnection,
     settings: Settings,
+    registry: AnalysisRegistry | None = None,
 ) -> ReconcileCounts:
     queries = AsyncQuerier(connection)
+    planned_jobs = (
+        await _reconcile_automatic_plans(queries, registry, settings.batch_size)
+        if registry is not None
+        else 0
+    )
     recovered = [
         row
         async for row in queries.recover_expired_analysis_attempts(
@@ -85,12 +104,99 @@ async def reconcile_connection(
             reused_count += int(resolved.reused_from_job_id is not None)
 
     return ReconcileCounts(
+        planned_jobs=planned_jobs,
         recovered_attempts=len(recovered),
         released_retries=len(released),
         blocked_jobs=len(blocked),
         resolved_jobs=resolved_count,
         reused_jobs=reused_count,
     )
+
+
+async def _reconcile_automatic_plans(
+    queries: AsyncQuerier,
+    registry: AnalysisRegistry,
+    batch_size: int,
+) -> int:
+    planned_jobs = 0
+    for target_manifest in registry.automatic_plan():
+        candidates = [
+            row
+            async for row in queries.list_uploaded_sources_missing_analysis(
+                module_id=target_manifest.module_id,
+                implementation_version=target_manifest.version,
+                batch_size=batch_size,
+            )
+        ]
+        for source in candidates:
+            if source.sha256_hex is None:
+                raise RuntimeError("uploaded source has no content identity")
+            planned_jobs += await _ensure_automatic_analysis_plan(
+                queries,
+                registry,
+                project_id=source.project_id,
+                source_media_id=source.id,
+                source_sha256=source.sha256_hex,
+            )
+    return planned_jobs
+
+
+async def _ensure_automatic_analysis_plan(
+    queries: AsyncQuerier,
+    registry: AnalysisRegistry,
+    *,
+    project_id: UUID,
+    source_media_id: UUID,
+    source_sha256: str,
+) -> int:
+    jobs_by_module: dict[str, UUID] = {}
+    created_jobs = 0
+    for item in build_automatic_analysis_plan(registry, source_sha256=source_sha256):
+        manifest = item.manifest
+        definition = await queries.register_analysis_definition(
+            RegisterAnalysisDefinitionParams(
+                module_id=manifest.module_id,
+                implementation_version=manifest.version,
+                display_name=manifest.display_name,
+                result_schema_version=manifest.result_schema_version,
+                resource_class=models.AnalysisResourceClass(manifest.resource_class.value),
+                automatic=manifest.automatic,
+                manifest_hash=item.manifest_hash,
+                manifest=item.manifest_document,
+            )
+        )
+        if definition is None:
+            raise RuntimeError("analysis definition registration returned no row")
+        if definition.manifest_hash != item.manifest_hash:
+            raise RuntimeError(
+                "analysis definition version was reused with a different manifest: "
+                f"{manifest.module_id}@{manifest.version}"
+            )
+        job = await queries.create_analysis_job(
+            CreateAnalysisJobParams(
+                id=uuid4(),
+                project_id=project_id,
+                source_media_id=source_media_id,
+                module_id=manifest.module_id,
+                implementation_version=manifest.version,
+                parameters=item.parameters_document,
+                request_key=item.request_key,
+                cache_key=item.cache_key,
+                priority=manifest.priority,
+                max_attempts=manifest.max_attempts,
+            )
+        )
+        if job is None:
+            raise RuntimeError("automatic analysis job creation returned no row")
+        created_jobs += int(job.created)
+        jobs_by_module[manifest.module_id] = job.id
+        for dependency in manifest.dependencies:
+            await queries.add_analysis_job_dependency(
+                project_id=project_id,
+                job_id=job.id,
+                depends_on_job_id=jobs_by_module[dependency],
+            )
+    return created_jobs
 
 
 def _group_cache_inputs(

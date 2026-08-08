@@ -5,10 +5,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AnalysisAttemptResponse } from './analysisAttemptResponse';
+import type { AnalysisJobResponseImplementationFingerprints } from './analysisJobResponseImplementationFingerprints';
 import type { AnalysisJobResponseParameters } from './analysisJobResponseParameters';
 
 export interface AnalysisJobResponse {
   attempts: AnalysisAttemptResponse[];
+  cacheable: boolean;
   cancel_requested_at: string | null;
   created_at: string;
   diagnostic_id: string | null;
@@ -16,6 +18,7 @@ export interface AnalysisJobResponse {
   failure_kind: string | null;
   finished_at: string | null;
   id: string;
+  implementation_fingerprints: AnalysisJobResponseImplementationFingerprints;
   implementation_version: string;
   max_attempts: number;
   module_id: string;
@@ -25,6 +28,7 @@ export interface AnalysisJobResponse {
   public_failure_message: string | null;
   ready_at: string | null;
   resource_class: string;
+  result_schema_version: number;
   reused: boolean;
   source_media_id: string;
   started_at: string | null;

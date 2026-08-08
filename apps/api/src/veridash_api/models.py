@@ -105,8 +105,11 @@ class AnalysisJobResponse(BaseModel):
     source_media_id: uuid.UUID
     module_id: str
     implementation_version: str
+    result_schema_version: int
     display_name: str
     resource_class: str
+    cacheable: bool
+    implementation_fingerprints: dict[str, str]
     state: str
     parameters: dict[str, object]
     max_attempts: int

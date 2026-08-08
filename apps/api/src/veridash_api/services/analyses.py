@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncConnection
+from veridash_analysis import ModuleManifest
 
 from veridash_api.db.sqlc.analyses import AsyncQuerier
 from veridash_api.errors import ApiProblem
@@ -41,6 +42,13 @@ async def list_project_analyses(
         user_id=user_id,
     ):
         parameter_document = PARAMETER_DOCUMENT.validate_python(job.parameters)
+        manifest = ModuleManifest.model_validate(job.manifest)
+        if (
+            manifest.module_id != job.module_id
+            or manifest.version != job.implementation_version
+            or manifest.result_schema_version != job.result_schema_version
+        ):
+            raise RuntimeError("analysis definition columns disagree with its manifest")
         responses.append(
             AnalysisJobResponse(
                 id=job.id,
@@ -48,8 +56,13 @@ async def list_project_analyses(
                 source_media_id=job.source_media_id,
                 module_id=job.module_id,
                 implementation_version=job.implementation_version,
+                result_schema_version=job.result_schema_version,
                 display_name=job.display_name,
                 resource_class=job.resource_class,
+                cacheable=manifest.cacheable,
+                implementation_fingerprints={
+                    item.name: item.value for item in manifest.fingerprints
+                },
                 state=job.state,
                 parameters=parameter_document,
                 max_attempts=job.max_attempts,
@@ -110,6 +123,48 @@ async def cancel_project_analysis(
         if analysis.id == job_id:
             return analysis
     raise RuntimeError("canceled analysis disappeared from its project snapshot")
+
+
+async def retry_project_analysis(
+    connection: AsyncConnection,
+    *,
+    user_id: int,
+    project_id: UUID,
+    job_id: UUID,
+) -> AnalysisJobResponse:
+    """Retry a terminal job and restore dependency-blocked descendants."""
+    await get_project(connection, user_id=user_id, project_id=project_id)
+    queries = AsyncQuerier(connection)
+    retried = await queries.request_project_analysis_job_retry(
+        job_id=job_id,
+        project_id=project_id,
+        user_id=user_id,
+    )
+    if retried is None:
+        existing = await queries.get_analysis_job(job_id=job_id, user_id=user_id)
+        if existing is None or existing.project_id != project_id:
+            raise ApiProblem(
+                status=404,
+                code="analysis_job_not_found",
+                title="Analysis not found",
+                detail="The requested analysis does not exist.",
+            )
+        raise ApiProblem(
+            status=409,
+            code="analysis_job_not_retryable",
+            title="Analysis cannot be retried",
+            detail="This analysis is already active, complete, or has reached its retry limit.",
+        )
+
+    analyses = await list_project_analyses(
+        connection,
+        user_id=user_id,
+        project_id=project_id,
+    )
+    for analysis in analyses:
+        if analysis.id == job_id:
+            return analysis
+    raise RuntimeError("retried analysis disappeared from its project snapshot")
 
 
 async def list_project_analysis_artifacts(

@@ -7,6 +7,8 @@ SELECT
     job.implementation_version,
     definition.display_name,
     definition.resource_class,
+    definition.result_schema_version,
+    definition.manifest,
     job.state,
     job.parameters,
     job.request_key,
@@ -67,6 +69,8 @@ SELECT
     job.implementation_version,
     definition.display_name,
     definition.resource_class,
+    definition.result_schema_version,
+    definition.manifest,
     job.state,
     job.parameters,
     job.request_key,
@@ -155,6 +159,100 @@ WITH target AS MATERIALIZED (
     WHERE target.cancel_requested_at IS NULL
 )
 SELECT * FROM updated;
+
+-- name: RequestProjectAnalysisJobRetry :one
+WITH RECURSIVE target AS MATERIALIZED (
+    SELECT job.*
+    FROM analysis_job AS job
+    JOIN project ON project.id = job.project_id
+    WHERE
+        job.id = sqlc.arg(job_id)
+        AND job.project_id = sqlc.arg(project_id)
+        AND project.user_id = sqlc.arg(user_id)
+        AND job.state IN ('failed', 'blocked', 'canceled', 'waiting_for_dependencies')
+        AND (
+            job.state = 'waiting_for_dependencies'
+            OR (
+                SELECT count(*)
+                FROM analysis_job_attempt AS attempt
+                WHERE attempt.job_id = job.id
+            ) < 100
+        )
+    FOR UPDATE OF job
+), retried AS (
+    UPDATE analysis_job AS job
+    SET
+        state = 'waiting_for_dependencies',
+        max_attempts = CASE
+            WHEN target.state = 'waiting_for_dependencies' THEN job.max_attempts
+            ELSE GREATEST(
+                job.max_attempts,
+                (
+                    SELECT count(*) + 1
+                    FROM analysis_job_attempt AS attempt
+                    WHERE attempt.job_id = target.id
+                )::SMALLINT
+            )
+        END,
+        next_attempt_at = NULL,
+        ready_at = NULL,
+        finished_at = NULL,
+        cancel_requested_at = NULL,
+        failure_kind = NULL,
+        public_failure_message = NULL,
+        diagnostic_id = NULL,
+        updated_at = CASE
+            WHEN target.state = 'waiting_for_dependencies' THEN job.updated_at
+            ELSE now()
+        END
+    FROM target
+    WHERE job.id = target.id
+    RETURNING job.*
+), descendant_ids AS (
+    SELECT dependency.job_id
+    FROM analysis_job_dependency AS dependency
+    JOIN target ON target.id = dependency.depends_on_job_id
+    UNION
+    SELECT dependency.job_id
+    FROM analysis_job_dependency AS dependency
+    JOIN descendant_ids ON descendant_ids.job_id = dependency.depends_on_job_id
+), unblocked AS (
+    UPDATE analysis_job AS job
+    SET
+        state = 'waiting_for_dependencies',
+        finished_at = NULL,
+        failure_kind = NULL,
+        public_failure_message = NULL,
+        diagnostic_id = NULL,
+        updated_at = now()
+    FROM descendant_ids
+    WHERE
+        job.id = descendant_ids.job_id
+        AND job.state = 'blocked'
+        AND job.failure_kind = 'dependency_failed'
+    RETURNING job.*
+), target_event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        retried.project_id,
+        retried.id,
+        'job.retry_requested',
+        'user',
+        jsonb_build_object('state', retried.state)
+    FROM retried
+    JOIN target ON target.id = retried.id
+    WHERE target.state <> 'waiting_for_dependencies'
+), descendant_events AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        project_id,
+        id,
+        'job.state_changed',
+        'user',
+        jsonb_build_object('state', state, 'reason', 'dependency_retry')
+    FROM unblocked
+)
+SELECT * FROM retried;
 
 -- name: ListAnalysisJobArtifacts :many
 SELECT

@@ -27,9 +27,11 @@ from veridash_analysis.protocol import (
 )
 from veridash_analysis.registry import (
     AnalysisRegistry,
+    AutomaticAnalysisPlanItem,
     InvalidAnalysisGraphError,
     analysis_cache_key,
     analysis_request_key,
+    build_automatic_analysis_plan,
     manifest_document,
     manifest_hash,
 )
@@ -41,6 +43,7 @@ __all__ = [
     "AnalysisModule",
     "AnalysisRegistry",
     "ArtifactOutput",
+    "AutomaticAnalysisPlanItem",
     "BlobArtifactOutput",
     "ChildMessage",
     "ChildRequest",
@@ -58,6 +61,7 @@ __all__ = [
     "ResultMessage",
     "analysis_cache_key",
     "analysis_request_key",
+    "build_automatic_analysis_plan",
     "manifest_document",
     "manifest_hash",
     "match_output_spec",

@@ -532,6 +532,19 @@ h2 {
   font-size: 14px;
 }
 
+.analysis-card > .button {
+  margin-top: 18px;
+  margin-right: 8px;
+}
+
+.diagnostic-reference {
+  display: block;
+  margin-top: 14px;
+  color: var(--color-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
 .analysis-progress {
   display: grid;
   gap: 7px;
@@ -809,6 +822,91 @@ h2 {
 .metadata-streams span,
 .metadata-card summary {
   color: var(--color-muted);
+}
+
+.analysis-provenance {
+  margin-top: 18px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
+.analysis-provenance summary {
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.analysis-provenance dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.analysis-provenance dl > div {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 10px;
+}
+
+.analysis-provenance dt {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.analysis-provenance dd {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+
+.analysis-provenance code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.provenance-parameters {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.provenance-warning {
+  margin-top: 12px;
+  border: 1px solid #ead6ac;
+  border-radius: 9px;
+  background: #fff8e8;
+  color: #76520b;
+  font-size: 12px;
+  padding: 10px;
+}
+
+.provenance-artifacts {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.provenance-artifacts li {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 7px;
+  font-size: 11px;
+}
+
+.provenance-artifacts code {
+  overflow: hidden;
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .metadata-card summary {

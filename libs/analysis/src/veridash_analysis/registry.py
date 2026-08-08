@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 
 from pydantic import BaseModel, JsonValue
@@ -15,6 +16,18 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 class InvalidAnalysisGraphError(ValueError):
     """Registered manifests do not form a usable dependency graph."""
+
+
+@dataclass(frozen=True, slots=True)
+class AutomaticAnalysisPlanItem:
+    """One persistable node in a source-specific automatic analysis plan."""
+
+    manifest: ModuleManifest
+    manifest_document: str
+    manifest_hash: str
+    parameters_document: str
+    request_key: str
+    cache_key: str | None
 
 
 class AnalysisRegistry:
@@ -129,6 +142,46 @@ def analysis_request_key(
         "dependency_request_keys": dict(dependency_request_keys),
     }
     return hashlib.sha256(_canonical_json(identity).encode()).hexdigest()
+
+
+def build_automatic_analysis_plan(
+    registry: AnalysisRegistry,
+    *,
+    source_sha256: str,
+) -> tuple[AutomaticAnalysisPlanItem, ...]:
+    """Calculate a complete dependency-first plan without persistence effects."""
+    request_keys: dict[str, str] = {}
+    items: list[AutomaticAnalysisPlanItem] = []
+    for manifest in registry.automatic_plan():
+        dependency_request_keys = {
+            dependency: request_keys[dependency] for dependency in manifest.dependencies
+        }
+        request_key = analysis_request_key(
+            manifest,
+            source_sha256=source_sha256,
+            parameters=manifest.default_parameters,
+            dependency_request_keys=dependency_request_keys,
+        )
+        cache_key = None
+        if not manifest.dependencies:
+            cache_key = analysis_cache_key(
+                manifest,
+                source_sha256=source_sha256,
+                parameters=manifest.default_parameters,
+                dependency_artifact_hashes={},
+            )
+        request_keys[manifest.module_id] = request_key
+        items.append(
+            AutomaticAnalysisPlanItem(
+                manifest=manifest,
+                manifest_document=manifest_document(manifest),
+                manifest_hash=manifest_hash(manifest),
+                parameters_document=_canonical_json(manifest.default_parameters),
+                request_key=request_key,
+                cache_key=cache_key,
+            )
+        )
+    return tuple(items)
 
 
 def _topological_order(

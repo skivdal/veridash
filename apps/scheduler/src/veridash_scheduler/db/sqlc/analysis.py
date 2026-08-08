@@ -122,9 +122,9 @@ WITH inserted AS (
     ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
     RETURNING id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key
 ), selected AS (
-    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM inserted
+    SELECT inserted.id, inserted.project_id, inserted.source_media_id, inserted.module_id, inserted.implementation_version, inserted.state, inserted.parameters, inserted.request_key, inserted.priority, inserted.max_attempts, inserted.next_attempt_at, inserted.ready_at, inserted.started_at, inserted.finished_at, inserted.cancel_requested_at, inserted.failure_kind, inserted.public_failure_message, inserted.diagnostic_id, inserted.reused_from_job_id, inserted.created_at, inserted.updated_at, inserted.winning_attempt_id, inserted.cache_key, TRUE AS created FROM inserted
     UNION ALL
-    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM analysis_job
+    SELECT analysis_job.id, analysis_job.project_id, analysis_job.source_media_id, analysis_job.module_id, analysis_job.implementation_version, analysis_job.state, analysis_job.parameters, analysis_job.request_key, analysis_job.priority, analysis_job.max_attempts, analysis_job.next_attempt_at, analysis_job.ready_at, analysis_job.started_at, analysis_job.finished_at, analysis_job.cancel_requested_at, analysis_job.failure_kind, analysis_job.public_failure_message, analysis_job.diagnostic_id, analysis_job.reused_from_job_id, analysis_job.created_at, analysis_job.updated_at, analysis_job.winning_attempt_id, analysis_job.cache_key, FALSE AS created FROM analysis_job
     WHERE
         project_id = :p2
         AND source_media_id = :p3
@@ -141,7 +141,7 @@ WITH inserted AS (
         jsonb_build_object('state', state, 'module_id', module_id)
     FROM inserted
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM selected
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key, created FROM selected
 """
 
 
@@ -184,6 +184,7 @@ class CreateAnalysisJobRow:
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
     cache_key: Optional[str]
+    created: bool
 
 
 LIST_DEPENDENT_CACHE_INPUTS = """-- name: list_dependent_cache_inputs \\:many
@@ -293,6 +294,34 @@ LIMIT :p1
 class ListKnownCacheResolvableJobsRow:
     id: uuid.UUID
     cache_key: Optional[str]
+
+
+LIST_UPLOADED_SOURCES_MISSING_ANALYSIS = """-- name: list_uploaded_sources_missing_analysis \\:many
+SELECT source_media.project_id, source_media.id, source_media.sha256_hex
+FROM source_media
+WHERE
+    source_media.upload_state = 'uploaded'
+    AND source_media.sha256_hex IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM analysis_job AS job
+        WHERE
+            job.project_id = source_media.project_id
+            AND job.source_media_id = source_media.id
+            AND job.module_id = :p1
+            AND job.implementation_version = :p2
+    )
+ORDER BY source_media.uploaded_at, source_media.id
+FOR UPDATE OF source_media SKIP LOCKED
+LIMIT :p3
+"""
+
+
+@dataclasses.dataclass()
+class ListUploadedSourcesMissingAnalysisRow:
+    project_id: uuid.UUID
+    id: uuid.UUID
+    sha256_hex: Optional[str]
 
 
 RECOVER_EXPIRED_ANALYSIS_ATTEMPTS = """-- name: recover_expired_analysis_attempts \\:many
@@ -735,6 +764,7 @@ class AsyncQuerier:
             updated_at=row[20],
             winning_attempt_id=row[21],
             cache_key=row[22],
+            created=row[23],
         )
 
     async def list_dependent_cache_inputs(self, *, batch_size: int) -> AsyncIterator[ListDependentCacheInputsRow]:
@@ -765,6 +795,15 @@ class AsyncQuerier:
             yield ListKnownCacheResolvableJobsRow(
                 id=row[0],
                 cache_key=row[1],
+            )
+
+    async def list_uploaded_sources_missing_analysis(self, *, module_id: str, implementation_version: str, batch_size: int) -> AsyncIterator[ListUploadedSourcesMissingAnalysisRow]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_UPLOADED_SOURCES_MISSING_ANALYSIS), {"p1": module_id, "p2": implementation_version, "p3": batch_size})
+        async for row in result:
+            yield ListUploadedSourcesMissingAnalysisRow(
+                project_id=row[0],
+                id=row[1],
+                sha256_hex=row[2],
             )
 
     async def recover_expired_analysis_attempts(self, *, batch_size: int, retry_delay_seconds: int) -> AsyncIterator[RecoverExpiredAnalysisAttemptsRow]:

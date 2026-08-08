@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from veridash_analysis import AnalysisRegistry, manifest_document, manifest_hash
 from veridash_analysis.modules import production_manifests
+from veridash_analysis.probe_media import ProbeMediaModule
 from veridash_analysis.synthetic import SyntheticAnalysisModule
 from veridash_api.db.sqlc import models as api_models
 from veridash_api.db.sqlc.analyses import AsyncQuerier as ApiAnalysisQuerier
@@ -22,6 +23,7 @@ from veridash_api.errors import ApiProblem
 from veridash_api.services.analyses import (
     get_project_analysis_blob_artifact,
     list_project_analysis_artifacts,
+    retry_project_analysis,
 )
 from veridash_api.services.analysis_plans import create_automatic_analysis_dag
 from veridash_core import ResourceClass
@@ -577,6 +579,29 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             assert {event.event_type for event in events}.issuperset(
                 {"job.created", "job.state_changed", "job.progress", "job.error"}
             )
+            retried = await retry_project_analysis(
+                connection,
+                user_id=user_id,
+                project_id=project_id,
+                job_id=coordinates_job_id,
+            )
+            assert retried.state == "waiting_for_dependencies"
+            assert retried.max_attempts == 3
+            restored_jobs = [
+                row
+                async for row in api_queries.list_project_analysis_jobs(
+                    project_id=project_id,
+                    user_id=user_id,
+                )
+            ]
+            assert {
+                row.module_id: row.state
+                for row in restored_jobs
+                if row.module_id in {"extract_coordinates", "map_context"}
+            } == {
+                "extract_coordinates": api_models.AnalysisJobState.WAITING_FOR_DEPENDENCIES,
+                "map_context": api_models.AnalysisJobState.WAITING_FOR_DEPENDENCIES,
+            }
             await transaction.rollback()
     finally:
         await engine.dispose()
@@ -845,8 +870,9 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             user_id, project_id, media_id = await _create_uploaded_project(connection)
         await store.stage(str(media_id), _byte_chunks(content), max_bytes=len(content) + 1)
         blob = store.publish(store.staging_path(str(media_id)), media_type="video/mp4")
-        registry = AnalysisRegistry(production_manifests())
-        assert [manifest.module_id for manifest in registry.automatic_plan()] == [
+        registry = AnalysisRegistry((ProbeMediaModule.manifest,))
+        production_registry = AnalysisRegistry(production_manifests())
+        assert [manifest.module_id for manifest in production_registry.automatic_plan()] == [
             "extract_keyframes",
             "probe_media",
         ]
@@ -877,7 +903,16 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             )
 
         scheduler_settings = SchedulerSettings(database_url=database_url)
-        assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 2
+        reconciled = await reconcile_once(
+            engine,
+            scheduler_settings,
+            production_registry,
+        )
+        assert reconciled.planned_jobs == 1
+        assert reconciled.resolved_jobs == 2
+        assert (
+            await reconcile_once(engine, scheduler_settings, production_registry)
+        ).planned_jobs == 0
         worker_settings = WorkerSettings(
             database_url=database_url,
             data_root=tmp_path / "data",

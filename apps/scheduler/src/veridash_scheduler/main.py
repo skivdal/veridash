@@ -7,6 +7,8 @@ from collections.abc import Sequence
 from dataclasses import asdict
 
 from sqlalchemy.ext.asyncio import create_async_engine
+from veridash_analysis import AnalysisRegistry
+from veridash_analysis.modules import production_manifests
 
 from veridash_scheduler.config import Settings
 from veridash_scheduler.reconcile import reconcile_once
@@ -26,9 +28,10 @@ def build_parser() -> argparse.ArgumentParser:
 async def run(*, once: bool, settings: Settings) -> None:
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     logger = logging.getLogger(__name__)
+    registry = AnalysisRegistry(production_manifests())
     try:
         while True:
-            counts = await reconcile_once(engine, settings)
+            counts = await reconcile_once(engine, settings, registry)
             count_values = asdict(counts)
             if any(count_values.values()):
                 logger.info("scheduler reconciliation completed", extra=count_values)
