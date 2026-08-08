@@ -697,6 +697,48 @@ h2 {
   grid-column: span 3;
 }
 
+.map-card-found {
+  grid-column: span 2;
+}
+
+.analysis-card .coordinate-readout {
+  color: #14284a;
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.embedded-map {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  margin-top: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.map-consent {
+  margin-top: 16px;
+  border: 1px dashed #b8c9df;
+  border-radius: 12px;
+  background: #f7faff;
+  padding: 16px;
+}
+
+.map-consent p {
+  margin: 0 0 12px;
+}
+
+.map-card > a.button {
+  display: inline-flex;
+  margin-top: 16px;
+  text-decoration: none;
+}
+
+.analysis-card .evidence-caveat {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .frame-preview-grid,
 .frame-review-grid {
   display: grid;

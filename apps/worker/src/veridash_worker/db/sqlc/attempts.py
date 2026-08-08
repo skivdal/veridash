@@ -4,7 +4,7 @@
 # source: attempts.sql
 import dataclasses
 import datetime
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 import uuid
 
 import sqlalchemy
@@ -460,6 +460,44 @@ class FailAnalysisAttemptRow:
     cache_key: Optional[str]
 
 
+LIST_ANALYSIS_DEPENDENCY_ARTIFACTS = """-- name: list_analysis_dependency_artifacts \\:many
+SELECT
+    upstream.module_id AS dependency_module_id,
+    output.output_name,
+    artifact.kind,
+    artifact.sha256_hex,
+    artifact.size_bytes,
+    artifact.media_type,
+    artifact.blob_key,
+    artifact.json_payload,
+    artifact.schema_id,
+    artifact.schema_version
+FROM analysis_job_dependency AS dependency
+JOIN analysis_job AS upstream ON upstream.id = dependency.depends_on_job_id
+JOIN analysis_job_artifact AS output ON output.job_id = upstream.id
+JOIN analysis_artifact AS artifact ON artifact.id = output.artifact_id
+WHERE
+    dependency.project_id = :p1
+    AND dependency.job_id = :p2
+    AND upstream.state = 'succeeded'
+ORDER BY upstream.module_id, output.output_name
+"""
+
+
+@dataclasses.dataclass()
+class ListAnalysisDependencyArtifactsRow:
+    dependency_module_id: str
+    output_name: str
+    kind: models.AnalysisArtifactKind
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    blob_key: Optional[str]
+    json_payload: Optional[Any]
+    schema_id: str
+    schema_version: int
+
+
 PUBLISH_BLOB_ANALYSIS_ARTIFACT = """-- name: publish_blob_analysis_artifact \\:one
 WITH eligible AS MATERIALIZED (
     SELECT attempt.id, attempt.job_id
@@ -884,6 +922,22 @@ class AsyncQuerier:
             winning_attempt_id=row[21],
             cache_key=row[22],
         )
+
+    async def list_analysis_dependency_artifacts(self, *, project_id: uuid.UUID, job_id: uuid.UUID) -> AsyncIterator[ListAnalysisDependencyArtifactsRow]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_ANALYSIS_DEPENDENCY_ARTIFACTS), {"p1": project_id, "p2": job_id})
+        async for row in result:
+            yield ListAnalysisDependencyArtifactsRow(
+                dependency_module_id=row[0],
+                output_name=row[1],
+                kind=row[2],
+                sha256_hex=row[3],
+                size_bytes=row[4],
+                media_type=row[5],
+                blob_key=row[6],
+                json_payload=row[7],
+                schema_id=row[8],
+                schema_version=row[9],
+            )
 
     async def publish_blob_analysis_artifact(self, arg: PublishBlobAnalysisArtifactParams) -> Optional[PublishBlobAnalysisArtifactRow]:
         row = (await self._conn.execute(sqlalchemy.text(PUBLISH_BLOB_ANALYSIS_ARTIFACT), {

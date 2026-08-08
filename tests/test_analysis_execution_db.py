@@ -873,8 +873,9 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
         registry = AnalysisRegistry((ProbeMediaModule.manifest,))
         production_registry = AnalysisRegistry(production_manifests())
         assert [manifest.module_id for manifest in production_registry.automatic_plan()] == [
-            "extract_keyframes",
             "probe_media",
+            "extract_coordinates",
+            "extract_keyframes",
         ]
         async with engine.begin() as connection:
             await connection.execute(
@@ -908,7 +909,7 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             scheduler_settings,
             production_registry,
         )
-        assert reconciled.planned_jobs == 1
+        assert reconciled.planned_jobs == 2
         assert reconciled.resolved_jobs == 2
         assert (
             await reconcile_once(engine, scheduler_settings, production_registry)
@@ -931,9 +932,26 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             claims[claim.module_id] = claim
             outcome = await supervise_attempt(engine, claim, worker_settings)
             assert outcome.state == "succeeded"
-        assert set(claims) == {"extract_keyframes", "probe_media"}
+        dependency_reconcile = await reconcile_once(
+            engine,
+            scheduler_settings,
+            production_registry,
+        )
+        assert dependency_reconcile.resolved_jobs == 1
+        coordinate_claim = await claim_once(
+            engine,
+            resource_class=ResourceClass.CPU,
+            worker_id="source-analysis-integration-test",
+            settings=worker_settings,
+        )
+        assert coordinate_claim is not None
+        claims[coordinate_claim.module_id] = coordinate_claim
+        coordinate_outcome = await supervise_attempt(engine, coordinate_claim, worker_settings)
+        assert coordinate_outcome.state == "succeeded"
+        assert set(claims) == {"extract_keyframes", "probe_media", "extract_coordinates"}
         probe_claim = claims["probe_media"]
         frames_claim = claims["extract_keyframes"]
+        coordinates_claim = claims["extract_coordinates"]
 
         async with engine.connect() as connection:
             assert user_id is not None
@@ -1005,6 +1023,21 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             first_frame = indexed_frames[0]
             assert isinstance(first_frame, dict)
             assert first_frame["output_name"] == "frames_000001"
+            coordinate_artifacts = await list_project_analysis_artifacts(
+                connection,
+                user_id=user_id,
+                project_id=project_id,
+                job_id=coordinates_claim.job_id,
+            )
+            assert len(coordinate_artifacts) == 1
+            assert coordinate_artifacts[0].schema_id == "veridash.coordinates.embedded"
+            assert coordinate_artifacts[0].json_payload == {
+                "status": "not_found",
+                "latitude": None,
+                "longitude": None,
+                "altitude_meters": None,
+                "candidates": [],
+            }
         for claim in claims.values():
             assert not (tmp_path / "data" / "staging" / "attempts" / str(claim.id)).exists()
     finally:
@@ -1049,7 +1082,11 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
                     text(
                         """
                         DELETE FROM analysis_definition
-                        WHERE module_id IN ('probe_media', 'extract_keyframes')
+                        WHERE module_id IN (
+                            'probe_media',
+                            'extract_keyframes',
+                            'extract_coordinates'
+                        )
                             AND implementation_version = '1.0.0'
                         """
                     )

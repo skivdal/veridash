@@ -18,11 +18,13 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 from veridash_analysis import (
     CHILD_MESSAGE_ADAPTER,
+    AnalysisInput,
     ChildRequest,
     ErrorMessage,
     FileInput,
     HeartbeatMessage,
     JsonArtifactOutput,
+    JsonInput,
     ModuleManifest,
     ProgressMessage,
     ResultMessage,
@@ -172,7 +174,7 @@ async def supervise_attempt(
         output_directory = attempt_directory / "outputs"
         input_directory.mkdir(mode=0o750)
         output_directory.mkdir(mode=0o750)
-        inputs = _materialize_inputs(claim, settings, input_directory)
+        inputs = await _materialize_inputs(engine, claim, settings, input_directory)
         return await _supervise_child(engine, claim, settings, inputs, output_directory)
     except ChildProtocolError as exception:
         return await _fail_internal(engine, claim, str(exception), "", settings)
@@ -184,7 +186,7 @@ async def _supervise_child(
     engine: AsyncEngine,
     claim: ClaimReadyAnalysisJobRow,
     settings: Settings,
-    inputs: dict[str, FileInput],
+    inputs: dict[str, AnalysisInput],
     output_directory: Path,
 ) -> AttemptOutcome:
     try:
@@ -370,7 +372,7 @@ async def _supervise_child(
 
 def _validated_request_and_manifest(
     claim: ClaimReadyAnalysisJobRow,
-    inputs: dict[str, FileInput],
+    inputs: dict[str, AnalysisInput],
     output_directory: Path,
     settings: Settings,
 ) -> tuple[ChildRequest, ModuleManifest]:
@@ -401,11 +403,12 @@ def _validated_request_and_manifest(
     )
 
 
-def _materialize_inputs(
+async def _materialize_inputs(
+    engine: AsyncEngine,
     claim: ClaimReadyAnalysisJobRow,
     settings: Settings,
     input_directory: Path,
-) -> dict[str, FileInput]:
+) -> dict[str, AnalysisInput]:
     try:
         module = get_builtin_module(
             claim.module_id,
@@ -413,30 +416,93 @@ def _materialize_inputs(
         )
     except KeyError as exception:
         raise ChildProtocolError("claimed job does not match an installed module") from exception
-    if not module.manifest.requires_source_file:
-        return {}
-    if (
-        claim.source_sha256 is None
-        or claim.source_blob_key != claim.source_sha256
-        or claim.source_size_bytes is None
-        or claim.source_media_type is None
-    ):
-        raise ChildProtocolError("claimed job source has no valid immutable blob identity")
-    try:
-        path = FilesystemBlobStore(settings.data_root).materialize(
-            claim.source_sha256,
-            input_directory / "source-video",
-        )
-    except (FileNotFoundError, OSError, ValueError) as exception:
-        raise ChildProtocolError("source blob could not be materialized") from exception
-    return {
-        "source_video": FileInput(
+    inputs: dict[str, AnalysisInput] = {}
+    store = FilesystemBlobStore(settings.data_root)
+    if module.manifest.requires_source_file:
+        if (
+            claim.source_sha256 is None
+            or claim.source_blob_key != claim.source_sha256
+            or claim.source_size_bytes is None
+            or claim.source_media_type is None
+        ):
+            raise ChildProtocolError("claimed job source has no valid immutable blob identity")
+        try:
+            path = store.materialize(claim.source_sha256, input_directory / "source-video")
+        except (FileNotFoundError, OSError, ValueError) as exception:
+            raise ChildProtocolError("source blob could not be materialized") from exception
+        inputs["source_video"] = FileInput(
             path=path,
             sha256=claim.source_sha256,
             size_bytes=claim.source_size_bytes,
             media_type=claim.source_media_type,
         )
-    }
+
+    async with engine.connect() as connection:
+        rows = [
+            row
+            async for row in AsyncQuerier(connection).list_analysis_dependency_artifacts(
+                project_id=claim.project_id,
+                job_id=claim.job_id,
+            )
+        ]
+    grouped_names: dict[str, list[str]] = {}
+    for row in rows:
+        grouped_names.setdefault(row.dependency_module_id, []).append(row.output_name)
+    if set(grouped_names) != set(module.manifest.dependencies):
+        raise ChildProtocolError("dependency artifacts do not match the installed manifest")
+
+    for dependency_id, output_names in grouped_names.items():
+        try:
+            dependency_manifest = get_builtin_module(
+                dependency_id,
+                ffmpeg_fingerprint=settings.ffmpeg_fingerprint,
+            ).manifest
+            resolved_specs = resolve_output_specs(dependency_manifest, output_names)
+        except (KeyError, ValueError) as exception:
+            raise ChildProtocolError("dependency output contract is not installed") from exception
+        for row in (item for item in rows if item.dependency_module_id == dependency_id):
+            spec = resolved_specs[row.output_name]
+            artifact_kind = models.AnalysisArtifactKind(row.kind)
+            if (
+                spec.kind.value != artifact_kind.value
+                or spec.media_type != row.media_type
+                or spec.schema_id != row.schema_id
+                or spec.schema_version != row.schema_version
+            ):
+                raise ChildProtocolError("dependency artifact metadata violates its manifest")
+            input_name = f"{dependency_id}.{row.output_name}"
+            if artifact_kind is models.AnalysisArtifactKind.JSON:
+                if row.json_payload is None or row.blob_key is not None:
+                    raise ChildProtocolError("dependency JSON artifact is malformed")
+                inputs[input_name] = JsonInput(
+                    sha256=row.sha256_hex,
+                    size_bytes=row.size_bytes,
+                    media_type=row.media_type,
+                    schema_id=row.schema_id,
+                    schema_version=row.schema_version,
+                    value=cast(JsonValue, cast(object, row.json_payload)),
+                )
+                continue
+            if row.blob_key != row.sha256_hex or row.json_payload is not None:
+                raise ChildProtocolError("dependency blob artifact is malformed")
+            dependency_directory = input_directory / dependency_id
+            dependency_directory.mkdir(mode=0o750, exist_ok=True)
+            try:
+                path = store.materialize(
+                    row.sha256_hex,
+                    dependency_directory / row.output_name,
+                )
+            except (FileNotFoundError, OSError, ValueError) as exception:
+                raise ChildProtocolError("dependency blob could not be materialized") from exception
+            inputs[input_name] = FileInput(
+                path=path,
+                sha256=row.sha256_hex,
+                size_bytes=row.size_bytes,
+                media_type=row.media_type,
+                schema_id=row.schema_id,
+                schema_version=row.schema_version,
+            )
+    return inputs
 
 
 def child_environment() -> dict[str, str]:

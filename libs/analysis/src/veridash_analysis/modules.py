@@ -4,6 +4,7 @@ from collections.abc import Callable
 from types import MappingProxyType
 
 from veridash_analysis.contracts import AnalysisModule, ModuleManifest
+from veridash_analysis.coordinates import ExtractCoordinatesModule
 from veridash_analysis.keyframes import ExtractKeyframesModule
 from veridash_analysis.probe_media import ProbeMediaModule
 from veridash_analysis.synthetic import SyntheticAnalysisModule
@@ -15,6 +16,10 @@ def _extract_keyframes(ffmpeg_fingerprint: str) -> AnalysisModule:
     return ExtractKeyframesModule(ffmpeg_fingerprint)
 
 
+def _extract_coordinates(_ffmpeg_fingerprint: str) -> AnalysisModule:
+    return ExtractCoordinatesModule()
+
+
 def _probe_media(ffmpeg_fingerprint: str) -> AnalysisModule:
     return ProbeMediaModule(ffmpeg_fingerprint)
 
@@ -24,6 +29,7 @@ def _synthetic(_ffmpeg_fingerprint: str) -> AnalysisModule:
 
 
 BUILTIN_MODULE_FACTORIES: dict[str, ModuleFactory] = {
+    ExtractCoordinatesModule.manifest.module_id: _extract_coordinates,
     ExtractKeyframesModule.manifest.module_id: _extract_keyframes,
     ProbeMediaModule.manifest.module_id: _probe_media,
     SyntheticAnalysisModule.manifest.module_id: _synthetic,

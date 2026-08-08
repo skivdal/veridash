@@ -18,6 +18,23 @@ class FileInput(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     size_bytes: int = Field(ge=0)
     media_type: str = Field(min_length=1, max_length=255)
+    schema_id: str | None = None
+    schema_version: int | None = Field(default=None, ge=1)
+
+
+class JsonInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["json"] = "json"
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    size_bytes: int = Field(ge=0)
+    media_type: str = Field(min_length=1, max_length=255)
+    schema_id: str = Field(min_length=1, max_length=200)
+    schema_version: int = Field(ge=1)
+    value: JsonValue
+
+
+type AnalysisInput = FileInput | JsonInput
 
 
 class ChildRequest(BaseModel):
@@ -33,7 +50,7 @@ class ChildRequest(BaseModel):
     attempt_number: int = Field(ge=1)
     output_directory: Path
     parameters: dict[str, JsonValue]
-    inputs: dict[str, FileInput] = Field(default_factory=dict)
+    inputs: dict[str, AnalysisInput] = Field(default_factory=dict)
 
 
 class HeartbeatMessage(BaseModel):

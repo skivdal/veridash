@@ -100,6 +100,28 @@ FROM inserted_attempt
 JOIN updated_job ON updated_job.id = inserted_attempt.job_id
 JOIN candidate ON candidate.id = inserted_attempt.job_id;
 
+-- name: ListAnalysisDependencyArtifacts :many
+SELECT
+    upstream.module_id AS dependency_module_id,
+    output.output_name,
+    artifact.kind,
+    artifact.sha256_hex,
+    artifact.size_bytes,
+    artifact.media_type,
+    artifact.blob_key,
+    artifact.json_payload,
+    artifact.schema_id,
+    artifact.schema_version
+FROM analysis_job_dependency AS dependency
+JOIN analysis_job AS upstream ON upstream.id = dependency.depends_on_job_id
+JOIN analysis_job_artifact AS output ON output.job_id = upstream.id
+JOIN analysis_artifact AS artifact ON artifact.id = output.artifact_id
+WHERE
+    dependency.project_id = sqlc.arg(project_id)
+    AND dependency.job_id = sqlc.arg(job_id)
+    AND upstream.state = 'succeeded'
+ORDER BY upstream.module_id, output.output_name;
+
 -- name: RenewAnalysisAttemptLease :one
 WITH updated AS (
     UPDATE analysis_job_attempt AS attempt

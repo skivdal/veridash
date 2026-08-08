@@ -241,6 +241,35 @@ describe("projects routing", () => {
               updated_at: "2026-08-08T12:00:02Z",
               attempts: [],
             },
+            {
+              id: "coordinates-job",
+              project_id: "project-id",
+              source_media_id: "media-id",
+              module_id: "extract_coordinates",
+              implementation_version: "1.0.0",
+              result_schema_version: 1,
+              display_name: "Map",
+              resource_class: "cpu",
+              cacheable: true,
+              implementation_fingerprints: {
+                coordinate_parser: "iso6709-decimal-v1",
+              },
+              state: "succeeded",
+              parameters: {},
+              max_attempts: 3,
+              next_attempt_at: null,
+              ready_at: "2026-08-08T12:00:02Z",
+              started_at: "2026-08-08T12:00:02Z",
+              finished_at: "2026-08-08T12:00:03Z",
+              cancel_requested_at: null,
+              failure_kind: null,
+              public_failure_message: null,
+              diagnostic_id: null,
+              reused: false,
+              created_at: "2026-08-08T12:00:01Z",
+              updated_at: "2026-08-08T12:00:03Z",
+              attempts: [],
+            },
           ]);
         }
         if (url === "/api/projects/project-id/analyses/metadata-job/retry") {
@@ -283,6 +312,30 @@ describe("projects routing", () => {
             },
           ]);
         }
+        if (
+          url === "/api/projects/project-id/analyses/coordinates-job/artifacts"
+        ) {
+          return jsonResponse([
+            {
+              id: "coordinate-artifact",
+              output_name: "result",
+              kind: "json",
+              sha256_hex: "c".repeat(64),
+              size_bytes: 100,
+              media_type: "application/json",
+              json_payload: {
+                status: "found",
+                latitude: 55.6058,
+                longitude: 13.0007,
+                altitude_meters: null,
+                candidates: [],
+              },
+              schema_id: "veridash.coordinates.embedded",
+              schema_version: 1,
+              created_at: "2026-08-08T12:00:03Z",
+            },
+          ]);
+        }
         return jsonResponse({}, 404);
       }),
     );
@@ -303,6 +356,15 @@ describe("projects routing", () => {
     expect(
       screen.getByText(/cross-project cache reuse is disabled/i),
     ).toBeDefined();
+    expect(screen.getByText("55.605800° N, 13.000700° E")).toBeDefined();
+    expect(screen.queryByTitle(/OpenStreetMap/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Load map" }));
+    expect(screen.getByTitle(/OpenStreetMap/)).toBeDefined();
+    expect(
+      screen
+        .getByRole("link", { name: "Open Google Street View" })
+        .getAttribute("href"),
+    ).toContain("map_action=pano");
     fireEvent.click(screen.getByRole("button", { name: "Retry analysis" }));
     await waitFor(() => expect(retryRequested).toBe(true));
   });

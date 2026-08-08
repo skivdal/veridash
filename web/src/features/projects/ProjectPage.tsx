@@ -20,6 +20,7 @@ import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
 import { FramesCard } from "./FramesCard";
+import { MapCard } from "./MapCard";
 import { MetadataCard } from "./MetadataCard";
 import { useProjectEvents } from "./projectEvents";
 
@@ -34,16 +35,12 @@ const modulePlaceholders = [
     "Detected objects will remain linked to source frames.",
     "detect_objects",
   ],
-  [
-    "Map",
-    "Verified embedded coordinates can be inspected here.",
-    "extract_coordinates",
-  ],
 ] as const;
 const moduleNames = [
   "Source",
   "Metadata",
   "Frames",
+  "Map",
   ...modulePlaceholders.map(([name]) => name),
 ];
 
@@ -335,6 +332,24 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             projectId={projectId}
             job={analysisJobs.find(
               (candidate) => candidate.module_id === "extract_keyframes",
+            )}
+            cancelPendingJobId={
+              cancelAnalysis.isPending
+                ? cancelAnalysis.variables?.jobId
+                : undefined
+            }
+            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+            retryPendingJobId={
+              retryAnalysis.isPending
+                ? retryAnalysis.variables?.jobId
+                : undefined
+            }
+            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
+          />
+          <MapCard
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "extract_coordinates",
             )}
             cancelPendingJobId={
               cancelAnalysis.isPending
