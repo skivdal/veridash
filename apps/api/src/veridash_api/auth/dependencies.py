@@ -34,6 +34,20 @@ async def require_session(
 CurrentSession = Annotated[AuthenticatedSession, Depends(require_session)]
 
 
+async def require_admin_session(session: CurrentSession) -> AuthenticatedSession:
+    if not session.is_admin:
+        raise ApiProblem(
+            status=403,
+            code="admin_required",
+            title="Administrator access required",
+            detail="This area is available only to an administrator.",
+        )
+    return session
+
+
+AdminSession = Annotated[AuthenticatedSession, Depends(require_admin_session)]
+
+
 async def require_csrf_session(
     request: Request,
     session: CurrentSession,
@@ -56,3 +70,19 @@ async def require_csrf_session(
 
 
 MutationSession = Annotated[AuthenticatedSession, Depends(require_csrf_session)]
+
+
+async def require_admin_mutation_session(
+    session: MutationSession,
+) -> AuthenticatedSession:
+    if not session.is_admin:
+        raise ApiProblem(
+            status=403,
+            code="admin_required",
+            title="Administrator access required",
+            detail="This action is available only to an administrator.",
+        )
+    return session
+
+
+AdminMutationSession = Annotated[AuthenticatedSession, Depends(require_admin_mutation_session)]

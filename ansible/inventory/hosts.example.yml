@@ -7,14 +7,14 @@ all:
   vars:
     veridash_domain: veridash.example.org
     veridash_release_id: replace-with-release-id
-    veridash_api_image: registry.example.org/veridash/api@sha256:replace
-    veridash_scheduler_image: registry.example.org/veridash/scheduler@sha256:replace
-    veridash_worker_image: registry.example.org/veridash/worker@sha256:replace
+    veridash_api_image: ghcr.io/skivdal/veridash-api@sha256:replace
+    veridash_scheduler_image: ghcr.io/skivdal/veridash-scheduler@sha256:replace
+    veridash_worker_image: ghcr.io/skivdal/veridash-worker@sha256:replace
     # Required when veridash_enable_gpu_worker is true.
-    veridash_worker_gpu_image: registry.example.org/veridash/worker-gpu@sha256:replace
+    veridash_worker_gpu_image: ghcr.io/skivdal/veridash-worker-gpu@sha256:replace
     # Required when veridash_enable_translation_worker is true.
-    veridash_worker_translation_image: registry.example.org/veridash/worker-translation@sha256:replace
-    veridash_migration_image: registry.example.org/veridash/migration@sha256:replace
+    veridash_worker_translation_image: ghcr.io/skivdal/veridash-worker-translation@sha256:replace
+    veridash_migration_image: ghcr.io/skivdal/veridash-migration@sha256:replace
     veridash_tls_certificate: /etc/letsencrypt/live/veridash.example.org/fullchain.pem
     veridash_tls_certificate_key: /etc/letsencrypt/live/veridash.example.org/privkey.pem
     # Put vault_veridash_database_password and, when translation is enabled,

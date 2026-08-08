@@ -19,6 +19,8 @@ _DUMMY_PASSWORD_HASH = PASSWORD_HASH.hash("not-a-real-user-password")
 class AuthenticatedSession:
     user_id: int
     username: str
+    email: str
+    is_admin: bool
     session_id: UUID
     expires_at: datetime.datetime
     raw_token: str = field(repr=False)
@@ -94,13 +96,16 @@ async def log_in(
             token_hash=hash_session_token(token),
             expires_at=expires_at,
         )
+        if session is None:
+            raise invalid_credentials_problem()
+        await queries.record_successful_login(user_id=user.id)
         await queries.clear_login_failures(remote_address=remote_address)
-    if session is None:
-        raise RuntimeError("INSERT ... RETURNING unexpectedly returned no session")
 
     return AuthenticatedSession(
         user_id=user.id,
         username=user.username,
+        email=user.email,
+        is_admin=user.is_admin,
         session_id=session.id,
         expires_at=session.expires_at,
         raw_token=token,
@@ -123,6 +128,8 @@ async def resolve_session(
     return AuthenticatedSession(
         user_id=session.user_id,
         username=session.username,
+        email=session.email,
+        is_admin=session.is_admin,
         session_id=session.session_id,
         expires_at=session.expires_at,
         raw_token=raw_token,

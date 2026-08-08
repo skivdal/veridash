@@ -21,27 +21,50 @@ WHERE remote_address = :p1
 
 CREATE_SESSION = """-- name: create_session \\:one
 INSERT INTO user_session (id, user_id, token_hash, expires_at)
+SELECT
+    :p1,
+    :p2,
+    :p3,
+    :p4
+FROM app_user
+WHERE id = :p2 AND is_enabled
+RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, revoked_at
+"""
+
+
+CREATE_USER = """-- name: create_user \\:one
+INSERT INTO app_user (username, email, password_hash, is_admin)
 VALUES (
     :p1,
     :p2,
     :p3,
     :p4
 )
-RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, revoked_at
+RETURNING
+    id, username, email, password_hash, is_enabled, is_admin, last_login_at,
+    created_at, updated_at
 """
 
 
-CREATE_USER = """-- name: create_user \\:one
-INSERT INTO app_user (username, password_hash)
-VALUES (:p1, :p2)
-RETURNING id, username, password_hash, is_enabled, created_at, updated_at
-"""
+@dataclasses.dataclass()
+class CreateUserRow:
+    id: int
+    username: str
+    email: str
+    password_hash: str
+    is_enabled: bool
+    is_admin: bool
+    last_login_at: Optional[datetime.datetime]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
 
 
 GET_ACTIVE_SESSION_USER = """-- name: get_active_session_user \\:one
 SELECT
     app_user.id AS user_id,
     app_user.username,
+    app_user.email,
+    app_user.is_admin,
     user_session.id AS session_id,
     user_session.expires_at
 FROM user_session
@@ -59,16 +82,33 @@ LIMIT 1
 class GetActiveSessionUserRow:
     user_id: int
     username: str
+    email: str
+    is_admin: bool
     session_id: uuid.UUID
     expires_at: datetime.datetime
 
 
 GET_USER_BY_USERNAME = """-- name: get_user_by_username \\:one
-SELECT id, username, password_hash, is_enabled, created_at, updated_at
+SELECT
+    id, username, email, password_hash, is_enabled, is_admin, last_login_at,
+    created_at, updated_at
 FROM app_user
 WHERE username = :p1
 LIMIT 1
 """
+
+
+@dataclasses.dataclass()
+class GetUserByUsernameRow:
+    id: int
+    username: str
+    email: str
+    password_hash: str
+    is_enabled: bool
+    is_admin: bool
+    last_login_at: Optional[datetime.datetime]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
 
 
 IS_LOGIN_BLOCKED = """-- name: is_login_blocked \\:one
@@ -100,6 +140,13 @@ SET
         WHEN login_throttle.failed_attempts + 1 >= 5 THEN now() + interval '15 minutes'
         ELSE login_throttle.locked_until
     END
+"""
+
+
+RECORD_SUCCESSFUL_LOGIN = """-- name: record_successful_login \\:exec
+UPDATE app_user
+SET last_login_at = now()
+WHERE id = :p1
 """
 
 
@@ -161,17 +208,25 @@ class AsyncQuerier:
             revoked_at=row[6],
         )
 
-    async def create_user(self, *, username: str, password_hash: str) -> Optional[models.AppUser]:
-        row = (await self._conn.execute(sqlalchemy.text(CREATE_USER), {"p1": username, "p2": password_hash})).first()
+    async def create_user(self, *, username: str, email: str, password_hash: str, is_admin: bool) -> Optional[CreateUserRow]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_USER), {
+            "p1": username,
+            "p2": email,
+            "p3": password_hash,
+            "p4": is_admin,
+        })).first()
         if row is None:
             return None
-        return models.AppUser(
+        return CreateUserRow(
             id=row[0],
             username=row[1],
-            password_hash=row[2],
-            is_enabled=row[3],
-            created_at=row[4],
-            updated_at=row[5],
+            email=row[2],
+            password_hash=row[3],
+            is_enabled=row[4],
+            is_admin=row[5],
+            last_login_at=row[6],
+            created_at=row[7],
+            updated_at=row[8],
         )
 
     async def get_active_session_user(self, *, token_hash: memoryview) -> Optional[GetActiveSessionUserRow]:
@@ -181,21 +236,26 @@ class AsyncQuerier:
         return GetActiveSessionUserRow(
             user_id=row[0],
             username=row[1],
-            session_id=row[2],
-            expires_at=row[3],
+            email=row[2],
+            is_admin=row[3],
+            session_id=row[4],
+            expires_at=row[5],
         )
 
-    async def get_user_by_username(self, *, username: str) -> Optional[models.AppUser]:
+    async def get_user_by_username(self, *, username: str) -> Optional[GetUserByUsernameRow]:
         row = (await self._conn.execute(sqlalchemy.text(GET_USER_BY_USERNAME), {"p1": username})).first()
         if row is None:
             return None
-        return models.AppUser(
+        return GetUserByUsernameRow(
             id=row[0],
             username=row[1],
-            password_hash=row[2],
-            is_enabled=row[3],
-            created_at=row[4],
-            updated_at=row[5],
+            email=row[2],
+            password_hash=row[3],
+            is_enabled=row[4],
+            is_admin=row[5],
+            last_login_at=row[6],
+            created_at=row[7],
+            updated_at=row[8],
         )
 
     async def is_login_blocked(self, *, remote_address: str) -> Optional[bool]:
@@ -206,6 +266,9 @@ class AsyncQuerier:
 
     async def record_login_failure(self, *, remote_address: str) -> None:
         await self._conn.execute(sqlalchemy.text(RECORD_LOGIN_FAILURE), {"p1": remote_address})
+
+    async def record_successful_login(self, *, user_id: int) -> None:
+        await self._conn.execute(sqlalchemy.text(RECORD_SUCCESSFUL_LOGIN), {"p1": user_id})
 
     async def revoke_session(self, *, token_hash: memoryview) -> None:
         await self._conn.execute(sqlalchemy.text(REVOKE_SESSION), {"p1": token_hash})

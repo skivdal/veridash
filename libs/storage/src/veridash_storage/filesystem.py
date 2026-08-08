@@ -37,6 +37,14 @@ class FilesystemBlobStore:
         self._blob_root.mkdir(mode=0o750, parents=True, exist_ok=True)
         self._upload_staging_root.mkdir(mode=0o750, parents=True, exist_ok=True)
 
+    def check_ready(self) -> None:
+        """Fail unless immutable and staging roots remain usable by this process."""
+        for path in (self._blob_root, self._upload_staging_root):
+            if not path.is_dir() or path.is_symlink():
+                raise OSError("blob storage directory is unavailable")
+            if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
+                raise PermissionError("blob storage directory permissions are insufficient")
+
     def _blob_path(self, sha256: str) -> Path:
         if SHA256_PATTERN.fullmatch(sha256) is None:
             raise ValueError("invalid SHA-256 blob identity")

@@ -27,12 +27,15 @@ async def test_dashboard_preferences_are_durable_and_revision_fenced() -> None:
                 user = await connection.execute(
                     text(
                         """
-                        INSERT INTO app_user (username, password_hash)
-                        VALUES (:username, 'not-a-real-password-hash')
+                        INSERT INTO app_user (username, email, password_hash)
+                        VALUES (:username, :email, 'not-a-real-password-hash')
                         RETURNING id
                         """
                     ),
-                    {"username": f"dashboard-preference-{uuid4().hex}"},
+                    {
+                        "username": f"dashboard-preference-{uuid4().hex}",
+                        "email": f"dashboard-preference-{uuid4().hex}@example.test",
+                    },
                 )
                 user_id = int(user.scalar_one())
                 defaults = await get_dashboard_preference(connection, user_id=user_id)

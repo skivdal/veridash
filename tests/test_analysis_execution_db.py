@@ -223,13 +223,14 @@ async def _create_uploaded_project(connection: AsyncConnection) -> tuple[int, UU
     user = await connection.execute(
         text(
             """
-            INSERT INTO app_user (username, password_hash)
-            VALUES (:username, :password_hash)
+            INSERT INTO app_user (username, email, password_hash)
+            VALUES (:username, :email, :password_hash)
             RETURNING id
             """
         ),
         {
             "username": f"analysis-state-test-{uuid4().hex}",
+            "email": f"analysis-state-test-{uuid4().hex}@example.test",
             "password_hash": "not-a-real-password-hash",
         },
     )

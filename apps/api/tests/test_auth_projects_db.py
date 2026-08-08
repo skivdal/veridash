@@ -23,11 +23,15 @@ async def _create_test_user(engine: AsyncEngine, username: str, password: str) -
         await connection.execute(
             text(
                 """
-                INSERT INTO app_user (username, password_hash)
-                VALUES (:username, :password_hash)
+                INSERT INTO app_user (username, email, password_hash)
+                VALUES (:username, :email, :password_hash)
                 """
             ),
-            {"username": username, "password_hash": hash_password(password)},
+            {
+                "username": username,
+                "email": f"{username}@example.test",
+                "password_hash": hash_password(password),
+            },
         )
 
 

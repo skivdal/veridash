@@ -3,30 +3,41 @@
 The initial production shape is one Debian VPS: PostgreSQL, Nginx/TLS, static web
 files, and backups run on the host; the API, scheduler, CPU worker, optional GPU and
 translation workers, and one-shot migrations run as immutable containers supervised
-by systemd.
-Docker Compose is not a production control plane.
+by explicit Docker-based systemd units. This deployment does not use Compose or
+Podman Quadlets.
 
 ## Build a release
 
-Run all checks before producing artifacts:
+GitHub Actions is the release builder. Every pull request and push runs the Python,
+database, generated-code, frontend, production-build, and Ansible syntax checks,
+then builds all six Dockerfile targets for `linux/amd64`. Builds from pull requests
+and ordinary branches are not pushed.
+
+Pushes to `main`, `v*` tags, and manually dispatched trusted runs additionally
+publish these packages:
+
+- `ghcr.io/skivdal/veridash-api`
+- `ghcr.io/skivdal/veridash-scheduler`
+- `ghcr.io/skivdal/veridash-worker`
+- `ghcr.io/skivdal/veridash-worker-gpu`
+- `ghcr.io/skivdal/veridash-worker-translation`
+- `ghcr.io/skivdal/veridash-migration`
+
+Each image job writes its digest-qualified reference to the GitHub Actions job
+summary. The checks job also uploads `web/dist` as a static frontend artifact named
+for the commit SHA. Download that artifact before running Ansible and deploy only
+the image digests, never the convenience `latest`, version, or `sha-*` tags.
+
+If the GHCR packages are private, authenticate Docker on the VPS once with a
+fine-grained credential that can only read packages. Do not put the token in the
+inventory or a systemd environment file:
 
 ```sh
-uv run poe ci:all
-pnpm --dir web check
-pnpm --dir web build
+printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io --username GITHUB_USER --password-stdin
 ```
 
-Build the image targets from the repository root, push them to the selected
-registry, and resolve their repository digests. Never deploy a mutable tag.
-
-```sh
-docker build --target api -t REGISTRY/veridash-api:RELEASE .
-docker build --target scheduler -t REGISTRY/veridash-scheduler:RELEASE .
-docker build --target worker -t REGISTRY/veridash-worker:RELEASE .
-docker build --target worker-gpu -t REGISTRY/veridash-worker-gpu:RELEASE .
-docker build --target worker-translation -t REGISTRY/veridash-worker-translation:RELEASE .
-docker build --target migration -t REGISTRY/veridash-migration:RELEASE .
-```
+The GitHub workflow uses its short-lived `GITHUB_TOKEN` with `packages: write`; it
+does not require a long-lived registry secret.
 
 The three Python images contain the same exact FFmpeg/FFprobe fingerprint. Ansible
 checks this before migrations or restarts and passes it to every process. That
@@ -61,7 +72,8 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/site.yml \
   --ask-vault-pass
 ```
 
-For later releases, build `web/dist`, update release ID and digests, then run:
+For later releases, download the CI-built frontend artifact into `web/dist`, update
+the release ID and all image digests, then run:
 
 ```sh
 ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/deploy.yml \
@@ -70,9 +82,17 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/deploy.yml \
 
 The deployment sequence pulls images, verifies immutable media-tool identity,
 installs the static release, renders restricted environment files, applies dbmate
-migrations once, restarts services, and waits for the loopback health endpoint.
-Nginx is the only public application listener. The containers do not receive the
-Docker socket, and only API/workers receive the blob-store mount.
+migrations once, restarts services, waits for the dependency-aware loopback
+readiness endpoint, and asserts that the host-network API has exactly one listener
+bound to 127.0.0.1. Nginx is the only public application listener. The containers
+do not receive the Docker socket, no container publishes a Docker port, and only
+API/workers receive the blob-store mount. This listener assertion is an important
+boundary: Docker port publication and wildcard listeners can bypass the intended
+UFW policy.
+
+The host role installs Docker, PostgreSQL, Nginx, Certbot, and UFW. It deliberately
+does not install NVIDIA drivers or NVIDIA Container Toolkit. The VPS image and the
+operator own that host-specific setup.
 
 Useful checks:
 
@@ -81,7 +101,8 @@ systemctl status veridash-api veridash-scheduler veridash-worker-cpu \
   veridash-worker-translation
 journalctl -u veridash-api -u veridash-scheduler -u veridash-worker-cpu \
   -u veridash-worker-translation -f
-curl --fail http://127.0.0.1:8000/api/health
+curl --fail http://127.0.0.1:8000/api/ready
+ss -H -ltn 'sport = :8000'
 nginx -t
 ```
 
@@ -107,6 +128,31 @@ Its OpenAI credential is not supplied to the API, scheduler, CPU worker, GPU wor
 or unrelated analysis child processes. Transcript batches are sent only after local
 transcription completes; source transcripts remain independently available if
 translation is queued or fails.
+
+## Bootstrap and manage administrators
+
+On a fresh installation, create the first administrator after migrations complete.
+Run the CLI inside the exact deployed API image; it prompts twice for the password:
+
+```sh
+docker run --rm --network host --pull never \
+  --env-file /etc/veridash/api.env \
+  --entrypoint veridash-admin \
+  ghcr.io/skivdal/veridash-api@sha256:REPLACE \
+  create-user ADMIN_USERNAME ADMIN_EMAIL --admin
+```
+
+Accounts that existed before the user-administration migration are promoted to
+administrator so an upgrade retains access. An administrator gets a **Users** link
+in the application header. The dashboard creates non-administrator accounts from a
+username, email address, and initial password; it lists last-login time and total
+project count and can deactivate those users. Deactivation immediately revokes all
+of that user's sessions. Administrator deactivation remains a server-operator task
+to prevent accidental lockout.
+
+VeriDash does not send account email and has no self-service registration or
+password reset. An operator can reset a forgotten password locally with
+`veridash-admin reset-password USERNAME`; doing so also revokes existing sessions.
 
 ## Backup and restore
 

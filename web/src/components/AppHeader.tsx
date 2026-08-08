@@ -5,9 +5,10 @@ import { useLogoutApiAuthLogoutPost } from "../api/generated/client";
 
 interface AppHeaderProps {
   username?: string;
+  isAdmin?: boolean;
 }
 
-export function AppHeader({ username }: AppHeaderProps) {
+export function AppHeader({ username, isAdmin = false }: AppHeaderProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const logout = useLogoutApiAuthLogoutPost({
@@ -38,6 +39,11 @@ export function AppHeader({ username }: AppHeaderProps) {
 
       {username === undefined ? null : (
         <div className="account-actions">
+          {isAdmin ? (
+            <Link className="button button-quiet" to="/admin/users">
+              Users
+            </Link>
+          ) : null}
           <span className="username">{username}</span>
           <button
             className="button button-quiet"

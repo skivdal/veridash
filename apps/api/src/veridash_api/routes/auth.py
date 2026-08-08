@@ -11,8 +11,17 @@ from veridash_api.services.auth import log_in, log_out
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
-def _session_response(*, user_id: int, username: str) -> SessionResponse:
-    return SessionResponse(user=UserResponse(id=user_id, username=username))
+def _session_response(
+    *, user_id: int, username: str, email: str, is_admin: bool
+) -> SessionResponse:
+    return SessionResponse(
+        user=UserResponse(
+            id=user_id,
+            username=username,
+            email=email,
+            is_admin=is_admin,
+        )
+    )
 
 
 def _set_session_cookies(
@@ -83,7 +92,12 @@ async def login(
         remote_address=remote_address,
     )
     _set_session_cookies(response, raw_token=session.raw_token, settings=settings)
-    return _session_response(user_id=session.user_id, username=session.username)
+    return _session_response(
+        user_id=session.user_id,
+        username=session.username,
+        email=session.email,
+        is_admin=session.is_admin,
+    )
 
 
 @router.get(
@@ -92,7 +106,12 @@ async def login(
     responses={401: {**PROBLEM_RESPONSE, "description": "Authentication required"}},
 )
 async def get_current_user(session: CurrentSession) -> SessionResponse:
-    return _session_response(user_id=session.user_id, username=session.username)
+    return _session_response(
+        user_id=session.user_id,
+        username=session.username,
+        email=session.email,
+        is_admin=session.is_admin,
+    )
 
 
 @router.post(

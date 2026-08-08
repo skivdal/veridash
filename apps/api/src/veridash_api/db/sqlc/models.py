@@ -173,6 +173,9 @@ class AppUser:
     is_enabled: bool
     created_at: datetime.datetime
     updated_at: datetime.datetime
+    email: str
+    is_admin: bool
+    last_login_at: Optional[datetime.datetime]
 
 
 @dataclasses.dataclass()

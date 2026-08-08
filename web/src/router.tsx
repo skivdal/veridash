@@ -7,6 +7,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 
+import { AdminUsersPage } from "./features/admin/AdminUsersPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProjectPage } from "./features/projects/ProjectPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
@@ -31,6 +32,11 @@ const projectsRoute = createRoute({
   path: "/projects",
   component: ProjectsPage,
 });
+const adminUsersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/users",
+  component: AdminUsersPage,
+});
 const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/projects/$projectId",
@@ -47,6 +53,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   projectsRoute,
   projectRoute,
+  adminUsersRoute,
 ]);
 
 export function createAppRouter(history?: RouterHistory) {

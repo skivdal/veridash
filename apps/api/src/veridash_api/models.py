@@ -1,6 +1,7 @@
 """HTTP request and response models, intentionally separate from SQLc rows."""
 
 import datetime
+import re
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
@@ -25,10 +26,45 @@ class LoginRequest(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    email: str
+    is_admin: bool
 
 
 class SessionResponse(BaseModel):
     user: UserResponse
+
+
+class CreateManagedUserRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=128)
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=12, max_length=1024)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, username: str) -> str:
+        normalized = username.strip().lower()
+        if not normalized:
+            raise ValueError("username must not be blank")
+        return normalized
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, email: str) -> str:
+        normalized = email.strip().lower()
+        if re.fullmatch(r"[^\s@]+@[^\s@]+", normalized) is None:
+            raise ValueError("email address is invalid")
+        return normalized
+
+
+class AdminUserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_enabled: bool
+    is_admin: bool
+    last_login_at: datetime.datetime | None
+    project_count: int
+    created_at: datetime.datetime
 
 
 class CreateProjectRequest(BaseModel):

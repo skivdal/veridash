@@ -262,11 +262,33 @@
 - name: Flush deployment handlers before readiness checks
   ansible.builtin.meta: flush_handlers
 
-- name: Wait for the loopback API health endpoint
+- name: Wait for dependency-aware API readiness
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ veridash_api_port }}/api/health"
+    url: "http://127.0.0.1:{{ veridash_api_port }}/api/ready"
     status_code: 200
-  register: veridash_api_health
+  register: veridash_api_readiness
   retries: 20
   delay: 1
-  until: veridash_api_health.status == 200
+  until: veridash_api_readiness.status == 200
+
+- name: Inspect the API TCP listener
+  ansible.builtin.command:
+    argv:
+      - ss
+      - -H
+      - -ltn
+      - "sport = :{{ veridash_api_port }}"
+  register: veridash_api_listener
+  changed_when: false
+
+- name: Require the host-network API to listen only on IPv4 loopback
+  ansible.builtin.assert:
+    that:
+      - veridash_api_listener.stdout_lines | length == 1
+      - "'127.0.0.1:' + (veridash_api_port | string) in veridash_api_listener.stdout"
+      - "'0.0.0.0:' + (veridash_api_port | string) not in veridash_api_listener.stdout"
+      - "'[::]:' + (veridash_api_port | string) not in veridash_api_listener.stdout"
+      - "'*:' + (veridash_api_port | string) not in veridash_api_listener.stdout"
+    fail_msg: >-
+      The API container uses host networking and must bind only to 127.0.0.1;
+      UFW does not make a Docker-published or wildcard listener safe.

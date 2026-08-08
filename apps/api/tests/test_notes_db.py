@@ -25,12 +25,12 @@ async def test_project_notes_are_authorized_durable_and_revision_fenced() -> Non
                     result = await connection.execute(
                         text(
                             """
-                            INSERT INTO app_user (username, password_hash)
-                            VALUES (:username, 'not-a-real-password-hash')
+                            INSERT INTO app_user (username, email, password_hash)
+                            VALUES (:username, :email, 'not-a-real-password-hash')
                             RETURNING id
                             """
                         ),
-                        {"username": username},
+                        {"username": username, "email": f"{username}@example.test"},
                     )
                     user_id = int(result.scalar_one())
                     users.append(user_id)

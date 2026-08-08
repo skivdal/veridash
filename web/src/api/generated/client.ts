@@ -24,9 +24,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminUserResponse,
   AnalysisArtifactResponse,
   AnalysisJobResponse,
   CreateFrameStitchRequest,
+  CreateManagedUserRequest,
   CreateProjectRequest,
   DashboardPreferenceResponse,
   HTTPValidationError,
@@ -37,6 +39,7 @@ import type {
   ProjectEventResponse,
   ProjectNoteResponse,
   ProjectResponse,
+  ReadinessResponse,
   RenameProjectRequest,
   ReserveSourceMediaRequest,
   SaveDashboardPreferenceRequest,
@@ -66,6 +69,361 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export type getUsersApiAdminUsersGetResponse200 = {
+  data: AdminUserResponse[]
+  status: 200
+}
+
+export type getUsersApiAdminUsersGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type getUsersApiAdminUsersGetResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type getUsersApiAdminUsersGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type getUsersApiAdminUsersGetResponseSuccess = (getUsersApiAdminUsersGetResponse200) & {
+  headers: Headers;
+};
+export type getUsersApiAdminUsersGetResponseError = (getUsersApiAdminUsersGetResponse401 | getUsersApiAdminUsersGetResponse403 | getUsersApiAdminUsersGetResponse500) & {
+  headers: Headers;
+};
+
+export type getUsersApiAdminUsersGetResponse = (getUsersApiAdminUsersGetResponseSuccess | getUsersApiAdminUsersGetResponseError)
+
+export const getGetUsersApiAdminUsersGetUrl = () => {
+
+
+
+
+  return `/api/admin/users`
+}
+
+/**
+ * @summary Get Users
+ */
+export const getUsersApiAdminUsersGet = async ( options?: RequestInit): Promise<getUsersApiAdminUsersGetResponse> => {
+
+  return apiFetch<getUsersApiAdminUsersGetResponse>(getGetUsersApiAdminUsersGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUsersApiAdminUsersGetQueryKey = () => {
+    return [
+    `/api/admin/users`
+    ] as const;
+    }
+
+
+export const getGetUsersApiAdminUsersGetQueryOptions = <TData = Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError = ErrorType<ProblemResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsersApiAdminUsersGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>> = ({ signal }) => getUsersApiAdminUsersGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersApiAdminUsersGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>>
+export type GetUsersApiAdminUsersGetQueryError = ErrorType<ProblemResponse>
+
+
+export function useGetUsersApiAdminUsersGet<TData = Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError = ErrorType<ProblemResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersApiAdminUsersGet<TData = Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError = ErrorType<ProblemResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>,
+          TError,
+          Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsersApiAdminUsersGet<TData = Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError = ErrorType<ProblemResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Users
+ */
+
+export function useGetUsersApiAdminUsersGet<TData = Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError = ErrorType<ProblemResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsersApiAdminUsersGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUsersApiAdminUsersGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type postUserApiAdminUsersPostResponse201 = {
+  data: AdminUserResponse
+  status: 201
+}
+
+export type postUserApiAdminUsersPostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type postUserApiAdminUsersPostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type postUserApiAdminUsersPostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type postUserApiAdminUsersPostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type postUserApiAdminUsersPostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type postUserApiAdminUsersPostResponseSuccess = (postUserApiAdminUsersPostResponse201) & {
+  headers: Headers;
+};
+export type postUserApiAdminUsersPostResponseError = (postUserApiAdminUsersPostResponse401 | postUserApiAdminUsersPostResponse403 | postUserApiAdminUsersPostResponse409 | postUserApiAdminUsersPostResponse422 | postUserApiAdminUsersPostResponse500) & {
+  headers: Headers;
+};
+
+export type postUserApiAdminUsersPostResponse = (postUserApiAdminUsersPostResponseSuccess | postUserApiAdminUsersPostResponseError)
+
+export const getPostUserApiAdminUsersPostUrl = () => {
+
+
+
+
+  return `/api/admin/users`
+}
+
+/**
+ * @summary Post User
+ */
+export const postUserApiAdminUsersPost = async (createManagedUserRequest: CreateManagedUserRequest, options?: RequestInit): Promise<postUserApiAdminUsersPostResponse> => {
+
+  return apiFetch<postUserApiAdminUsersPostResponse>(getPostUserApiAdminUsersPostUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createManagedUserRequest)
+  }
+);}
+
+
+
+
+
+export const getPostUserApiAdminUsersPostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postUserApiAdminUsersPost>>, TError,{data: BodyType<CreateManagedUserRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postUserApiAdminUsersPost>>, TError,{data: BodyType<CreateManagedUserRequest>}, TContext> => {
+
+const mutationKey = ['postUserApiAdminUsersPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postUserApiAdminUsersPost>>, {data: BodyType<CreateManagedUserRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postUserApiAdminUsersPost(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostUserApiAdminUsersPostMutationResult = NonNullable<Awaited<ReturnType<typeof postUserApiAdminUsersPost>>>
+    export type PostUserApiAdminUsersPostMutationBody = BodyType<CreateManagedUserRequest>
+    export type PostUserApiAdminUsersPostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Post User
+ */
+export const usePostUserApiAdminUsersPost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postUserApiAdminUsersPost>>, TError,{data: BodyType<CreateManagedUserRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postUserApiAdminUsersPost>>,
+        TError,
+        {data: BodyType<CreateManagedUserRequest>},
+        TContext
+      > => {
+      return useMutation(getPostUserApiAdminUsersPostMutationOptions(options), queryClient);
+    }
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse200 = {
+  data: AdminUserResponse
+  status: 200
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponseSuccess = (postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse200) & {
+  headers: Headers;
+};
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponseError = (postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse401 | postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse403 | postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse404 | postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse409 | postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse422 | postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse500) & {
+  headers: Headers;
+};
+
+export type postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse = (postDeactivateUserApiAdminUsersUserIdDeactivatePostResponseSuccess | postDeactivateUserApiAdminUsersUserIdDeactivatePostResponseError)
+
+export const getPostDeactivateUserApiAdminUsersUserIdDeactivatePostUrl = (userId: number,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/deactivate`
+}
+
+/**
+ * @summary Post Deactivate User
+ */
+export const postDeactivateUserApiAdminUsersUserIdDeactivatePost = async (userId: number, options?: RequestInit): Promise<postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse> => {
+
+  return apiFetch<postDeactivateUserApiAdminUsersUserIdDeactivatePostResponse>(getPostDeactivateUserApiAdminUsersUserIdDeactivatePostUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPostDeactivateUserApiAdminUsersUserIdDeactivatePostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postDeactivateUserApiAdminUsersUserIdDeactivatePost>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postDeactivateUserApiAdminUsersUserIdDeactivatePost>>, TError,{userId: number}, TContext> => {
+
+const mutationKey = ['postDeactivateUserApiAdminUsersUserIdDeactivatePost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postDeactivateUserApiAdminUsersUserIdDeactivatePost>>, {userId: number}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  postDeactivateUserApiAdminUsersUserIdDeactivatePost(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostDeactivateUserApiAdminUsersUserIdDeactivatePostMutationResult = NonNullable<Awaited<ReturnType<typeof postDeactivateUserApiAdminUsersUserIdDeactivatePost>>>
+
+    export type PostDeactivateUserApiAdminUsersUserIdDeactivatePostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Post Deactivate User
+ */
+export const usePostDeactivateUserApiAdminUsersUserIdDeactivatePost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postDeactivateUserApiAdminUsersUserIdDeactivatePost>>, TError,{userId: number}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postDeactivateUserApiAdminUsersUserIdDeactivatePost>>,
+        TError,
+        {userId: number},
+        TContext
+      > => {
+      return useMutation(getPostDeactivateUserApiAdminUsersUserIdDeactivatePostMutationOptions(options), queryClient);
+    }
 
 export type loginApiAuthLoginPostResponse200 = {
   data: SessionResponse
@@ -3182,6 +3540,132 @@ export const useRestoreProjectApiProjectsProjectIdRestorePost = <TError = ErrorT
       > => {
       return useMutation(getRestoreProjectApiProjectsProjectIdRestorePostMutationOptions(options), queryClient);
     }
+
+export type readyApiReadyGetResponse200 = {
+  data: ReadinessResponse
+  status: 200
+}
+
+export type readyApiReadyGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type readyApiReadyGetResponse503 = {
+  data: ReadinessResponse
+  status: 503
+}
+
+export type readyApiReadyGetResponseSuccess = (readyApiReadyGetResponse200) & {
+  headers: Headers;
+};
+export type readyApiReadyGetResponseError = (readyApiReadyGetResponse500 | readyApiReadyGetResponse503) & {
+  headers: Headers;
+};
+
+export type readyApiReadyGetResponse = (readyApiReadyGetResponseSuccess | readyApiReadyGetResponseError)
+
+export const getReadyApiReadyGetUrl = () => {
+
+
+
+
+  return `/api/ready`
+}
+
+/**
+ * Report whether required database, storage, and media-tool dependencies work.
+ * @summary Ready
+ */
+export const readyApiReadyGet = async ( options?: RequestInit): Promise<readyApiReadyGetResponse> => {
+
+  return apiFetch<readyApiReadyGetResponse>(getReadyApiReadyGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReadyApiReadyGetQueryKey = () => {
+    return [
+    `/api/ready`
+    ] as const;
+    }
+
+
+export const getReadyApiReadyGetQueryOptions = <TData = Awaited<ReturnType<typeof readyApiReadyGet>>, TError = ErrorType<ProblemResponse | ReadinessResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readyApiReadyGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReadyApiReadyGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof readyApiReadyGet>>> = ({ signal }) => readyApiReadyGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readyApiReadyGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ReadyApiReadyGetQueryResult = NonNullable<Awaited<ReturnType<typeof readyApiReadyGet>>>
+export type ReadyApiReadyGetQueryError = ErrorType<ProblemResponse | ReadinessResponse>
+
+
+export function useReadyApiReadyGet<TData = Awaited<ReturnType<typeof readyApiReadyGet>>, TError = ErrorType<ProblemResponse | ReadinessResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof readyApiReadyGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readyApiReadyGet>>,
+          TError,
+          Awaited<ReturnType<typeof readyApiReadyGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useReadyApiReadyGet<TData = Awaited<ReturnType<typeof readyApiReadyGet>>, TError = ErrorType<ProblemResponse | ReadinessResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readyApiReadyGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readyApiReadyGet>>,
+          TError,
+          Awaited<ReturnType<typeof readyApiReadyGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useReadyApiReadyGet<TData = Awaited<ReturnType<typeof readyApiReadyGet>>, TError = ErrorType<ProblemResponse | ReadinessResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readyApiReadyGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ready
+ */
+
+export function useReadyApiReadyGet<TData = Awaited<ReturnType<typeof readyApiReadyGet>>, TError = ErrorType<ProblemResponse | ReadinessResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readyApiReadyGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getReadyApiReadyGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type completeSourceMediaUploadApiUploadsMediaIdCompletePostResponse200 = {
   data: SourceMediaResponse

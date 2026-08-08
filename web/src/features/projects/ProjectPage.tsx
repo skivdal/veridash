@@ -195,7 +195,10 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   if (project.error instanceof ApiError) {
     return (
       <div className="app-canvas">
-        <AppHeader username={sessionData?.user.username} />
+        <AppHeader
+          username={sessionData?.user.username}
+          isAdmin={sessionData?.user.is_admin}
+        />
         <main className="page-shell page-shell-top">
           <section className="status-card">
             <p className="eyebrow">Project unavailable</p>
@@ -362,7 +365,10 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
 
   return (
     <div className="app-canvas">
-      <AppHeader username={sessionData.user.username} />
+      <AppHeader
+        username={sessionData.user.username}
+        isAdmin={sessionData.user.is_admin}
+      />
       <main className="workspace-shell">
         <div className="workspace-heading">
           <div>

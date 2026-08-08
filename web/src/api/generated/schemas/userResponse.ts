@@ -6,6 +6,8 @@
  */
 
 export interface UserResponse {
+  email: string;
   id: number;
+  is_admin: boolean;
   username: string;
 }

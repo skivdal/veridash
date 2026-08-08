@@ -1,0 +1,197 @@
+name: Checks and images
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.13.7"
+  NODE_VERSION: "24"
+  UV_VERSION: "0.11.19"
+  PNPM_VERSION: "11.5.3"
+  SQLC_VERSION: "1.31.1"
+  TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/veridash_test
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
+        env:
+          POSTGRES_DB: veridash_test
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d veridash_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pinned development tools
+        shell: bash
+        run: |
+          python -m pip install "uv==${UV_VERSION}" "ansible-core==2.21.0"
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+          go install "github.com/sqlc-dev/sqlc/cmd/sqlc@v${SQLC_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+
+      - name: Install project dependencies
+        run: |
+          uv sync --frozen
+          pnpm install --frozen-lockfile
+
+      - name: Migrate the isolated test database
+        run: >-
+          docker run --rm --network host
+          --env DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/veridash_test?sslmode=disable
+          --mount type=bind,src=${{ github.workspace }}/db/migrations,dst=/db/migrations,readonly
+          ghcr.io/amacneil/dbmate:2.33.0@sha256:cbdf9e3631ff1c70a8a7a0091437bdd63c8525407009c2541273ee19e6eebc9e
+          --migrations-dir /db/migrations --no-dump-schema up
+
+      - name: Run Python and generated-code checks
+        run: uv run poe ci:all
+
+      - name: Run frontend checks
+        run: pnpm --dir web check
+
+      - name: Build static frontend
+        run: pnpm --dir web build
+
+      - name: Install pinned Ansible collections
+        working-directory: ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Check deployment playbooks
+        working-directory: ansible
+        env:
+          ANSIBLE_CONFIG: ansible.cfg
+        run: |
+          ansible-playbook --syntax-check -i inventory/hosts.example.yml playbooks/site.yml
+          ansible-playbook --syntax-check -i inventory/hosts.example.yml playbooks/deploy.yml
+
+      - name: Upload static frontend release
+        uses: actions/upload-artifact@v4
+        with:
+          name: veridash-web-${{ github.sha }}
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 30
+
+  images:
+    name: Image / ${{ matrix.target }}
+    needs: checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: api
+            package: api
+          - target: scheduler
+            package: scheduler
+          - target: worker
+            package: worker
+          - target: worker-gpu
+            package: worker-gpu
+          - target: worker-translation
+            package: worker-translation
+          - target: migration
+            package: migration
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve lowercase GHCR image name
+        id: image
+        shell: bash
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.package }}"
+          echo "name=${image}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether this event may publish
+        id: publish
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GIT_REF: ${{ github.ref }}
+        run: |
+          enabled=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$GIT_REF" == "refs/heads/main" || "$GIT_REF" == refs/tags/v* ]]; then
+            enabled=true
+          fi
+          echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: steps.publish.outputs.enabled == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image labels and tags
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and optionally publish linux/amd64 image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: ${{ steps.publish.outputs.enabled == 'true' }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+      - name: Record published digest
+        if: steps.publish.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          echo "### ${{ matrix.target }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

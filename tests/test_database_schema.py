@@ -23,13 +23,14 @@ async def test_source_media_cardinality_and_state_constraints() -> None:
                 result = await connection.execute(
                     text(
                         """
-                        INSERT INTO app_user (username, password_hash)
-                        VALUES (:username, :password_hash)
+                        INSERT INTO app_user (username, email, password_hash)
+                        VALUES (:username, :email, :password_hash)
                         RETURNING id
                         """
                     ),
                     {
                         "username": "schema-test-user",
+                        "email": "schema-test-user@example.test",
                         "password_hash": "not-a-real-password-hash",
                     },
                 )

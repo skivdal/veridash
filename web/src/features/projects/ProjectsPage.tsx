@@ -96,7 +96,10 @@ export function ProjectsPage() {
 
   return (
     <div className="app-canvas">
-      <AppHeader username={sessionData?.user.username} />
+      <AppHeader
+        username={sessionData?.user.username}
+        isAdmin={sessionData?.user.is_admin}
+      />
       <main className="projects-shell">
         <div className="projects-heading">
           <div>

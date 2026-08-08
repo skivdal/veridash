@@ -1,10 +1,19 @@
 -- name: CreateUser :one
-INSERT INTO app_user (username, password_hash)
-VALUES (sqlc.arg(username), sqlc.arg(password_hash))
-RETURNING id, username, password_hash, is_enabled, created_at, updated_at;
+INSERT INTO app_user (username, email, password_hash, is_admin)
+VALUES (
+    sqlc.arg(username),
+    sqlc.arg(email),
+    sqlc.arg(password_hash),
+    sqlc.arg(is_admin)
+)
+RETURNING
+    id, username, email, password_hash, is_enabled, is_admin, last_login_at,
+    created_at, updated_at;
 
 -- name: GetUserByUsername :one
-SELECT id, username, password_hash, is_enabled, created_at, updated_at
+SELECT
+    id, username, email, password_hash, is_enabled, is_admin, last_login_at,
+    created_at, updated_at
 FROM app_user
 WHERE username = sqlc.arg(username)
 LIMIT 1;
@@ -16,18 +25,21 @@ WHERE id = sqlc.arg(user_id);
 
 -- name: CreateSession :one
 INSERT INTO user_session (id, user_id, token_hash, expires_at)
-VALUES (
+SELECT
     sqlc.arg(id),
     sqlc.arg(user_id),
     sqlc.arg(token_hash),
     sqlc.arg(expires_at)
-)
+FROM app_user
+WHERE id = sqlc.arg(user_id) AND is_enabled
 RETURNING id, user_id, token_hash, created_at, expires_at, last_seen_at, revoked_at;
 
 -- name: GetActiveSessionUser :one
 SELECT
     app_user.id AS user_id,
     app_user.username,
+    app_user.email,
+    app_user.is_admin,
     user_session.id AS session_id,
     user_session.expires_at
 FROM user_session
@@ -57,6 +69,11 @@ WHERE token_hash = sqlc.arg(token_hash) AND revoked_at IS NULL;
 UPDATE user_session
 SET revoked_at = now()
 WHERE user_id = sqlc.arg(user_id) AND revoked_at IS NULL;
+
+-- name: RecordSuccessfulLogin :exec
+UPDATE app_user
+SET last_login_at = now()
+WHERE id = sqlc.arg(user_id);
 
 -- name: IsLoginBlocked :one
 SELECT EXISTS (
