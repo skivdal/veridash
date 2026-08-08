@@ -5,11 +5,12 @@ from veridash_analysis import (
     ImplementationFingerprint,
     InvalidAnalysisGraphError,
     ModuleManifest,
+    OutputSpec,
     analysis_cache_key,
     analysis_request_key,
     manifest_hash,
 )
-from veridash_core import ResourceClass
+from veridash_core import ArtifactKind, ResourceClass
 
 
 class ExampleParameters(BaseModel):
@@ -33,6 +34,15 @@ def manifest(
         dependencies=dependencies,
         automatic=automatic,
         fingerprints=(ImplementationFingerprint(name="ffmpeg", value="7.1.1"),),
+        outputs=(
+            OutputSpec(
+                name="result",
+                kind=ArtifactKind.JSON,
+                media_type="application/json",
+                schema_id=f"veridash.{module_id}",
+                schema_version=1,
+            ),
+        ),
     )
 
 
@@ -65,6 +75,16 @@ def test_registry_returns_a_dependency_first_automatic_plan() -> None:
         [
             manifest("manual", automatic=False),
             manifest("automatic", dependencies=("manual",)),
+        ],
+        [
+            ModuleManifest(
+                module_id="empty",
+                display_name="Empty",
+                version="1.0.0",
+                result_schema_version=1,
+                resource_class=ResourceClass.CPU,
+            ),
+            manifest("dependent", dependencies=("empty",)),
         ],
     ],
 )

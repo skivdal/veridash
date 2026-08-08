@@ -186,6 +186,222 @@ class CreateAnalysisJobRow:
     cache_key: Optional[str]
 
 
+LIST_DEPENDENT_CACHE_INPUTS = """-- name: list_dependent_cache_inputs \\:many
+WITH candidates AS MATERIALIZED (
+    SELECT job.id
+    FROM analysis_job AS job
+    WHERE
+        job.state = 'waiting_for_dependencies'
+        AND job.cache_key IS NULL
+        AND EXISTS (
+            SELECT 1 FROM analysis_job_dependency AS dependency
+            WHERE dependency.job_id = job.id
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM analysis_job_dependency AS dependency
+            JOIN analysis_job AS upstream ON upstream.id = dependency.depends_on_job_id
+            WHERE dependency.job_id = job.id AND upstream.state <> 'succeeded'
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM analysis_job_dependency AS dependency
+            WHERE
+                dependency.job_id = job.id
+                AND NOT EXISTS (
+                    SELECT 1 FROM analysis_job_artifact AS output
+                    WHERE output.job_id = dependency.depends_on_job_id
+                )
+        )
+    ORDER BY job.priority DESC, job.created_at, job.id
+    FOR UPDATE OF job SKIP LOCKED
+    LIMIT :p1
+)
+SELECT
+    job.id AS job_id,
+    job.project_id,
+    job.source_media_id,
+    source_media.sha256_hex AS source_sha256,
+    job.module_id,
+    job.implementation_version,
+    job.parameters,
+    definition.manifest,
+    upstream.module_id AS dependency_module_id,
+    upstream_definition.manifest AS dependency_manifest,
+    output.output_name,
+    artifact.sha256_hex AS artifact_sha256,
+    artifact.kind AS artifact_kind,
+    artifact.media_type AS artifact_media_type,
+    artifact.schema_id AS artifact_schema_id,
+    artifact.schema_version AS artifact_schema_version
+FROM candidates
+JOIN analysis_job AS job ON job.id = candidates.id
+JOIN source_media ON source_media.id = job.source_media_id
+JOIN analysis_definition AS definition
+    ON definition.module_id = job.module_id
+    AND definition.implementation_version = job.implementation_version
+JOIN analysis_job_dependency AS dependency ON dependency.job_id = job.id
+JOIN analysis_job AS upstream ON upstream.id = dependency.depends_on_job_id
+JOIN analysis_definition AS upstream_definition
+    ON upstream_definition.module_id = upstream.module_id
+    AND upstream_definition.implementation_version = upstream.implementation_version
+JOIN analysis_job_artifact AS output ON output.job_id = upstream.id
+JOIN analysis_artifact AS artifact ON artifact.id = output.artifact_id
+ORDER BY job.id, upstream.module_id, output.output_name
+"""
+
+
+@dataclasses.dataclass()
+class ListDependentCacheInputsRow:
+    job_id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    source_sha256: Optional[str]
+    module_id: str
+    implementation_version: str
+    parameters: Any
+    manifest: Any
+    dependency_module_id: str
+    dependency_manifest: Any
+    output_name: str
+    artifact_sha256: str
+    artifact_kind: models.AnalysisArtifactKind
+    artifact_media_type: str
+    artifact_schema_id: str
+    artifact_schema_version: int
+
+
+LIST_KNOWN_CACHE_RESOLVABLE_JOBS = """-- name: list_known_cache_resolvable_jobs \\:many
+SELECT job.id, job.cache_key
+FROM analysis_job AS job
+WHERE
+    job.state = 'waiting_for_dependencies'
+    AND job.cache_key IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM analysis_job_dependency AS dependency
+        JOIN analysis_job AS upstream ON upstream.id = dependency.depends_on_job_id
+        WHERE dependency.job_id = job.id AND upstream.state <> 'succeeded'
+    )
+ORDER BY job.priority DESC, job.created_at, job.id
+FOR UPDATE OF job SKIP LOCKED
+LIMIT :p1
+"""
+
+
+@dataclasses.dataclass()
+class ListKnownCacheResolvableJobsRow:
+    id: uuid.UUID
+    cache_key: Optional[str]
+
+
+RECOVER_EXPIRED_ANALYSIS_ATTEMPTS = """-- name: recover_expired_analysis_attempts \\:many
+WITH candidates AS MATERIALIZED (
+    SELECT
+        attempt.id,
+        attempt.project_id,
+        attempt.job_id,
+        attempt.attempt_number,
+        job.max_attempts
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.state = 'running'
+        AND attempt.lease_expires_at < now()
+        AND job.state = 'running'
+    ORDER BY attempt.lease_expires_at, attempt.id
+    FOR UPDATE OF attempt, job SKIP LOCKED
+    LIMIT :p1
+), lost_attempt AS (
+    UPDATE analysis_job_attempt AS attempt
+    SET
+        state = 'lost',
+        error_kind = 'worker_lost',
+        public_error_message = 'The analysis worker stopped responding.',
+        finished_at = now()
+    FROM candidates
+    WHERE attempt.id = candidates.id
+    RETURNING attempt.id, attempt.project_id, attempt.job_id, attempt.attempt_number, attempt.state, attempt.worker_id, attempt.lease_token, attempt.lease_expires_at, attempt.heartbeat_at, attempt.progress_stage, attempt.progress_completed, attempt.progress_total, attempt.progress_message, attempt.progress_at, attempt.error_kind, attempt.public_error_message, attempt.diagnostic_id, attempt.diagnostic_details, attempt.started_at, attempt.finished_at
+), updated_job AS (
+    UPDATE analysis_job AS job
+    SET
+        state = CASE
+            WHEN candidates.attempt_number < candidates.max_attempts
+            THEN 'retry_wait'\\:\\:analysis_job_state
+            ELSE 'failed'\\:\\:analysis_job_state
+        END,
+        next_attempt_at = CASE
+            WHEN candidates.attempt_number < candidates.max_attempts
+            THEN now() + make_interval(secs => :p2\\:\\:INT)
+            ELSE NULL
+        END,
+        finished_at = CASE
+            WHEN candidates.attempt_number < candidates.max_attempts
+            THEN NULL
+            ELSE now()
+        END,
+        failure_kind = 'worker_lost',
+        public_failure_message = 'The analysis worker stopped responding.',
+        updated_at = now()
+    FROM candidates
+    JOIN lost_attempt ON lost_attempt.id = candidates.id
+    WHERE job.id = candidates.job_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+), event AS (
+    INSERT INTO project_event (
+        project_id,
+        job_id,
+        attempt_id,
+        event_type,
+        source,
+        payload
+    )
+    SELECT
+        updated_job.project_id,
+        updated_job.id,
+        lost_attempt.id,
+        'job.error',
+        'scheduler',
+        jsonb_build_object(
+            'state', updated_job.state,
+            'error_kind', updated_job.failure_kind,
+            'message', updated_job.public_failure_message,
+            'next_attempt_at', updated_job.next_attempt_at
+        )
+    FROM updated_job
+    JOIN lost_attempt ON lost_attempt.job_id = updated_job.id
+)
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated_job ORDER BY updated_at, id
+"""
+
+
+@dataclasses.dataclass()
+class RecoverExpiredAnalysisAttemptsRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: models.AnalysisJobState
+    parameters: Any
+    request_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[models.AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
+
+
 REGISTER_ANALYSIS_DEFINITION = """-- name: register_analysis_definition \\:one
 WITH inserted AS (
     INSERT INTO analysis_definition (
@@ -308,31 +524,65 @@ class ReleaseDueAnalysisRetriesRow:
     cache_key: Optional[str]
 
 
-RESOLVE_READY_ANALYSIS_JOBS = """-- name: resolve_ready_analysis_jobs \\:many
-WITH candidates AS MATERIALIZED (
-    SELECT job.id
+RESOLVE_ANALYSIS_JOB_CACHE = """-- name: resolve_analysis_job_cache \\:one
+WITH target AS MATERIALIZED (
+    SELECT job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
     FROM analysis_job AS job
     WHERE
-        job.state = 'waiting_for_dependencies'
-        AND job.cache_key IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM analysis_job_dependency AS dependency
-            JOIN analysis_job AS upstream ON upstream.id = dependency.depends_on_job_id
-            WHERE dependency.job_id = job.id AND upstream.state <> 'succeeded'
+        job.id = :p1
+        AND job.state = 'waiting_for_dependencies'
+        AND (
+            job.cache_key IS NULL
+            OR job.cache_key = :p2
         )
-    ORDER BY job.priority DESC, job.created_at, job.id
-    FOR UPDATE OF job SKIP LOCKED
-    LIMIT :p1
+    FOR UPDATE OF job
+), reusable AS MATERIALIZED (
+    SELECT cached.id
+    FROM analysis_job AS cached
+    JOIN target
+        ON target.module_id = cached.module_id
+        AND target.implementation_version = cached.implementation_version
+    WHERE
+        cached.state = 'succeeded'
+        AND cached.cache_key = :p2
+        AND cached.id <> target.id
+    ORDER BY cached.finished_at, cached.id
+    LIMIT 1
 ), updated AS (
     UPDATE analysis_job AS job
     SET
-        state = 'ready',
-        ready_at = now(),
+        cache_key = :p2,
+        state = CASE
+            WHEN reusable.id IS NULL THEN 'ready'\\:\\:analysis_job_state
+            ELSE 'succeeded'\\:\\:analysis_job_state
+        END,
+        ready_at = CASE WHEN reusable.id IS NULL THEN now() ELSE NULL END,
+        finished_at = CASE WHEN reusable.id IS NULL THEN NULL ELSE now() END,
+        reused_from_job_id = reusable.id,
         updated_at = now()
-    FROM candidates
-    WHERE job.id = candidates.id
+    FROM target
+    LEFT JOIN reusable ON TRUE
+    WHERE job.id = target.id
     RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+), copied_outputs AS (
+    INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+    SELECT updated.id, output.artifact_id, output.output_name
+    FROM updated
+    JOIN reusable ON reusable.id = updated.reused_from_job_id
+    JOIN analysis_job_artifact AS output ON output.job_id = reusable.id
+    ON CONFLICT (job_id, output_name) DO NOTHING
+), result AS (
+    INSERT INTO project_analysis_result (
+        project_id,
+        source_media_id,
+        module_id,
+        job_id
+    )
+    SELECT project_id, source_media_id, module_id, id
+    FROM updated
+    WHERE state = 'succeeded'
+    ON CONFLICT (project_id, source_media_id, module_id) DO UPDATE
+    SET job_id = EXCLUDED.job_id, updated_at = now()
 ), event AS (
     INSERT INTO project_event (project_id, job_id, event_type, source, payload)
     SELECT
@@ -340,15 +590,18 @@ WITH candidates AS MATERIALIZED (
         id,
         'job.state_changed',
         'scheduler',
-        jsonb_build_object('state', state)
+        jsonb_build_object(
+            'state', state,
+            'reused', reused_from_job_id IS NOT NULL
+        )
     FROM updated
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated ORDER BY priority DESC, created_at, id
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated
 """
 
 
 @dataclasses.dataclass()
-class ResolveReadyAnalysisJobsRow:
+class ResolveAnalysisJobCacheRow:
     id: uuid.UUID
     project_id: uuid.UUID
     source_media_id: uuid.UUID
@@ -451,6 +704,65 @@ class AsyncQuerier:
             cache_key=row[22],
         )
 
+    async def list_dependent_cache_inputs(self, *, batch_size: int) -> AsyncIterator[ListDependentCacheInputsRow]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_DEPENDENT_CACHE_INPUTS), {"p1": batch_size})
+        async for row in result:
+            yield ListDependentCacheInputsRow(
+                job_id=row[0],
+                project_id=row[1],
+                source_media_id=row[2],
+                source_sha256=row[3],
+                module_id=row[4],
+                implementation_version=row[5],
+                parameters=row[6],
+                manifest=row[7],
+                dependency_module_id=row[8],
+                dependency_manifest=row[9],
+                output_name=row[10],
+                artifact_sha256=row[11],
+                artifact_kind=row[12],
+                artifact_media_type=row[13],
+                artifact_schema_id=row[14],
+                artifact_schema_version=row[15],
+            )
+
+    async def list_known_cache_resolvable_jobs(self, *, batch_size: int) -> AsyncIterator[ListKnownCacheResolvableJobsRow]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_KNOWN_CACHE_RESOLVABLE_JOBS), {"p1": batch_size})
+        async for row in result:
+            yield ListKnownCacheResolvableJobsRow(
+                id=row[0],
+                cache_key=row[1],
+            )
+
+    async def recover_expired_analysis_attempts(self, *, batch_size: int, retry_delay_seconds: int) -> AsyncIterator[RecoverExpiredAnalysisAttemptsRow]:
+        result = await self._conn.stream(sqlalchemy.text(RECOVER_EXPIRED_ANALYSIS_ATTEMPTS), {"p1": batch_size, "p2": retry_delay_seconds})
+        async for row in result:
+            yield RecoverExpiredAnalysisAttemptsRow(
+                id=row[0],
+                project_id=row[1],
+                source_media_id=row[2],
+                module_id=row[3],
+                implementation_version=row[4],
+                state=row[5],
+                parameters=row[6],
+                request_key=row[7],
+                priority=row[8],
+                max_attempts=row[9],
+                next_attempt_at=row[10],
+                ready_at=row[11],
+                started_at=row[12],
+                finished_at=row[13],
+                cancel_requested_at=row[14],
+                failure_kind=row[15],
+                public_failure_message=row[16],
+                diagnostic_id=row[17],
+                reused_from_job_id=row[18],
+                created_at=row[19],
+                updated_at=row[20],
+                winning_attempt_id=row[21],
+                cache_key=row[22],
+            )
+
     async def register_analysis_definition(self, arg: RegisterAnalysisDefinitionParams) -> Optional[RegisterAnalysisDefinitionRow]:
         row = (await self._conn.execute(sqlalchemy.text(REGISTER_ANALYSIS_DEFINITION), {
             "p1": arg.module_id,
@@ -505,31 +817,32 @@ class AsyncQuerier:
                 cache_key=row[22],
             )
 
-    async def resolve_ready_analysis_jobs(self, *, batch_size: int) -> AsyncIterator[ResolveReadyAnalysisJobsRow]:
-        result = await self._conn.stream(sqlalchemy.text(RESOLVE_READY_ANALYSIS_JOBS), {"p1": batch_size})
-        async for row in result:
-            yield ResolveReadyAnalysisJobsRow(
-                id=row[0],
-                project_id=row[1],
-                source_media_id=row[2],
-                module_id=row[3],
-                implementation_version=row[4],
-                state=row[5],
-                parameters=row[6],
-                request_key=row[7],
-                priority=row[8],
-                max_attempts=row[9],
-                next_attempt_at=row[10],
-                ready_at=row[11],
-                started_at=row[12],
-                finished_at=row[13],
-                cancel_requested_at=row[14],
-                failure_kind=row[15],
-                public_failure_message=row[16],
-                diagnostic_id=row[17],
-                reused_from_job_id=row[18],
-                created_at=row[19],
-                updated_at=row[20],
-                winning_attempt_id=row[21],
-                cache_key=row[22],
-            )
+    async def resolve_analysis_job_cache(self, *, job_id: uuid.UUID, cache_key: Optional[str]) -> Optional[ResolveAnalysisJobCacheRow]:
+        row = (await self._conn.execute(sqlalchemy.text(RESOLVE_ANALYSIS_JOB_CACHE), {"p1": job_id, "p2": cache_key})).first()
+        if row is None:
+            return None
+        return ResolveAnalysisJobCacheRow(
+            id=row[0],
+            project_id=row[1],
+            source_media_id=row[2],
+            module_id=row[3],
+            implementation_version=row[4],
+            state=row[5],
+            parameters=row[6],
+            request_key=row[7],
+            priority=row[8],
+            max_attempts=row[9],
+            next_attempt_at=row[10],
+            ready_at=row[11],
+            started_at=row[12],
+            finished_at=row[13],
+            cancel_requested_at=row[14],
+            failure_kind=row[15],
+            public_failure_message=row[16],
+            diagnostic_id=row[17],
+            reused_from_job_id=row[18],
+            created_at=row[19],
+            updated_at=row[20],
+            winning_attempt_id=row[21],
+            cache_key=row[22],
+        )

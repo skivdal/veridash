@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from veridash_api.db.sqlc import models as api_models
 from veridash_api.db.sqlc.analyses import AsyncQuerier as ApiAnalysisQuerier
+from veridash_scheduler.config import Settings as SchedulerSettings
 from veridash_scheduler.db.sqlc import models as scheduler_models
 from veridash_scheduler.db.sqlc.analysis import (
     AsyncQuerier as SchedulerAnalysisQuerier,
@@ -19,6 +20,7 @@ from veridash_scheduler.db.sqlc.analysis import (
     CreateAnalysisJobParams,
     RegisterAnalysisDefinitionParams,
 )
+from veridash_scheduler.reconcile import reconcile_connection
 from veridash_worker.db.sqlc import models as worker_models
 from veridash_worker.db.sqlc.attempts import AsyncQuerier as WorkerAttemptQuerier
 from veridash_worker.db.sqlc.attempts import (
@@ -102,6 +104,15 @@ async def _register_definition(
             "dependencies": dependencies,
             "automatic": True,
             "progress_stages": [],
+            "outputs": [
+                {
+                    "name": "result",
+                    "kind": "json",
+                    "media_type": "application/json",
+                    "schema_id": f"veridash.{module_id}",
+                    "schema_version": 1,
+                }
+            ],
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -129,6 +140,7 @@ async def _create_job(
     module_id: str,
     cache_character: str,
     max_attempts: int = 2,
+    cache_known: bool = True,
 ) -> UUID:
     job = await queries.create_analysis_job(
         CreateAnalysisJobParams(
@@ -139,7 +151,7 @@ async def _create_job(
             implementation_version="1.0.0",
             parameters="{}",
             request_key=cache_character * 64,
-            cache_key=cache_character * 64,
+            cache_key=cache_character * 64 if cache_known else None,
             priority=0,
             max_attempts=max_attempts,
         )
@@ -180,6 +192,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 media_id=media_id,
                 module_id="extract_coordinates",
                 cache_character="2",
+                cache_known=False,
             )
             map_job_id = await _create_job(
                 scheduler,
@@ -187,6 +200,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 media_id=media_id,
                 module_id="map_context",
                 cache_character="3",
+                cache_known=False,
             )
             await scheduler.add_analysis_job_dependency(
                 project_id=project_id,
@@ -199,10 +213,13 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 depends_on_job_id=coordinates_job_id,
             )
 
-            initially_ready = [
-                row async for row in scheduler.resolve_ready_analysis_jobs(batch_size=20)
-            ]
-            assert [row.id for row in initially_ready] == [probe_job_id]
+            scheduler_settings = SchedulerSettings(
+                database_url=database_url,
+                batch_size=20,
+                worker_lost_retry_delay_seconds=0,
+            )
+            initial_reconcile = await reconcile_connection(connection, scheduler_settings)
+            assert initial_reconcile.resolved_jobs == 1
 
             worker = WorkerAttemptQuerier(connection)
             first_attempt_id = uuid4()
@@ -213,7 +230,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                     attempt_id=first_attempt_id,
                     worker_id="cpu-worker-1",
                     lease_token=first_lease_token,
-                    lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+                    lease_seconds=60,
                 )
             )
             assert claimed_probe is not None
@@ -222,7 +239,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
 
             progress = await worker.report_analysis_attempt_progress(
                 ReportAnalysisAttemptProgressParams(
-                    lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+                    lease_seconds=60,
                     progress_stage="probing",
                     progress_completed=1,
                     progress_total=2,
@@ -235,7 +252,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             assert progress.progress_completed == 1
             stale_progress = await worker.report_analysis_attempt_progress(
                 ReportAnalysisAttemptProgressParams(
-                    lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+                    lease_seconds=60,
                     progress_stage="probing",
                     progress_completed=2,
                     progress_total=2,
@@ -253,8 +270,75 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             assert completed_probe is not None
             assert completed_probe.state == worker_models.AnalysisJobState.SUCCEEDED
 
-            next_ready = [row async for row in scheduler.resolve_ready_analysis_jobs(batch_size=20)]
-            assert [row.id for row in next_ready] == [coordinates_job_id]
+            artifact_id = uuid4()
+            await connection.execute(
+                text(
+                    """
+                    INSERT INTO analysis_artifact (
+                        id,
+                        producer_attempt_id,
+                        kind,
+                        sha256_hex,
+                        size_bytes,
+                        media_type,
+                        json_payload,
+                        schema_id,
+                        schema_version
+                    )
+                    VALUES (
+                        :artifact_id,
+                        :attempt_id,
+                        'json',
+                        :sha256,
+                        2,
+                        'application/json',
+                        '{}'::jsonb,
+                        'veridash.probe_media',
+                        1
+                    )
+                    """
+                ),
+                {
+                    "artifact_id": artifact_id,
+                    "attempt_id": first_attempt_id,
+                    "sha256": "b" * 64,
+                },
+            )
+            await connection.execute(
+                text(
+                    """
+                    INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+                    VALUES (:job_id, :artifact_id, 'result')
+                    """
+                ),
+                {"job_id": probe_job_id, "artifact_id": artifact_id},
+            )
+
+            second_user_id, second_project_id, second_media_id = await _create_uploaded_project(
+                connection
+            )
+            reused_probe_job_id = await _create_job(
+                scheduler,
+                project_id=second_project_id,
+                media_id=second_media_id,
+                module_id="probe_media",
+                cache_character="1",
+            )
+
+            next_reconcile = await reconcile_connection(connection, scheduler_settings)
+            assert next_reconcile.resolved_jobs == 2
+            assert next_reconcile.reused_jobs == 1
+            reused_jobs = [
+                row
+                async for row in ApiAnalysisQuerier(connection).list_project_analysis_jobs(
+                    project_id=second_project_id,
+                    user_id=second_user_id,
+                )
+            ]
+            assert len(reused_jobs) == 1
+            assert reused_jobs[0].id == reused_probe_job_id
+            assert reused_jobs[0].reused_from_job_id == probe_job_id
+            assert reused_jobs[0].state == api_models.AnalysisJobState.SUCCEEDED
 
             retry_attempt_id = uuid4()
             retry_lease_token = uuid4()
@@ -264,7 +348,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                     attempt_id=retry_attempt_id,
                     worker_id="cpu-worker-1",
                     lease_token=retry_lease_token,
-                    lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+                    lease_seconds=60,
                 )
             )
             assert claimed_coordinates is not None
@@ -284,8 +368,8 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             assert retry_wait is not None
             assert retry_wait.state == worker_models.AnalysisJobState.RETRY_WAIT
 
-            released = [row async for row in scheduler.release_due_analysis_retries(batch_size=20)]
-            assert [row.id for row in released] == [coordinates_job_id]
+            retry_reconcile = await reconcile_connection(connection, scheduler_settings)
+            assert retry_reconcile.released_retries == 1
 
             final_attempt_id = uuid4()
             final_lease_token = uuid4()
@@ -295,7 +379,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                     attempt_id=final_attempt_id,
                     worker_id="cpu-worker-1",
                     lease_token=final_lease_token,
-                    lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+                    lease_seconds=60,
                 )
             )
             assert claimed_retry is not None
@@ -316,8 +400,45 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             assert terminal_failure.state == worker_models.AnalysisJobState.FAILED
             assert terminal_failure.next_attempt_at is None
 
-            blocked = [row async for row in scheduler.block_failed_dependent_jobs(batch_size=20)]
-            assert [row.id for row in blocked] == [map_job_id]
+            failure_reconcile = await reconcile_connection(connection, scheduler_settings)
+            assert failure_reconcile.blocked_jobs == 1
+
+            await _register_definition(scheduler, "lost_worker", [])
+            lost_job_id = await _create_job(
+                scheduler,
+                project_id=project_id,
+                media_id=media_id,
+                module_id="lost_worker",
+                cache_character="4",
+                max_attempts=1,
+            )
+            lost_ready = await reconcile_connection(connection, scheduler_settings)
+            assert lost_ready.resolved_jobs == 1
+            lost_attempt_id = uuid4()
+            lost_lease_token = uuid4()
+            claimed_lost_job = await worker.claim_ready_analysis_job(
+                ClaimReadyAnalysisJobParams(
+                    resource_class=worker_models.AnalysisResourceClass.CPU,
+                    attempt_id=lost_attempt_id,
+                    worker_id="cpu-worker-2",
+                    lease_token=lost_lease_token,
+                    lease_seconds=60,
+                )
+            )
+            assert claimed_lost_job is not None
+            assert claimed_lost_job.job_id == lost_job_id
+            await connection.execute(
+                text(
+                    """
+                    UPDATE analysis_job_attempt
+                    SET lease_expires_at = now() - interval '1 second'
+                    WHERE id = :attempt_id
+                    """
+                ),
+                {"attempt_id": lost_attempt_id},
+            )
+            recovered_lost_job = await reconcile_connection(connection, scheduler_settings)
+            assert recovered_lost_job.recovered_attempts == 1
 
             api_queries = ApiAnalysisQuerier(connection)
             jobs = [
@@ -331,6 +452,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 "probe_media": api_models.AnalysisJobState.SUCCEEDED,
                 "extract_coordinates": api_models.AnalysisJobState.FAILED,
                 "map_context": api_models.AnalysisJobState.BLOCKED,
+                "lost_worker": api_models.AnalysisJobState.FAILED,
             }
             attempts = [
                 row
@@ -345,6 +467,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             assert attempt_numbers_by_job == {
                 probe_job_id: [1],
                 coordinates_job_id: [1, 2],
+                lost_job_id: [1],
             }
             events = [
                 row

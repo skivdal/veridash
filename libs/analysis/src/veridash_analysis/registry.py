@@ -29,6 +29,11 @@ class AnalysisRegistry:
         self._by_id = MappingProxyType(by_id)
         self._ordered = _topological_order(self._by_id)
         for manifest in self._ordered:
+            for dependency in manifest.dependencies:
+                if not self._by_id[dependency].outputs:
+                    raise InvalidAnalysisGraphError(
+                        f"dependency {dependency} declares no required outputs"
+                    )
             if not manifest.automatic:
                 continue
             unavailable = [

@@ -4,6 +4,7 @@ from veridash_analysis.contracts import (
     AnalysisModule,
     ImplementationFingerprint,
     ModuleManifest,
+    OutputSpec,
     ProgressStage,
 )
 from veridash_analysis.registry import (
@@ -21,6 +22,7 @@ __all__ = [
     "ImplementationFingerprint",
     "InvalidAnalysisGraphError",
     "ModuleManifest",
+    "OutputSpec",
     "ProgressStage",
     "analysis_cache_key",
     "analysis_request_key",

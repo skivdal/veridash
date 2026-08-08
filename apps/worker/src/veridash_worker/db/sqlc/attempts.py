@@ -65,7 +65,7 @@ WITH candidate AS MATERIALIZED (
         candidate.next_attempt_number,
         :p3,
         :p4,
-        :p5
+        now() + make_interval(secs => :p5\\:\\:INT)
     FROM candidate
     JOIN updated_job ON updated_job.id = candidate.id
     RETURNING id, project_id, job_id, attempt_number, state, worker_id, lease_token, lease_expires_at, heartbeat_at, progress_stage, progress_completed, progress_total, progress_message, progress_at, error_kind, public_error_message, diagnostic_id, diagnostic_details, started_at, finished_at
@@ -112,7 +112,7 @@ class ClaimReadyAnalysisJobParams:
     attempt_id: uuid.UUID
     worker_id: str
     lease_token: uuid.UUID
-    lease_expires_at: datetime.datetime
+    lease_seconds: int
 
 
 @dataclasses.dataclass()
@@ -361,7 +361,7 @@ RENEW_ANALYSIS_ATTEMPT_LEASE = """-- name: renew_analysis_attempt_lease \\:one
 UPDATE analysis_job_attempt AS attempt
 SET
     heartbeat_at = now(),
-    lease_expires_at = :p1
+    lease_expires_at = now() + make_interval(secs => :p1\\:\\:INT)
 WHERE
     attempt.id = :p2
     AND attempt.lease_token = :p3
@@ -375,7 +375,7 @@ WITH updated_attempt AS (
     UPDATE analysis_job_attempt AS attempt
     SET
         heartbeat_at = now(),
-        lease_expires_at = :p1,
+        lease_expires_at = now() + make_interval(secs => :p1\\:\\:INT),
         progress_stage = :p2,
         progress_completed = :p3,
         progress_total = :p4,
@@ -417,7 +417,7 @@ SELECT id, project_id, job_id, attempt_number, state, worker_id, lease_token, le
 
 @dataclasses.dataclass()
 class ReportAnalysisAttemptProgressParams:
-    lease_expires_at: datetime.datetime
+    lease_seconds: int
     progress_stage: Optional[str]
     progress_completed: Optional[int]
     progress_total: Optional[int]
@@ -460,7 +460,7 @@ class AsyncQuerier:
             "p2": arg.attempt_id,
             "p3": arg.worker_id,
             "p4": arg.lease_token,
-            "p5": arg.lease_expires_at,
+            "p5": arg.lease_seconds,
         })).first()
         if row is None:
             return None
@@ -562,8 +562,8 @@ class AsyncQuerier:
             cache_key=row[22],
         )
 
-    async def renew_analysis_attempt_lease(self, *, lease_expires_at: datetime.datetime, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[models.AnalysisJobAttempt]:
-        row = (await self._conn.execute(sqlalchemy.text(RENEW_ANALYSIS_ATTEMPT_LEASE), {"p1": lease_expires_at, "p2": attempt_id, "p3": lease_token})).first()
+    async def renew_analysis_attempt_lease(self, *, lease_seconds: int, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[models.AnalysisJobAttempt]:
+        row = (await self._conn.execute(sqlalchemy.text(RENEW_ANALYSIS_ATTEMPT_LEASE), {"p1": lease_seconds, "p2": attempt_id, "p3": lease_token})).first()
         if row is None:
             return None
         return models.AnalysisJobAttempt(
@@ -591,7 +591,7 @@ class AsyncQuerier:
 
     async def report_analysis_attempt_progress(self, arg: ReportAnalysisAttemptProgressParams) -> Optional[ReportAnalysisAttemptProgressRow]:
         row = (await self._conn.execute(sqlalchemy.text(REPORT_ANALYSIS_ATTEMPT_PROGRESS), {
-            "p1": arg.lease_expires_at,
+            "p1": arg.lease_seconds,
             "p2": arg.progress_stage,
             "p3": arg.progress_completed,
             "p4": arg.progress_total,

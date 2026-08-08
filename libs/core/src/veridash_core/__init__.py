@@ -2,6 +2,7 @@
 
 from veridash_core.jobs import (
     TERMINAL_JOB_STATES,
+    ArtifactKind,
     AttemptState,
     ErrorKind,
     JobState,
@@ -12,6 +13,7 @@ from veridash_core.resources import ResourceClass
 
 __all__ = [
     "TERMINAL_JOB_STATES",
+    "ArtifactKind",
     "AttemptState",
     "ErrorKind",
     "JobState",

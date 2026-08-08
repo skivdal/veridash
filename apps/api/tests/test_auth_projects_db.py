@@ -10,11 +10,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient, Cookies
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from veridash_analysis import AnalysisRegistry, ModuleManifest
+from veridash_analysis import AnalysisRegistry, ModuleManifest, OutputSpec
 from veridash_api.auth.passwords import hash_password
 from veridash_api.config import Settings
 from veridash_api.main import create_app
-from veridash_core import ResourceClass
+from veridash_core import ArtifactKind, ResourceClass
 from veridash_storage import FilesystemBlobStore
 
 
@@ -159,6 +159,15 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
                 version="1.0.0",
                 result_schema_version=1,
                 resource_class=ResourceClass.CPU,
+                outputs=(
+                    OutputSpec(
+                        name="result",
+                        kind=ArtifactKind.JSON,
+                        media_type="application/json",
+                        schema_id="veridash.test_probe",
+                        schema_version=1,
+                    ),
+                ),
             ),
             ModuleManifest(
                 module_id="test_derived",

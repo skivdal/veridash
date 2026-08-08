@@ -26,6 +26,13 @@ class AttemptState(StrEnum):
     LOST = "lost"
 
 
+class ArtifactKind(StrEnum):
+    """Immutable output representation persisted by the worker wrapper."""
+
+    BLOB = "blob"
+    JSON = "json"
+
+
 class ErrorKind(StrEnum):
     """Stable failure categories that drive retry and UI behavior."""
 

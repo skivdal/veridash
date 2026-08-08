@@ -50,7 +50,7 @@ WITH candidate AS MATERIALIZED (
         candidate.next_attempt_number,
         sqlc.arg(worker_id),
         sqlc.arg(lease_token),
-        sqlc.arg(lease_expires_at)
+        now() + make_interval(secs => sqlc.arg(lease_seconds)::INT)
     FROM candidate
     JOIN updated_job ON updated_job.id = candidate.id
     RETURNING *
@@ -93,7 +93,7 @@ JOIN candidate ON candidate.id = inserted_attempt.job_id;
 UPDATE analysis_job_attempt AS attempt
 SET
     heartbeat_at = now(),
-    lease_expires_at = sqlc.arg(lease_expires_at)
+    lease_expires_at = now() + make_interval(secs => sqlc.arg(lease_seconds)::INT)
 WHERE
     attempt.id = sqlc.arg(attempt_id)
     AND attempt.lease_token = sqlc.arg(lease_token)
@@ -105,7 +105,7 @@ WITH updated_attempt AS (
     UPDATE analysis_job_attempt AS attempt
     SET
         heartbeat_at = now(),
-        lease_expires_at = sqlc.arg(lease_expires_at),
+        lease_expires_at = now() + make_interval(secs => sqlc.arg(lease_seconds)::INT),
         progress_stage = sqlc.arg(progress_stage),
         progress_completed = sqlc.narg(progress_completed),
         progress_total = sqlc.narg(progress_total),

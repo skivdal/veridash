@@ -1,6 +1,7 @@
 import pytest
 from veridash_core.jobs import (
     TERMINAL_JOB_STATES,
+    ArtifactKind,
     AttemptState,
     ErrorKind,
     JobState,
@@ -14,6 +15,7 @@ def test_domain_enums_are_wire_values() -> None:
     assert JobState.WAITING_FOR_DEPENDENCIES == "waiting_for_dependencies"
     assert ErrorKind.INVALID_INPUT == "invalid_input"
     assert AttemptState.LOST == "lost"
+    assert ArtifactKind.JSON == "json"
 
 
 def test_gpu_default_matches_single_vps_capacity() -> None:

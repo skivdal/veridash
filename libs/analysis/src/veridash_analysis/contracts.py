@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
-from veridash_core.resources import ResourceClass
+from veridash_core import ArtifactKind, ResourceClass
 
 
 class ProgressStage(BaseModel):
@@ -26,6 +26,18 @@ class ImplementationFingerprint(BaseModel):
     value: str = Field(min_length=1, max_length=500)
 
 
+class OutputSpec(BaseModel):
+    """One required named artifact published by a successful module."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=100)
+    kind: ArtifactKind
+    media_type: str = Field(min_length=1, max_length=255)
+    schema_id: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$", max_length=200)
+    schema_version: int = Field(ge=1)
+
+
 class ModuleManifest(BaseModel):
     """Scheduler-visible metadata that imports no heavy analysis dependencies."""
 
@@ -44,6 +56,7 @@ class ModuleManifest(BaseModel):
     cacheable: bool = True
     fingerprints: tuple[ImplementationFingerprint, ...] = ()
     progress_stages: tuple[ProgressStage, ...] = ()
+    outputs: tuple[OutputSpec, ...] = ()
 
     @model_validator(mode="after")
     def validate_named_members(self) -> "ModuleManifest":
@@ -55,6 +68,8 @@ class ModuleManifest(BaseModel):
             raise ValueError("progress stage keys must be unique")
         if len({item.name for item in self.fingerprints}) != len(self.fingerprints):
             raise ValueError("implementation fingerprint names must be unique")
+        if len({item.name for item in self.outputs}) != len(self.outputs):
+            raise ValueError("analysis output names must be unique")
         return self
 
 
