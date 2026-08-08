@@ -14,7 +14,7 @@ then builds all six Dockerfile targets for `linux/amd64`. Builds from pull reque
 and ordinary branches are not pushed.
 
 Pushes to `main`, `v*` tags, and manually dispatched trusted runs additionally
-publish these packages:
+publish and provenance-attest these packages:
 
 - `ghcr.io/skivdal/veridash-api`
 - `ghcr.io/skivdal/veridash-scheduler`
