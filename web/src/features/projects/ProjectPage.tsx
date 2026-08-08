@@ -10,6 +10,7 @@ import {
   useArchiveProjectApiProjectsProjectIdArchivePost,
   useCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost,
   useGetCurrentUserApiAuthMeGet,
+  useGetDashboardPreferenceApiPreferencesDashboardGet,
   useGetProjectApiProjectsProjectIdGet,
   useListProjectAnalysesApiProjectsProjectIdAnalysesGet,
   useRenameProjectApiProjectsProjectIdPatch,
@@ -19,33 +20,17 @@ import {
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
+import {
+  DashboardCustomizer,
+  type DashboardModuleId,
+  dashboardModules,
+  normalizedModuleOrder,
+} from "./DashboardCustomizer";
 import { FramesCard } from "./FramesCard";
 import { MapCard } from "./MapCard";
 import { MetadataCard } from "./MetadataCard";
 import { NotesCard } from "./NotesCard";
 import { useProjectEvents } from "./projectEvents";
-
-const modulePlaceholders = [
-  [
-    "Transcription & Translation",
-    "Timestamped source-language speech and its separate translation will appear here.",
-    "transcribe",
-  ],
-  [
-    "Object Detection",
-    "Detected objects will remain linked to source frames.",
-    "detect_objects",
-  ],
-] as const;
-const moduleNavigation = [
-  ["Source", "source-media"],
-  ["Frames", "frames"],
-  ["Transcription & Translation", "transcribe"],
-  ["Object Detection", "detect_objects"],
-  ["Metadata", "metadata"],
-  ["Map", "map"],
-  ["Notes", "notes"],
-] as const;
 
 interface ProjectPageProps {
   projectId: string;
@@ -54,6 +39,7 @@ interface ProjectPageProps {
 export function ProjectPage({ projectId }: ProjectPageProps) {
   const queryClient = useQueryClient();
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isCustomizing, setIsCustomizing] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const currentUser = useGetCurrentUserApiAuthMeGet({
     query: { retry: false },
@@ -61,6 +47,10 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const project = useGetProjectApiProjectsProjectIdGet(projectId, {
     query: { enabled: currentUser.isSuccess, retry: false },
   });
+  const dashboardPreference =
+    useGetDashboardPreferenceApiPreferencesDashboardGet({
+      query: { enabled: currentUser.isSuccess, retry: false },
+    });
   const analyses = useListProjectAnalysesApiProjectsProjectIdAnalysesGet(
     projectId,
     {
@@ -84,6 +74,14 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const projectData =
     project.data?.status === 200 ? project.data.data : undefined;
   const analysisJobs = analyses.data?.status === 200 ? analyses.data.data : [];
+  const dashboardPreferenceData =
+    dashboardPreference.data?.status === 200
+      ? dashboardPreference.data.data
+      : undefined;
+  const moduleOrder = normalizedModuleOrder(
+    dashboardPreferenceData?.module_order,
+  );
+  const hiddenModules = new Set(dashboardPreferenceData?.hidden_modules ?? []);
   const updateCachedProject = async (response: unknown) => {
     const candidate = response as { status?: number };
     if (candidate.status !== 200) return;
@@ -195,6 +193,7 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   }
 
   if (sessionData === undefined || projectData === undefined) return null;
+  const projectState = projectData.state;
 
   function submitRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -216,6 +215,102 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const lifecycleMutationPending =
     archiveProject.isPending || restoreProject.isPending;
 
+  function renderDashboardModule(moduleId: DashboardModuleId) {
+    const cancelPendingJobId = cancelAnalysis.isPending
+      ? cancelAnalysis.variables?.jobId
+      : undefined;
+    const retryPendingJobId = retryAnalysis.isPending
+      ? retryAnalysis.variables?.jobId
+      : undefined;
+    const sharedActions = {
+      cancelPendingJobId,
+      onCancel: (jobId: string) => cancelAnalysis.mutate({ projectId, jobId }),
+      retryPendingJobId,
+      onRetry: (jobId: string) => retryAnalysis.mutate({ projectId, jobId }),
+    };
+    switch (moduleId) {
+      case "source":
+        return (
+          <SourceMediaPanel
+            key={moduleId}
+            projectId={projectId}
+            projectState={projectState}
+          />
+        );
+      case "frames":
+        return (
+          <FramesCard
+            {...sharedActions}
+            key={moduleId}
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "extract_keyframes",
+            )}
+            stitchJobs={analysisJobs.filter(
+              (candidate) => candidate.module_id === "stitch_frames",
+            )}
+            readOnly={projectState === "archived"}
+          />
+        );
+      case "transcription":
+        return (
+          <AnalysisCard
+            {...sharedActions}
+            key={moduleId}
+            name="Transcription & Translation"
+            description="Timestamped source-language speech and its separate translation will appear here."
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "transcribe",
+            )}
+            moduleId="transcribe"
+          />
+        );
+      case "detection":
+        return (
+          <AnalysisCard
+            {...sharedActions}
+            key={moduleId}
+            name="Object Detection"
+            description="Detected objects will remain linked to source frames."
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "detect_objects",
+            )}
+            moduleId="detect_objects"
+          />
+        );
+      case "metadata":
+        return (
+          <MetadataCard
+            {...sharedActions}
+            key={moduleId}
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "probe_media",
+            )}
+          />
+        );
+      case "map":
+        return (
+          <MapCard
+            {...sharedActions}
+            key={moduleId}
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "extract_coordinates",
+            )}
+          />
+        );
+      case "notes":
+        return (
+          <NotesCard
+            key={moduleId}
+            projectId={projectId}
+            readOnly={projectState === "archived"}
+          />
+        );
+    }
+  }
+
   return (
     <div className="app-canvas">
       <AppHeader username={sessionData.user.username} />
@@ -231,6 +326,13 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             </p>
           </div>
           <div className="workspace-actions">
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => setIsCustomizing((visible) => !visible)}
+            >
+              {isCustomizing ? "Close customization" : "Customize dashboard"}
+            </button>
             <button
               className="button button-secondary"
               type="button"
@@ -302,109 +404,43 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
           </p>
         )}
 
+        {isCustomizing ? (
+          <DashboardCustomizer
+            preference={dashboardPreferenceData}
+            loadError={
+              dashboardPreference.error instanceof ApiError
+                ? dashboardPreference.error.message
+                : undefined
+            }
+            onClose={() => setIsCustomizing(false)}
+          />
+        ) : null}
+
         <nav className="module-navigation" aria-label="Dashboard modules">
           <ul className="analysis-chips">
-            {moduleNavigation.map(([name, target]) => (
-              <li key={target}>
-                <a href={`#${target}`}>
-                  <span aria-hidden="true">✓</span>
-                  {name}
-                </a>
-              </li>
-            ))}
+            {moduleOrder
+              .filter((moduleId) => !hiddenModules.has(moduleId))
+              .map((moduleId) => {
+                const module = dashboardModules.find(
+                  (candidate) => candidate.id === moduleId,
+                );
+                if (module === undefined) return null;
+                return (
+                  <li key={module.id}>
+                    <a href={`#${module.target}`}>
+                      <span aria-hidden="true">✓</span>
+                      {module.label}
+                    </a>
+                  </li>
+                );
+              })}
           </ul>
         </nav>
 
         <section className="dashboard-grid" aria-label="Analysis dashboard">
-          <SourceMediaPanel
-            projectId={projectId}
-            projectState={projectData.state}
-          />
-          <FramesCard
-            projectId={projectId}
-            job={analysisJobs.find(
-              (candidate) => candidate.module_id === "extract_keyframes",
-            )}
-            cancelPendingJobId={
-              cancelAnalysis.isPending
-                ? cancelAnalysis.variables?.jobId
-                : undefined
-            }
-            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
-            retryPendingJobId={
-              retryAnalysis.isPending
-                ? retryAnalysis.variables?.jobId
-                : undefined
-            }
-            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
-            stitchJobs={analysisJobs.filter(
-              (candidate) => candidate.module_id === "stitch_frames",
-            )}
-            readOnly={projectData.state === "archived"}
-          />
-          {modulePlaceholders.map(([name, description, moduleId]) => (
-            <AnalysisCard
-              description={description}
-              job={analysisJobs.find(
-                (candidate) => candidate.module_id === moduleId,
-              )}
-              key={name}
-              moduleId={moduleId}
-              name={name}
-              cancelPendingJobId={
-                cancelAnalysis.isPending
-                  ? cancelAnalysis.variables?.jobId
-                  : undefined
-              }
-              onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
-              retryPendingJobId={
-                retryAnalysis.isPending
-                  ? retryAnalysis.variables?.jobId
-                  : undefined
-              }
-              onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
-            />
-          ))}
-          <MetadataCard
-            projectId={projectId}
-            job={analysisJobs.find(
-              (candidate) => candidate.module_id === "probe_media",
-            )}
-            cancelPendingJobId={
-              cancelAnalysis.isPending
-                ? cancelAnalysis.variables?.jobId
-                : undefined
-            }
-            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
-            retryPendingJobId={
-              retryAnalysis.isPending
-                ? retryAnalysis.variables?.jobId
-                : undefined
-            }
-            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
-          />
-          <MapCard
-            projectId={projectId}
-            job={analysisJobs.find(
-              (candidate) => candidate.module_id === "extract_coordinates",
-            )}
-            cancelPendingJobId={
-              cancelAnalysis.isPending
-                ? cancelAnalysis.variables?.jobId
-                : undefined
-            }
-            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
-            retryPendingJobId={
-              retryAnalysis.isPending
-                ? retryAnalysis.variables?.jobId
-                : undefined
-            }
-            onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
-          />
-          <NotesCard
-            projectId={projectId}
-            readOnly={projectData.state === "archived"}
-          />
+          {moduleOrder
+            .filter((moduleId) => !hiddenModules.has(moduleId))
+            .map(renderDashboardModule)}
         </section>
       </main>
     </div>

@@ -454,6 +454,46 @@
         "title": "CreateProjectRequest",
         "type": "object"
       },
+      "DashboardPreferenceResponse": {
+        "properties": {
+          "hidden_modules": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hidden Modules",
+            "type": "array"
+          },
+          "module_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Module Order",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "user_id",
+          "module_order",
+          "hidden_modules",
+          "revision",
+          "updated_at"
+        ],
+        "title": "DashboardPreferenceResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -663,6 +703,39 @@
           "original_filename"
         ],
         "title": "ReserveSourceMediaRequest",
+        "type": "object"
+      },
+      "SaveDashboardPreferenceRequest": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "hidden_modules": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 7,
+            "title": "Hidden Modules",
+            "type": "array"
+          },
+          "module_order": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 7,
+            "minItems": 7,
+            "title": "Module Order",
+            "type": "array"
+          }
+        },
+        "required": [
+          "module_order",
+          "hidden_modules",
+          "expected_revision"
+        ],
+        "title": "SaveDashboardPreferenceRequest",
         "type": "object"
       },
       "SaveProjectNoteRequest": {
@@ -1142,6 +1215,126 @@
         "summary": "Stream Source Media",
         "tags": [
           "source media"
+        ]
+      }
+    },
+    "/api/preferences/dashboard": {
+      "get": {
+        "operationId": "get_dashboard_preference_api_preferences_dashboard_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardPreferenceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Get Dashboard Preference",
+        "tags": [
+          "preferences"
+        ]
+      },
+      "put": {
+        "operationId": "save_dashboard_preference_api_preferences_dashboard_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDashboardPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardPreferenceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "CSRF check failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Preference revision conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Invalid dashboard settings"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Save Dashboard Preference",
+        "tags": [
+          "preferences"
         ]
       }
     },

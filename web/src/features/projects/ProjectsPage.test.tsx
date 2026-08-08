@@ -154,12 +154,45 @@ describe("projects routing", () => {
     let retryRequested = false;
     let savedNoteBody: string | undefined;
     let stitchSelection: string[] | undefined;
+    let savedHiddenModules: string[] | undefined;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url === "/api/auth/me") {
           return jsonResponse({ user: { id: 1, username: "journalist" } });
+        }
+        if (url === "/api/preferences/dashboard") {
+          if (init?.method === "PUT") {
+            const request = JSON.parse(String(init.body)) as {
+              module_order: string[];
+              hidden_modules: string[];
+              expected_revision: number;
+            };
+            savedHiddenModules = request.hidden_modules;
+            return jsonResponse({
+              user_id: 1,
+              module_order: request.module_order,
+              hidden_modules: request.hidden_modules,
+              revision: request.expected_revision + 1,
+              updated_at: "2026-08-08T12:00:05Z",
+            });
+          }
+          return jsonResponse({
+            user_id: 1,
+            module_order: [
+              "source",
+              "frames",
+              "transcription",
+              "detection",
+              "metadata",
+              "map",
+              "notes",
+            ],
+            hidden_modules: [],
+            revision: 0,
+            updated_at: "2026-08-08T12:00:00Z",
+          });
         }
         if (url === "/api/projects/project-id") {
           return jsonResponse({
@@ -439,5 +472,14 @@ describe("projects routing", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry analysis" }));
     await waitFor(() => expect(retryRequested).toBe(true));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Customize dashboard" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show Map" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save dashboard" }));
+    await waitFor(() => expect(savedHiddenModules).toEqual(["map"]));
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Map" })).toBeNull(),
+    );
   });
 });

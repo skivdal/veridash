@@ -3,7 +3,17 @@
 import datetime
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
+
+DASHBOARD_MODULE_IDS = (
+    "source",
+    "frames",
+    "transcription",
+    "detection",
+    "metadata",
+    "map",
+    "notes",
+)
 
 
 class LoginRequest(BaseModel):
@@ -52,6 +62,33 @@ class SaveProjectNoteRequest(BaseModel):
 class ProjectNoteResponse(BaseModel):
     project_id: uuid.UUID
     body: str
+    revision: int
+    updated_at: datetime.datetime
+
+
+class SaveDashboardPreferenceRequest(BaseModel):
+    module_order: list[str] = Field(min_length=7, max_length=7)
+    hidden_modules: list[str] = Field(max_length=7)
+    expected_revision: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_modules(self) -> "SaveDashboardPreferenceRequest":
+        expected = set(DASHBOARD_MODULE_IDS)
+        if len(self.module_order) != len(set(self.module_order)):
+            raise ValueError("dashboard module order must be unique")
+        if set(self.module_order) != expected:
+            raise ValueError("dashboard module order must contain every supported module")
+        if len(self.hidden_modules) != len(set(self.hidden_modules)):
+            raise ValueError("hidden dashboard modules must be unique")
+        if not set(self.hidden_modules) <= expected:
+            raise ValueError("hidden dashboard modules contain an unsupported module")
+        return self
+
+
+class DashboardPreferenceResponse(BaseModel):
+    user_id: int
+    module_order: list[str]
+    hidden_modules: list[str]
     revision: int
     updated_at: datetime.datetime
 

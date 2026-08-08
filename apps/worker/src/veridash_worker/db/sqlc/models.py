@@ -242,6 +242,16 @@ class SourceMedium:
 
 
 @dataclasses.dataclass()
+class UserDashboardPreference:
+    user_id: int
+    module_order: Any
+    hidden_modules: Any
+    revision: int
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+
+@dataclasses.dataclass()
 class UserSession:
     id: uuid.UUID
     user_id: int

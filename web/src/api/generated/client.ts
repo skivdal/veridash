@@ -28,6 +28,7 @@ import type {
   AnalysisJobResponse,
   CreateFrameStitchRequest,
   CreateProjectRequest,
+  DashboardPreferenceResponse,
   HTTPValidationError,
   HealthResponse,
   LoginRequest,
@@ -36,6 +37,7 @@ import type {
   ProjectResponse,
   RenameProjectRequest,
   ReserveSourceMediaRequest,
+  SaveDashboardPreferenceRequest,
   SaveProjectNoteRequest,
   SessionResponse,
   SourceMediaResponse,
@@ -663,6 +665,241 @@ export function useStreamSourceMediaApiMediaMediaIdContentGet<TData = Awaited<Re
 
 
 
+
+export type getDashboardPreferenceApiPreferencesDashboardGetResponse200 = {
+  data: DashboardPreferenceResponse
+  status: 200
+}
+
+export type getDashboardPreferenceApiPreferencesDashboardGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type getDashboardPreferenceApiPreferencesDashboardGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type getDashboardPreferenceApiPreferencesDashboardGetResponseSuccess = (getDashboardPreferenceApiPreferencesDashboardGetResponse200) & {
+  headers: Headers;
+};
+export type getDashboardPreferenceApiPreferencesDashboardGetResponseError = (getDashboardPreferenceApiPreferencesDashboardGetResponse401 | getDashboardPreferenceApiPreferencesDashboardGetResponse500) & {
+  headers: Headers;
+};
+
+export type getDashboardPreferenceApiPreferencesDashboardGetResponse = (getDashboardPreferenceApiPreferencesDashboardGetResponseSuccess | getDashboardPreferenceApiPreferencesDashboardGetResponseError)
+
+export const getGetDashboardPreferenceApiPreferencesDashboardGetUrl = () => {
+
+
+
+
+  return `/api/preferences/dashboard`
+}
+
+/**
+ * @summary Get Dashboard Preference
+ */
+export const getDashboardPreferenceApiPreferencesDashboardGet = async ( options?: RequestInit): Promise<getDashboardPreferenceApiPreferencesDashboardGetResponse> => {
+
+  return apiFetch<getDashboardPreferenceApiPreferencesDashboardGetResponse>(getGetDashboardPreferenceApiPreferencesDashboardGetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDashboardPreferenceApiPreferencesDashboardGetQueryKey = () => {
+    return [
+    `/api/preferences/dashboard`
+    ] as const;
+    }
+
+
+export const getGetDashboardPreferenceApiPreferencesDashboardGetQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError = ErrorType<ProblemResponse>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardPreferenceApiPreferencesDashboardGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>> = ({ signal }) => getDashboardPreferenceApiPreferencesDashboardGet({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDashboardPreferenceApiPreferencesDashboardGetQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>>
+export type GetDashboardPreferenceApiPreferencesDashboardGetQueryError = ErrorType<ProblemResponse>
+
+
+export function useGetDashboardPreferenceApiPreferencesDashboardGet<TData = Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError = ErrorType<ProblemResponse>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>,
+          TError,
+          Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDashboardPreferenceApiPreferencesDashboardGet<TData = Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError = ErrorType<ProblemResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>,
+          TError,
+          Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDashboardPreferenceApiPreferencesDashboardGet<TData = Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError = ErrorType<ProblemResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Dashboard Preference
+ */
+
+export function useGetDashboardPreferenceApiPreferencesDashboardGet<TData = Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError = ErrorType<ProblemResponse>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardPreferenceApiPreferencesDashboardGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDashboardPreferenceApiPreferencesDashboardGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse200 = {
+  data: DashboardPreferenceResponse
+  status: 200
+}
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponseSuccess = (saveDashboardPreferenceApiPreferencesDashboardPutResponse200) & {
+  headers: Headers;
+};
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponseError = (saveDashboardPreferenceApiPreferencesDashboardPutResponse401 | saveDashboardPreferenceApiPreferencesDashboardPutResponse403 | saveDashboardPreferenceApiPreferencesDashboardPutResponse409 | saveDashboardPreferenceApiPreferencesDashboardPutResponse422 | saveDashboardPreferenceApiPreferencesDashboardPutResponse500) & {
+  headers: Headers;
+};
+
+export type saveDashboardPreferenceApiPreferencesDashboardPutResponse = (saveDashboardPreferenceApiPreferencesDashboardPutResponseSuccess | saveDashboardPreferenceApiPreferencesDashboardPutResponseError)
+
+export const getSaveDashboardPreferenceApiPreferencesDashboardPutUrl = () => {
+
+
+
+
+  return `/api/preferences/dashboard`
+}
+
+/**
+ * @summary Save Dashboard Preference
+ */
+export const saveDashboardPreferenceApiPreferencesDashboardPut = async (saveDashboardPreferenceRequest: SaveDashboardPreferenceRequest, options?: RequestInit): Promise<saveDashboardPreferenceApiPreferencesDashboardPutResponse> => {
+
+  return apiFetch<saveDashboardPreferenceApiPreferencesDashboardPutResponse>(getSaveDashboardPreferenceApiPreferencesDashboardPutUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveDashboardPreferenceRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveDashboardPreferenceApiPreferencesDashboardPutMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDashboardPreferenceApiPreferencesDashboardPut>>, TError,{data: BodyType<SaveDashboardPreferenceRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDashboardPreferenceApiPreferencesDashboardPut>>, TError,{data: BodyType<SaveDashboardPreferenceRequest>}, TContext> => {
+
+const mutationKey = ['saveDashboardPreferenceApiPreferencesDashboardPut'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDashboardPreferenceApiPreferencesDashboardPut>>, {data: BodyType<SaveDashboardPreferenceRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveDashboardPreferenceApiPreferencesDashboardPut(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveDashboardPreferenceApiPreferencesDashboardPutMutationResult = NonNullable<Awaited<ReturnType<typeof saveDashboardPreferenceApiPreferencesDashboardPut>>>
+    export type SaveDashboardPreferenceApiPreferencesDashboardPutMutationBody = BodyType<SaveDashboardPreferenceRequest>
+    export type SaveDashboardPreferenceApiPreferencesDashboardPutMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Save Dashboard Preference
+ */
+export const useSaveDashboardPreferenceApiPreferencesDashboardPut = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDashboardPreferenceApiPreferencesDashboardPut>>, TError,{data: BodyType<SaveDashboardPreferenceRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveDashboardPreferenceApiPreferencesDashboardPut>>,
+        TError,
+        {data: BodyType<SaveDashboardPreferenceRequest>},
+        TContext
+      > => {
+      return useMutation(getSaveDashboardPreferenceApiPreferencesDashboardPutMutationOptions(options), queryClient);
+    }
 
 export type listProjectsApiProjectsGetResponse200 = {
   data: ProjectResponse[]

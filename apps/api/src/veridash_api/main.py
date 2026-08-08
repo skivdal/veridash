@@ -17,6 +17,7 @@ from veridash_api.routes.analyses import router as analyses_router
 from veridash_api.routes.auth import router as auth_router
 from veridash_api.routes.health import router as health_router
 from veridash_api.routes.media import router as media_router
+from veridash_api.routes.preferences import router as preferences_router
 from veridash_api.routes.projects import router as projects_router
 
 
@@ -67,6 +68,7 @@ def create_app(
     app.include_router(auth_router, prefix="/api")
     app.include_router(projects_router, prefix="/api")
     app.include_router(media_router, prefix="/api")
+    app.include_router(preferences_router, prefix="/api")
     app.include_router(analyses_router, prefix="/api")
     return app
 
