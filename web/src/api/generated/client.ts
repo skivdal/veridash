@@ -34,7 +34,8 @@ import type {
   RenameProjectRequest,
   ReserveSourceMediaRequest,
   SessionResponse,
-  SourceMediaResponse
+  SourceMediaResponse,
+  StreamProjectEventsApiProjectsProjectIdEventsGetParams
 } from './schemas';
 
 import { apiFetch } from '../fetcher';
@@ -1379,6 +1380,154 @@ export const useArchiveProjectApiProjectsProjectIdArchivePost = <TError = ErrorT
       > => {
       return useMutation(getArchiveProjectApiProjectsProjectIdArchivePostMutationOptions(options), queryClient);
     }
+
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponse400 = {
+  data: ProblemResponse
+  status: 400
+}
+
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+;
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponseError = (streamProjectEventsApiProjectsProjectIdEventsGetResponse400 | streamProjectEventsApiProjectsProjectIdEventsGetResponse401 | streamProjectEventsApiProjectsProjectIdEventsGetResponse404 | streamProjectEventsApiProjectsProjectIdEventsGetResponse422 | streamProjectEventsApiProjectsProjectIdEventsGetResponse500) & {
+  headers: Headers;
+};
+
+export type streamProjectEventsApiProjectsProjectIdEventsGetResponse = (streamProjectEventsApiProjectsProjectIdEventsGetResponseError)
+
+export const getStreamProjectEventsApiProjectsProjectIdEventsGetUrl = (projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/projects/${projectId}/events?${stringifiedParams}` : `/api/projects/${projectId}/events`
+}
+
+/**
+ * @summary Stream Project Events
+ */
+export const streamProjectEventsApiProjectsProjectIdEventsGet = async (projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams, options?: RequestInit): Promise<streamProjectEventsApiProjectsProjectIdEventsGetResponse> => {
+
+  return apiFetch<streamProjectEventsApiProjectsProjectIdEventsGetResponse>(getStreamProjectEventsApiProjectsProjectIdEventsGetUrl(projectId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStreamProjectEventsApiProjectsProjectIdEventsGetQueryKey = (projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams,) => {
+    return [
+    `/api/projects/${projectId}/events`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getStreamProjectEventsApiProjectsProjectIdEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamProjectEventsApiProjectsProjectIdEventsGetQueryKey(projectId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>> = ({ signal }) => streamProjectEventsApiProjectsProjectIdEventsGet(projectId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type StreamProjectEventsApiProjectsProjectIdEventsGetQueryResult = NonNullable<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>>
+export type StreamProjectEventsApiProjectsProjectIdEventsGetQueryError = ErrorType<ProblemResponse | HTTPValidationError>
+
+
+export function useStreamProjectEventsApiProjectsProjectIdEventsGet<TData = Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params: undefined |  StreamProjectEventsApiProjectsProjectIdEventsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamProjectEventsApiProjectsProjectIdEventsGet<TData = Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamProjectEventsApiProjectsProjectIdEventsGet<TData = Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Stream Project Events
+ */
+
+export function useStreamProjectEventsApiProjectsProjectIdEventsGet<TData = Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params?: StreamProjectEventsApiProjectsProjectIdEventsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamProjectEventsApiProjectsProjectIdEventsGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getStreamProjectEventsApiProjectsProjectIdEventsGetQueryOptions(projectId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type getProjectSourceMediaApiProjectsProjectIdMediaGetResponse200 = {
   data: SourceMediaResponse

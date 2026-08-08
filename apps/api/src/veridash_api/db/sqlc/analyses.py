@@ -190,6 +190,14 @@ class GetAnalysisJobRow:
     updated_at: datetime.datetime
 
 
+GET_LATEST_PROJECT_EVENT_ID = """-- name: get_latest_project_event_id \\:one
+SELECT COALESCE(max(event.id), 0)\\:\\:BIGINT AS latest_event_id
+FROM project_event AS event
+JOIN project ON project.id = event.project_id
+WHERE event.project_id = :p1 AND project.user_id = :p2
+"""
+
+
 LIST_ANALYSIS_JOB_ARTIFACTS = """-- name: list_analysis_job_artifacts \\:many
 SELECT
     artifact.id,
@@ -504,6 +512,12 @@ class AsyncQuerier:
             created_at=row[23],
             updated_at=row[24],
         )
+
+    async def get_latest_project_event_id(self, *, project_id: uuid.UUID, user_id: int) -> Optional[int]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_LATEST_PROJECT_EVENT_ID), {"p1": project_id, "p2": user_id})).first()
+        if row is None:
+            return None
+        return row[0]
 
     async def list_analysis_job_artifacts(self, *, job_id: uuid.UUID, user_id: int) -> AsyncIterator[ListAnalysisJobArtifactsRow]:
         result = await self._conn.stream(sqlalchemy.text(LIST_ANALYSIS_JOB_ARTIFACTS), {"p1": job_id, "p2": user_id})

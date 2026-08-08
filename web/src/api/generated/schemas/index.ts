@@ -18,6 +18,7 @@ export * from './renameProjectRequest';
 export * from './reserveSourceMediaRequest';
 export * from './sessionResponse';
 export * from './sourceMediaResponse';
+export * from './streamProjectEventsApiProjectsProjectIdEventsGetParams';
 export * from './userResponse';
 export * from './validationError';
 export * from './validationErrorCtx';

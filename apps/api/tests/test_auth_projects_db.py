@@ -149,7 +149,13 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
     other_username = f"api-test-other-{suffix}"
     password = "correct horse battery staple"
     engine = create_async_engine(database_url)
-    settings = Settings(database_url=database_url, session_cookie_secure=False)
+    settings = Settings(
+        database_url=database_url,
+        session_cookie_secure=False,
+        event_poll_interval_seconds=0.01,
+        event_keepalive_seconds=0.05,
+        event_stream_lifetime_seconds=0.05,
+    )
     store = FilesystemBlobStore(tmp_path / "data")
     analysis_registry = AnalysisRegistry(
         (
@@ -375,6 +381,25 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
                 "test_derived",
             }
             assert all(job["state"] == "waiting_for_dependencies" for job in analyses.json())
+
+            event_stream = await client.get(f"/api/projects/{project['id']}/events?after=0")
+            assert event_stream.status_code == 200
+            assert event_stream.headers["content-type"].startswith("text/event-stream")
+            assert "event: project-event" in event_stream.text
+            assert '"event_type":"media.uploaded"' in event_stream.text
+            assert '"event_type":"job.created"' in event_stream.text
+
+            invalid_cursor = await client.get(
+                f"/api/projects/{project['id']}/events",
+                headers={"Last-Event-ID": "invalid"},
+            )
+            assert invalid_cursor.status_code == 400
+            assert invalid_cursor.json()["code"] == "invalid_event_cursor"
+
+            unauthorized_events = await client.get(
+                f"/api/projects/{other_project_id}/events?after=0"
+            )
+            assert unauthorized_events.status_code == 404
 
             complete_again = await client.post(
                 f"/api/uploads/{media['id']}/complete",

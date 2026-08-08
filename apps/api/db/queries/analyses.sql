@@ -132,6 +132,12 @@ WHERE
 ORDER BY event.id
 LIMIT sqlc.arg(batch_size);
 
+-- name: GetLatestProjectEventId :one
+SELECT COALESCE(max(event.id), 0)::BIGINT AS latest_event_id
+FROM project_event AS event
+JOIN project ON project.id = event.project_id
+WHERE event.project_id = sqlc.arg(project_id) AND project.user_id = sqlc.arg(user_id);
+
 -- name: RegisterAnalysisDefinition :one
 WITH inserted AS (
     INSERT INTO analysis_definition (

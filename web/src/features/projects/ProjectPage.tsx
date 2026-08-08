@@ -16,6 +16,7 @@ import {
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
+import { useProjectEvents } from "./projectEvents";
 
 const modulePlaceholders = [
   [
@@ -67,6 +68,7 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
         enabled: project.isSuccess,
         retry: false,
         refetchInterval: (query) => {
+          if (typeof EventSource !== "undefined") return false;
           const response = query.state.data;
           if (response?.status !== 200) return false;
           return response.data.some((job) => !isTerminalJobState(job.state))
@@ -76,6 +78,7 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
       },
     },
   );
+  useProjectEvents(projectId, queryClient, project.isSuccess);
   const sessionData =
     currentUser.data?.status === 200 ? currentUser.data.data : undefined;
   const projectData =
