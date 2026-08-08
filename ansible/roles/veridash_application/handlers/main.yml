@@ -1,0 +1,38 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: Reload systemd
+
+- name: Run database migrations
+  ansible.builtin.systemd_service:
+    name: veridash-migrate.service
+    state: restarted
+    enabled: true
+    daemon_reload: true
+  listen: Restart VeriDash release
+
+- name: Restart core application services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: restarted
+    enabled: true
+  loop:
+    - veridash-api.service
+    - veridash-scheduler.service
+    - veridash-worker-cpu.service
+  listen: Restart VeriDash release
+
+- name: Restart optional GPU worker
+  when: veridash_enable_gpu_worker | bool
+  ansible.builtin.systemd_service:
+    name: veridash-worker-gpu.service
+    state: restarted
+    enabled: true
+  listen: Restart VeriDash release
+
+- name: Reload nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  listen: Reload nginx

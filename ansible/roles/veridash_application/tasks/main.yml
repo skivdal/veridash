@@ -1,0 +1,206 @@
+---
+- name: Require immutable release inputs
+  ansible.builtin.assert:
+    that:
+      - veridash_release_id != 'unconfigured'
+      - veridash_api_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - veridash_scheduler_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - veridash_worker_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - veridash_migration_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - veridash_gpu_concurrency | int <= 2
+      - veridash_gpu_concurrency | int >= 1
+    fail_msg: Release images must use immutable OCI digest references.
+
+- name: Check the built frontend on the control host
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ veridash_frontend_source }}/index.html"
+  register: veridash_frontend_index
+
+- name: Require a production Vite build
+  ansible.builtin.assert:
+    that: veridash_frontend_index.stat.isreg | default(false)
+    fail_msg: Build web/dist before deploying, or set veridash_frontend_source.
+
+- name: Pull immutable application images
+  community.docker.docker_image:
+    name: "{{ item }}"
+    source: pull
+  loop:
+    - "{{ veridash_api_image }}"
+    - "{{ veridash_scheduler_image }}"
+    - "{{ veridash_worker_image }}"
+    - "{{ veridash_migration_image }}"
+  notify: Restart VeriDash release
+
+- name: Read the media-tool fingerprint from each application image
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --entrypoint
+      - cat
+      - "{{ item }}"
+      - /opt/veridash/FFMPEG_FINGERPRINT
+  loop:
+    - "{{ veridash_api_image }}"
+    - "{{ veridash_scheduler_image }}"
+    - "{{ veridash_worker_image }}"
+  register: veridash_image_fingerprints
+  changed_when: false
+
+- name: Require identical exact media-tool fingerprints
+  ansible.builtin.assert:
+    that:
+      - veridash_image_fingerprints.results | map(attribute='stdout') | unique | length == 1
+      - veridash_image_fingerprints.results[0].stdout is regex('^sha256:[0-9a-f]{64}$')
+    fail_msg: API, scheduler, and worker images must contain the same FFmpeg build.
+
+- name: Record the release media-tool fingerprint
+  ansible.builtin.set_fact:
+    veridash_ffmpeg_fingerprint: "{{ veridash_image_fingerprints.results[0].stdout }}"
+
+- name: Create the immutable frontend release directory
+  ansible.builtin.file:
+    path: "{{ veridash_release_root }}/{{ veridash_release_id }}/web"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the static frontend release
+  ansible.builtin.copy:
+    src: "{{ veridash_frontend_source }}/"
+    dest: "{{ veridash_release_root }}/{{ veridash_release_id }}/web/"
+    owner: root
+    group: root
+    mode: preserve
+
+- name: Point the current release symlink at the selected release
+  ansible.builtin.file:
+    src: "{{ veridash_release_root }}/{{ veridash_release_id }}"
+    dest: /opt/veridash/current
+    state: link
+    force: true
+  notify: Reload nginx
+
+- name: Render restricted service environment files
+  no_log: true
+  ansible.builtin.template:
+    src: "{{ item }}.env.j2"
+    dest: "{{ veridash_config_root }}/{{ item }}.env"
+    owner: root
+    group: "{{ veridash_system_group }}"
+    mode: "0640"
+  loop:
+    - api
+    - scheduler
+    - worker
+    - migration
+  notify: Restart VeriDash release
+
+- name: Render the one-shot migration unit
+  ansible.builtin.template:
+    src: veridash-migrate.service.j2
+    dest: /etc/systemd/system/veridash-migrate.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart VeriDash release
+
+- name: Render application service units
+  ansible.builtin.template:
+    src: veridash-container.service.j2
+    dest: "/etc/systemd/system/{{ item.name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    veridash_service_name: "{{ item.name }}"
+    veridash_service_description: "{{ item.description }}"
+    veridash_service_image: "{{ item.image }}"
+    veridash_service_environment: "{{ item.environment }}"
+    veridash_service_command: "{{ item.command }}"
+    veridash_service_data_mount: "{{ item.data_mount }}"
+    veridash_service_memory_max: "{{ item.memory_max }}"
+    veridash_service_gpu: "{{ item.gpu }}"
+  loop:
+    - name: veridash-api
+      description: VeriDash HTTP API
+      image: "{{ veridash_api_image }}"
+      environment: api
+      command: ""
+      data_mount: true
+      memory_max: "{{ veridash_api_memory_max }}"
+      gpu: false
+    - name: veridash-scheduler
+      description: VeriDash dependency scheduler
+      image: "{{ veridash_scheduler_image }}"
+      environment: scheduler
+      command: ""
+      data_mount: false
+      memory_max: "{{ veridash_scheduler_memory_max }}"
+      gpu: false
+    - name: veridash-worker-cpu
+      description: VeriDash CPU analysis worker
+      image: "{{ veridash_worker_image }}"
+      environment: worker
+      command: "--pool cpu --concurrency {{ veridash_cpu_concurrency }}"
+      data_mount: true
+      memory_max: "{{ veridash_cpu_worker_memory_max }}"
+      gpu: false
+  notify:
+    - Reload systemd
+    - Restart VeriDash release
+
+- name: Render the optional two-slot GPU worker unit
+  when: veridash_enable_gpu_worker | bool
+  ansible.builtin.template:
+    src: veridash-container.service.j2
+    dest: /etc/systemd/system/veridash-worker-gpu.service
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    veridash_service_name: veridash-worker-gpu
+    veridash_service_description: VeriDash GPU analysis worker
+    veridash_service_image: "{{ veridash_worker_image }}"
+    veridash_service_environment: worker
+    veridash_service_command: "--pool gpu --concurrency {{ veridash_gpu_concurrency }}"
+    veridash_service_data_mount: true
+    veridash_service_memory_max: "{{ veridash_gpu_worker_memory_max }}"
+    veridash_service_gpu: true
+  notify:
+    - Reload systemd
+    - Restart VeriDash release
+
+- name: Disable an obsolete GPU worker
+  when: not (veridash_enable_gpu_worker | bool)
+  ansible.builtin.systemd_service:
+    name: veridash-worker-gpu.service
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Remove an obsolete GPU worker unit
+  when: not (veridash_enable_gpu_worker | bool)
+  ansible.builtin.file:
+    path: /etc/systemd/system/veridash-worker-gpu.service
+    state: absent
+  notify: Reload systemd
+
+- name: Flush deployment handlers before readiness checks
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the loopback API health endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ veridash_api_port }}/api/health"
+    status_code: 200
+  register: veridash_api_health
+  retries: 20
+  delay: 1
+  until: veridash_api_health.status == 200

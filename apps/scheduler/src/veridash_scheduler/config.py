@@ -11,3 +11,7 @@ class Settings(BaseSettings):
     poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
     batch_size: int = Field(default=100, ge=1, le=1000)
     worker_lost_retry_delay_seconds: int = Field(default=10, ge=0, le=3600)
+    ffmpeg_fingerprint: str = Field(
+        default="deployment-unpinned",
+        pattern=r"^(deployment-unpinned|sha256:[0-9a-f]{64})$",
+    )

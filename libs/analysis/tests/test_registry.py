@@ -10,6 +10,7 @@ from veridash_analysis import (
     analysis_request_key,
     manifest_hash,
 )
+from veridash_analysis.modules import production_manifests
 from veridash_core import ArtifactKind, ResourceClass
 
 
@@ -164,3 +165,23 @@ def test_request_identity_uses_dependency_requests_before_outputs_exist() -> Non
         parameters=ExampleParameters(interval_seconds=1.0),
         dependency_request_keys={"extract_keyframes": "c" * 64},
     )
+
+
+def test_exact_media_tool_build_enables_cache_with_a_distinct_version() -> None:
+    local = {item.module_id: item for item in production_manifests()}
+    pinned = {
+        item.module_id: item
+        for item in production_manifests(ffmpeg_fingerprint=f"sha256:{'a' * 64}")
+    }
+
+    for module_id in ("probe_media", "extract_keyframes"):
+        assert local[module_id].cacheable is False
+        assert pinned[module_id].cacheable is True
+        assert pinned[module_id].version == f"1.0.0+ffmpeg.{'a' * 64}"
+        assert pinned[module_id].version != local[module_id].version
+        assert any(item.value == f"sha256:{'a' * 64}" for item in pinned[module_id].fingerprints)
+
+
+def test_invalid_media_tool_fingerprint_fails_closed() -> None:
+    with pytest.raises(ValueError, match="FFmpeg fingerprint"):
+        production_manifests(ffmpeg_fingerprint="ffmpeg-ish")

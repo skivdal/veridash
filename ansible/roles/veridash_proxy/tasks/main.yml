@@ -1,0 +1,94 @@
+---
+- name: Require public TLS inputs
+  when: veridash_manage_tls | bool
+  ansible.builtin.assert:
+    that:
+      - veridash_domain != 'unconfigured.example'
+      - veridash_acme_email != 'unconfigured@example.invalid'
+    fail_msg: Set the public domain and ACME contact email.
+
+- name: Create the ACME webroot
+  ansible.builtin.file:
+    path: "{{ veridash_acme_webroot }}"
+    state: directory
+    owner: root
+    group: www-data
+    mode: "0755"
+
+- name: Check for an existing TLS certificate
+  when: veridash_manage_tls | bool
+  ansible.builtin.stat:
+    path: "{{ veridash_tls_certificate }}"
+  register: veridash_tls_certificate_status
+
+- name: Bootstrap an HTTP-only ACME virtual host
+  when:
+    - veridash_manage_tls | bool
+    - not veridash_tls_certificate_status.stat.exists
+  ansible.builtin.template:
+    src: bootstrap.conf.j2
+    dest: /etc/nginx/sites-available/veridash.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx immediately
+
+- name: Enable the VeriDash virtual host
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/veridash.conf
+    dest: /etc/nginx/sites-enabled/veridash.conf
+    state: link
+    force: true
+  notify: Reload nginx immediately
+
+- name: Flush bootstrap proxy handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Obtain the initial TLS certificate
+  when:
+    - veridash_manage_tls | bool
+    - not veridash_tls_certificate_status.stat.exists
+  ansible.builtin.command:
+    argv:
+      - certbot
+      - certonly
+      - --non-interactive
+      - --agree-tos
+      - --email
+      - "{{ veridash_acme_email }}"
+      - --webroot
+      - --webroot-path
+      - "{{ veridash_acme_webroot }}"
+      - --domain
+      - "{{ veridash_domain }}"
+  register: veridash_certbot_initial
+  changed_when: veridash_certbot_initial.rc == 0
+
+- name: Render the production reverse proxy
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: /etc/nginx/sites-available/veridash.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx immediately
+
+- name: Validate the complete Nginx configuration
+  ansible.builtin.command: /usr/sbin/nginx -t
+  changed_when: false
+
+- name: Remove the distribution default virtual host
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx immediately
+
+- name: Enable automatic certificate renewal
+  when: veridash_manage_tls | bool
+  ansible.builtin.systemd_service:
+    name: certbot.timer
+    enabled: true
+    state: started
+
+- name: Flush final proxy handlers
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,27 @@
+[Unit]
+Description={{ veridash_service_description }}
+Requires=docker.service veridash-migrate.service
+After=docker.service postgresql.service veridash-migrate.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+TimeoutStartSec=90
+TimeoutStopSec=45
+MemoryMax={{ veridash_service_memory_max }}
+ExecStartPre=-/usr/bin/docker rm -f {{ veridash_service_name }}
+ExecStart=/usr/bin/docker run --name {{ veridash_service_name }} --rm --pull never --network host --user {{ veridash_system_uid }}:{{ veridash_system_uid }} --read-only --security-opt no-new-privileges --cap-drop ALL --pids-limit 1024 --stop-timeout 30 --tmpfs /tmp:rw,nosuid,nodev,noexec,size={{ veridash_worker_tmpfs_size }} --env-file {{ veridash_config_root }}/{{ veridash_service_environment }}.env{% if veridash_service_data_mount %} --mount type=bind,src={{ veridash_data_root }},dst=/var/lib/veridash,rw{% endif %}{% if veridash_service_gpu %} --gpus all{% endif %} {{ veridash_service_image }}{% if veridash_service_command %} {{ veridash_service_command }}{% endif %}
+ExecStop=-/usr/bin/docker stop --time 30 {{ veridash_service_name }}
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

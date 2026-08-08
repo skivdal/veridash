@@ -1,0 +1,53 @@
+---
+- name: Require a bounded backup retention period
+  ansible.builtin.assert:
+    that:
+      - veridash_backup_retention_days | int >= 7
+    fail_msg: Keep at least seven days of local recovery snapshots.
+
+- name: Render the restricted backup environment
+  no_log: true
+  ansible.builtin.template:
+    src: backup.env.j2
+    dest: "{{ veridash_config_root }}/backup.env"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Install backup and restore programs
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/usr/local/sbin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - veridash-backup
+    - veridash-restore
+
+- name: Install the backup service
+  ansible.builtin.template:
+    src: veridash-backup.service.j2
+    dest: /etc/systemd/system/veridash-backup.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for backups
+
+- name: Install the backup timer
+  ansible.builtin.template:
+    src: veridash-backup.timer.j2
+    dest: /etc/systemd/system/veridash-backup.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for backups
+
+- name: Apply backup unit changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the daily backup timer
+  ansible.builtin.systemd_service:
+    name: veridash-backup.timer
+    enabled: true
+    state: started

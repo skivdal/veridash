@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+backup_root={{ veridash_backup_root | quote }}
+data_root={{ veridash_data_root | quote }}
+database_name={{ veridash_database_name | quote }}
+database_user={{ veridash_database_user | quote }}
+
+[[ "${EUID}" -eq 0 ]] || { echo "restore must run as root" >&2; exit 1; }
+exec 9>"${backup_root}/backup.lock"
+flock --nonblock 9 || { echo "a VeriDash backup or restore is already running" >&2; exit 1; }
+
+if [[ "${1:-}" != "--confirm" || -z "${2:-}" || -n "${3:-}" ]]; then
+    echo "usage: veridash-restore --confirm SNAPSHOT_DIRECTORY" >&2
+    exit 2
+fi
+snapshot="$(realpath "${2}")"
+case "${snapshot}" in
+    "${backup_root}/snapshots/"*) ;;
+    *) echo "snapshot must be below ${backup_root}/snapshots" >&2; exit 2 ;;
+esac
+
+for service in veridash-api veridash-scheduler veridash-worker-cpu veridash-worker-gpu; do
+    if systemctl is-active --quiet "${service}.service"; then
+        echo "refusing to restore while ${service}.service is active" >&2
+        exit 1
+    fi
+done
+test -f "${snapshot}/COMPLETE"
+(
+    cd "${snapshot}"
+    sha256sum --check SHA256SUMS
+)
+pg_restore --list "${snapshot}/database.dump" >/dev/null
+generated_manifest="$(mktemp)"
+trap 'rm -f -- "${generated_manifest}"' EXIT
+find "${snapshot}/blobs" -type f -printf '%P %s\n' | LC_ALL=C sort > "${generated_manifest}"
+cmp --silent "${snapshot}/BLOB_MANIFEST" "${generated_manifest}"
+
+# Blob names are their content digests. A restore is rare enough to verify every byte.
+while read -r relative_path _size; do
+    expected="${relative_path##*/}"
+    actual="$(sha256sum "${snapshot}/blobs/${relative_path}" | cut -d' ' -f1)"
+    [[ "${actual}" == "${expected}" ]] || { echo "corrupt blob: ${relative_path}" >&2; exit 1; }
+done < "${snapshot}/BLOB_MANIFEST"
+
+runuser -u postgres -- dropdb --if-exists "${database_name}"
+runuser -u postgres -- createdb --owner="${database_user}" "${database_name}"
+runuser -u postgres -- pg_restore --exit-on-error --no-owner \
+    --role="${database_user}" --dbname="${database_name}" "${snapshot}/database.dump"
+mkdir -p "${data_root}/blobs"
+rsync --archive "${snapshot}/blobs/" "${data_root}/blobs/"
+chown -R {{ veridash_system_uid }}:{{ veridash_system_uid }} "${data_root}/blobs"
+echo "restore complete; start VeriDash services after checking the database and blobs"

@@ -1,0 +1,7 @@
+---
+- name: Deploy a VeriDash application release
+  hosts: all
+  become: true
+  roles:
+    - veridash_application
+    - veridash_proxy

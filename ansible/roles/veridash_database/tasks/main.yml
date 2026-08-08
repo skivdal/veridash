@@ -1,0 +1,23 @@
+---
+- name: Require the encrypted database password
+  ansible.builtin.assert:
+    that:
+      - vault_veridash_database_password is defined
+      - vault_veridash_database_password | length >= 24
+    fail_msg: Define vault_veridash_database_password in an encrypted inventory file.
+
+- name: Create the application database role
+  become_user: postgres
+  no_log: true
+  community.postgresql.postgresql_user:
+    name: "{{ veridash_database_user }}"
+    password: "{{ vault_veridash_database_password }}"
+    role_attr_flags: NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOINHERIT,LOGIN
+
+- name: Create the application database
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ veridash_database_name }}"
+    owner: "{{ veridash_database_user }}"
+    encoding: UTF8
+    template: template0

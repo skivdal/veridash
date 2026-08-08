@@ -1,0 +1,16 @@
+---
+all:
+  hosts:
+    veridash-vps:
+      ansible_host: 203.0.113.10
+      ansible_user: root
+  vars:
+    veridash_domain: veridash.example.org
+    veridash_release_id: replace-with-release-id
+    veridash_api_image: registry.example.org/veridash/api@sha256:replace
+    veridash_scheduler_image: registry.example.org/veridash/scheduler@sha256:replace
+    veridash_worker_image: registry.example.org/veridash/worker@sha256:replace
+    veridash_migration_image: registry.example.org/veridash/migration@sha256:replace
+    veridash_tls_certificate: /etc/letsencrypt/live/veridash.example.org/fullchain.pem
+    veridash_tls_certificate_key: /etc/letsencrypt/live/veridash.example.org/privkey.pem
+    # Put vault_veridash_database_password in an encrypted, ignored vault file.

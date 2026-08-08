@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+backup_root={{ veridash_backup_root | quote }}
+data_root={{ veridash_data_root | quote }}
+snapshot_root="${backup_root}/snapshots"
+timestamp="$(date --utc +%Y%m%dT%H%M%SZ)"
+snapshot="${snapshot_root}/${timestamp}"
+incomplete="${snapshot}.incomplete"
+
+mkdir -p "${snapshot_root}"
+exec 9>"${backup_root}/backup.lock"
+flock --nonblock 9 || { echo "another VeriDash backup is running" >&2; exit 1; }
+test ! -e "${snapshot}" && test ! -e "${incomplete}"
+mkdir "${incomplete}"
+cleanup() { rm -rf -- "${incomplete}"; }
+trap cleanup EXIT
+
+# Database first: immutable blobs are published before their database references,
+# so a later blob copy contains every object reachable from this database snapshot.
+pg_dump --format=custom --file="${incomplete}/database.dump"
+pg_restore --list "${incomplete}/database.dump" >/dev/null
+
+mkdir "${incomplete}/blobs"
+link_arguments=()
+if [[ -L "${backup_root}/latest" ]]; then
+    previous="$(realpath "${backup_root}/latest")"
+    if [[ "${previous}" == "${snapshot_root}/"* && -d "${previous}/blobs" ]]; then
+        link_arguments=(--link-dest="${previous}/blobs")
+    fi
+fi
+rsync --archive --numeric-ids "${link_arguments[@]}" \
+    "${data_root}/blobs/" "${incomplete}/blobs/"
+
+find "${incomplete}/blobs" -type f -printf '%P %s\n' | LC_ALL=C sort \
+    > "${incomplete}/BLOB_MANIFEST"
+(
+    cd "${incomplete}"
+    sha256sum database.dump BLOB_MANIFEST > SHA256SUMS
+)
+touch "${incomplete}/COMPLETE"
+mv "${incomplete}" "${snapshot}"
+ln -sfn "snapshots/${timestamp}" "${backup_root}/latest"
+trap - EXIT
+
+# Retention affects recovery snapshots only. Primary project data remains indefinite.
+find "${snapshot_root}" -mindepth 1 -maxdepth 1 -type d \
+    -name '????????T??????Z' -mtime +{{ veridash_backup_retention_days }} \
+    -exec rm -rf -- {} +

@@ -1,0 +1,7 @@
+---
+veridash_domain: unconfigured.example
+veridash_manage_tls: true
+veridash_acme_email: unconfigured@example.invalid
+veridash_acme_webroot: /var/www/acme
+veridash_tls_certificate: "/etc/letsencrypt/live/{{ veridash_domain }}/fullchain.pem"
+veridash_tls_certificate_key: "/etc/letsencrypt/live/{{ veridash_domain }}/privkey.pem"

@@ -1,0 +1,10 @@
+---
+- name: Provision and deploy VeriDash
+  hosts: all
+  become: true
+  roles:
+    - veridash_host
+    - veridash_database
+    - veridash_application
+    - veridash_proxy
+    - veridash_backup

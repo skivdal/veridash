@@ -1,0 +1,14 @@
+[Unit]
+Description=Apply VeriDash database migrations
+Requires=docker.service postgresql.service
+After=docker.service postgresql.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/bin/docker rm -f veridash-migrate
+ExecStart=/usr/bin/docker run --name veridash-migrate --rm --pull never --network host --user {{ veridash_system_uid }}:{{ veridash_system_uid }} --read-only --security-opt no-new-privileges --cap-drop ALL --pids-limit 256 --env-file {{ veridash_config_root }}/migration.env {{ veridash_migration_image }} up
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

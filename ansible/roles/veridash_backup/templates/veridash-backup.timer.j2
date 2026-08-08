@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the VeriDash recovery snapshot job daily
+
+[Timer]
+OnCalendar={{ veridash_backup_calendar }}
+RandomizedDelaySec={{ veridash_backup_randomized_delay_seconds }}
+Persistent=true
+Unit=veridash-backup.service
+
+[Install]
+WantedBy=timers.target

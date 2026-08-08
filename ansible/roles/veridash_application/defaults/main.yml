@@ -1,0 +1,18 @@
+---
+veridash_release_id: unconfigured
+veridash_api_image: ""
+veridash_scheduler_image: ""
+veridash_worker_image: ""
+veridash_migration_image: ""
+veridash_frontend_source: "{{ playbook_dir }}/../../web/dist"
+veridash_api_port: 8000
+veridash_cpu_concurrency: 2
+veridash_enable_gpu_worker: false
+veridash_gpu_concurrency: 2
+veridash_api_memory_max: 2G
+veridash_scheduler_memory_max: 768M
+veridash_cpu_worker_memory_max: 8G
+veridash_gpu_worker_memory_max: 24G
+veridash_worker_tmpfs_size: 1G
+veridash_max_upload_bytes: 10737418240
+veridash_session_ttl_seconds: 2592000

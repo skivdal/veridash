@@ -1,0 +1,90 @@
+---
+- name: Install host-managed runtime packages
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - certbot
+      - nginx
+      - postgresql
+      - postgresql-client
+      - python3-certbot-nginx
+      - python3-psycopg2
+      - rsync
+      - ufw
+    state: present
+    update_cache: true
+
+- name: Enable host services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - docker
+    - postgresql
+    - nginx
+
+- name: Create the fixed-ID application group
+  ansible.builtin.group:
+    name: "{{ veridash_system_group }}"
+    gid: "{{ veridash_system_uid }}"
+    system: true
+
+- name: Create the fixed-ID application user
+  ansible.builtin.user:
+    name: "{{ veridash_system_user }}"
+    uid: "{{ veridash_system_uid }}"
+    group: "{{ veridash_system_group }}"
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+
+- name: Create application-owned directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ veridash_data_root }}"
+      owner: "{{ veridash_system_user }}"
+      group: "{{ veridash_system_group }}"
+      mode: "0750"
+    - path: "{{ veridash_config_root }}"
+      owner: root
+      group: "{{ veridash_system_group }}"
+      mode: "0750"
+    - path: "{{ veridash_release_root }}"
+      owner: root
+      group: root
+      mode: "0755"
+    - path: "{{ veridash_backup_root }}"
+      owner: root
+      group: root
+      mode: "0700"
+
+- name: Permit only SSH and web traffic through UFW
+  when: veridash_manage_firewall | bool
+  block:
+    - name: Default-deny inbound traffic
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+    - name: Default-allow outbound traffic
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+    - name: Allow required public ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "{{ veridash_ssh_port }}"
+        - "80"
+        - "443"
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled

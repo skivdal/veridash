@@ -1,0 +1,20 @@
+[Unit]
+Description=Create a consistent VeriDash recovery snapshot
+Requires=postgresql.service
+After=postgresql.service
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ veridash_config_root }}/backup.env
+ExecStart=/usr/local/sbin/veridash-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths={{ veridash_backup_root }}
+
+[Install]
+WantedBy=multi-user.target

@@ -22,10 +22,10 @@ members = ["apps/*", "libs/*"]
 package = false
 
 [tool.poe.tasks]
-fmt = "ruff format apps libs scripts tests"
-"fmt:check" = "ruff format --check apps libs scripts tests"
-lint = "ruff check --fix apps libs scripts tests"
-"lint:check" = "ruff check apps libs scripts tests"
+fmt = "ruff format conftest.py apps libs scripts tests"
+"fmt:check" = "ruff format --check conftest.py apps libs scripts tests"
+lint = "ruff check --fix conftest.py apps libs scripts tests"
+"lint:check" = "ruff check conftest.py apps libs scripts tests"
 check = "basedpyright"
 test = "pytest"
 "test:unit" = "pytest -m 'not db'"
@@ -92,5 +92,5 @@ venvPath = "."
 venv = ".venv"
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
-include = ["apps", "libs", "scripts", "tests"]
+include = ["apps", "libs", "scripts", "tests", "conftest.py"]
 exclude = ["old", "**/__pycache__", "**/db/sqlc"]

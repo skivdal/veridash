@@ -188,7 +188,12 @@ async def _supervise_child(
     output_directory: Path,
 ) -> AttemptOutcome:
     try:
-        request, manifest = _validated_request_and_manifest(claim, inputs, output_directory)
+        request, manifest = _validated_request_and_manifest(
+            claim,
+            inputs,
+            output_directory,
+            settings,
+        )
     except ChildProtocolError as exception:
         return await _fail_internal(engine, claim, str(exception), "", settings)
     process = await asyncio.create_subprocess_exec(
@@ -367,10 +372,14 @@ def _validated_request_and_manifest(
     claim: ClaimReadyAnalysisJobRow,
     inputs: dict[str, FileInput],
     output_directory: Path,
+    settings: Settings,
 ) -> tuple[ChildRequest, ModuleManifest]:
     try:
         persisted = ModuleManifest.model_validate(claim.manifest)
-        installed = get_builtin_module(claim.module_id).manifest
+        installed = get_builtin_module(
+            claim.module_id,
+            ffmpeg_fingerprint=settings.ffmpeg_fingerprint,
+        ).manifest
         parameters = JSON_OBJECT.validate_python(claim.parameters)
     except (KeyError, ValidationError, ValueError) as exception:
         raise ChildProtocolError("claimed job does not match an installed module") from exception
@@ -382,6 +391,7 @@ def _validated_request_and_manifest(
         ChildRequest(
             module_id=claim.module_id,
             implementation_version=claim.implementation_version,
+            ffmpeg_fingerprint=settings.ffmpeg_fingerprint,
             attempt_number=claim.attempt_number,
             output_directory=output_directory,
             parameters=parameters,
@@ -397,7 +407,10 @@ def _materialize_inputs(
     input_directory: Path,
 ) -> dict[str, FileInput]:
     try:
-        module = get_builtin_module(claim.module_id)
+        module = get_builtin_module(
+            claim.module_id,
+            ffmpeg_fingerprint=settings.ffmpeg_fingerprint,
+        )
     except KeyError as exception:
         raise ChildProtocolError("claimed job does not match an installed module") from exception
     if not module.manifest.requires_source_file:

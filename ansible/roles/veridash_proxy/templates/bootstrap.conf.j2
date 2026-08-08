@@ -1,0 +1,13 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ veridash_domain }};
+
+    location /.well-known/acme-challenge/ {
+        root {{ veridash_acme_webroot }};
+    }
+
+    location / {
+        return 503;
+    }
+}

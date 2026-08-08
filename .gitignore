@@ -207,3 +207,9 @@ dist-ssr
 *.pt
 
 docs/rebuild-plan.md
+
+# Deployment inventory and secrets
+ansible/inventory/hosts.yml
+ansible/inventory/group_vars/*/vault.yml
+ansible/inventory/host_vars/*/vault.yml
+ansible/*.retry

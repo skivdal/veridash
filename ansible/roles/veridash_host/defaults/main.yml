@@ -1,0 +1,10 @@
+---
+veridash_system_user: veridash
+veridash_system_group: veridash
+veridash_system_uid: 10001
+veridash_data_root: /var/lib/veridash
+veridash_config_root: /etc/veridash
+veridash_release_root: /opt/veridash/releases
+veridash_backup_root: /var/backups/veridash
+veridash_ssh_port: 22
+veridash_manage_firewall: true

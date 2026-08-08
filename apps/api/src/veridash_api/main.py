@@ -29,7 +29,9 @@ def create_app(
 ) -> FastAPI:
     """Create an API instance; external connections begin only in ASGI lifespan."""
     resolved_settings = settings or Settings()
-    resolved_analysis_registry = analysis_registry or AnalysisRegistry(production_manifests())
+    resolved_analysis_registry = analysis_registry or AnalysisRegistry(
+        production_manifests(ffmpeg_fingerprint=resolved_settings.ffmpeg_fingerprint)
+    )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
@@ -74,4 +76,10 @@ app = create_app()
 
 def run() -> None:
     """Run the development-compatible ASGI server entrypoint."""
-    uvicorn.run("veridash_api.main:app", host="127.0.0.1", port=8000)
+    uvicorn.run(
+        "veridash_api.main:app",
+        host="127.0.0.1",
+        port=8000,
+        proxy_headers=True,
+        forwarded_allow_ips="127.0.0.1",
+    )

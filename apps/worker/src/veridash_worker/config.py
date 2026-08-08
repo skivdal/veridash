@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     retry_delay_seconds: int = Field(default=10, ge=0, le=3600)
     max_protocol_line_bytes: int = Field(default=1024 * 1024, ge=1024, le=16 * 1024 * 1024)
     max_stderr_bytes: int = Field(default=64 * 1024, ge=1024, le=16 * 1024 * 1024)
+    ffmpeg_fingerprint: str = Field(
+        default="deployment-unpinned",
+        pattern=r"^(deployment-unpinned|sha256:[0-9a-f]{64})$",
+    )
 
     @field_validator("data_root")
     @classmethod

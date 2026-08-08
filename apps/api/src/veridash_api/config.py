@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     data_root: Path = Path("/var/lib/veridash")
     max_upload_bytes: int = Field(default=10 * 1024**3, ge=1024, le=1024**4)
     ffprobe_executable: str = "ffprobe"
+    ffmpeg_fingerprint: str = Field(
+        default="deployment-unpinned",
+        pattern=r"^(deployment-unpinned|sha256:[0-9a-f]{64})$",
+    )
     media_validation_timeout_seconds: int = Field(default=30, ge=1, le=300)
     event_poll_interval_seconds: float = Field(default=0.5, ge=0.01, le=10)
     event_keepalive_seconds: float = Field(default=10, ge=0.05, le=60)

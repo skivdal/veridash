@@ -1,0 +1,4 @@
+---
+veridash_backup_retention_days: 30
+veridash_backup_calendar: "*-*-* 03:15:00"
+veridash_backup_randomized_delay_seconds: 1800

@@ -68,7 +68,10 @@ class ChildRunContext:
 
 def run_child(request: ChildRequest, protocol_stream: TextIO) -> int:
     try:
-        module = get_builtin_module(request.module_id)
+        module = get_builtin_module(
+            request.module_id,
+            ffmpeg_fingerprint=request.ffmpeg_fingerprint,
+        )
         if module.manifest.version != request.implementation_version:
             raise AnalysisExecutionError(
                 kind=ErrorKind.INVALID_INPUT,

@@ -1,0 +1,63 @@
+server_tokens off;
+
+{% if veridash_manage_tls %}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ veridash_domain }};
+
+    location /.well-known/acme-challenge/ {
+        root {{ veridash_acme_webroot }};
+    }
+
+    location / {
+        return 308 https://$host$request_uri;
+    }
+}
+{% endif %}
+
+server {
+{% if veridash_manage_tls %}
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    ssl_certificate {{ veridash_tls_certificate }};
+    ssl_certificate_key {{ veridash_tls_certificate_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:VeriDashTLS:10m;
+    ssl_session_tickets off;
+{% else %}
+    listen 80;
+    listen [::]:80;
+{% endif %}
+    server_name {{ veridash_domain }};
+    root /opt/veridash/current/web;
+    index index.html;
+    client_max_body_size {{ veridash_max_upload_bytes }};
+
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' blob: data:; media-src 'self' blob:; object-src 'none'; script-src 'self'; style-src 'self'" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:{{ veridash_api_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Host $server_name;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 300s;
+    }
+
+    location /assets/ {
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

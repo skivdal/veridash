@@ -22,6 +22,10 @@ from veridash_analysis.contracts import (
     RunContext,
 )
 from veridash_analysis.errors import AnalysisExecutionError
+from veridash_analysis.fingerprints import (
+    UNPINNED_FFMPEG_FINGERPRINT,
+    bind_ffmpeg_fingerprint,
+)
 from veridash_analysis.protocol import FileInput
 
 SHOWINFO_TIMESTAMP = re.compile(r"\bn:\s*\d+\s+pts:\s*-?\d+\s+pts_time:([-+0-9.eE]+)")
@@ -100,6 +104,9 @@ class ExtractKeyframesModule:
             ),
         ),
     )
+
+    def __init__(self, ffmpeg_fingerprint: str = UNPINNED_FFMPEG_FINGERPRINT) -> None:
+        self.manifest = bind_ffmpeg_fingerprint(type(self).manifest, ffmpeg_fingerprint)
 
     def run(
         self,

@@ -18,6 +18,10 @@ from veridash_analysis.contracts import (
     RunContext,
 )
 from veridash_analysis.errors import AnalysisExecutionError
+from veridash_analysis.fingerprints import (
+    UNPINNED_FFMPEG_FINGERPRINT,
+    bind_ffmpeg_fingerprint,
+)
 from veridash_analysis.protocol import FileInput
 
 PROBE_DOCUMENT = TypeAdapter(dict[str, JsonValue])
@@ -62,6 +66,9 @@ class ProbeMediaModule:
             ),
         ),
     )
+
+    def __init__(self, ffmpeg_fingerprint: str = UNPINNED_FFMPEG_FINGERPRINT) -> None:
+        self.manifest = bind_ffmpeg_fingerprint(type(self).manifest, ffmpeg_fingerprint)
 
     def run(
         self,

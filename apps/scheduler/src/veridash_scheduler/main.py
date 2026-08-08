@@ -28,7 +28,9 @@ def build_parser() -> argparse.ArgumentParser:
 async def run(*, once: bool, settings: Settings) -> None:
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     logger = logging.getLogger(__name__)
-    registry = AnalysisRegistry(production_manifests())
+    registry = AnalysisRegistry(
+        production_manifests(ffmpeg_fingerprint=settings.ffmpeg_fingerprint)
+    )
     try:
         while True:
             counts = await reconcile_once(engine, settings, registry)

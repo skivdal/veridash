@@ -26,6 +26,10 @@ class ChildRequest(BaseModel):
     protocol_version: Literal[2] = PROTOCOL_VERSION
     module_id: str
     implementation_version: str
+    ffmpeg_fingerprint: str = Field(
+        default="deployment-unpinned",
+        pattern=r"^(deployment-unpinned|sha256:[0-9a-f]{64})$",
+    )
     attempt_number: int = Field(ge=1)
     output_directory: Path
     parameters: dict[str, JsonValue]
