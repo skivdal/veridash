@@ -10,6 +10,8 @@ all:
     veridash_api_image: registry.example.org/veridash/api@sha256:replace
     veridash_scheduler_image: registry.example.org/veridash/scheduler@sha256:replace
     veridash_worker_image: registry.example.org/veridash/worker@sha256:replace
+    # Required when veridash_enable_gpu_worker is true.
+    veridash_worker_gpu_image: registry.example.org/veridash/worker-gpu@sha256:replace
     veridash_migration_image: registry.example.org/veridash/migration@sha256:replace
     veridash_tls_certificate: /etc/letsencrypt/live/veridash.example.org/fullchain.pem
     veridash_tls_certificate_key: /etc/letsencrypt/live/veridash.example.org/privkey.pem

@@ -547,6 +547,28 @@ LIMIT :p4
 """
 
 
+LIST_RECENT_PROJECT_EVENTS = """-- name: list_recent_project_events \\:many
+SELECT
+    event.id,
+    event.project_id,
+    event.job_id,
+    event.attempt_id,
+    event.event_type,
+    event.source,
+    event.payload_version,
+    event.payload,
+    event.created_at
+FROM project_event AS event
+JOIN project ON project.id = event.project_id
+WHERE
+    event.project_id = :p1
+    AND project.user_id = :p2
+    AND event.id < :p3
+ORDER BY event.id DESC
+LIMIT :p4
+"""
+
+
 REGISTER_ANALYSIS_DEFINITION = """-- name: register_analysis_definition \\:one
 WITH inserted AS (
     INSERT INTO analysis_definition (
@@ -1067,6 +1089,26 @@ class AsyncQuerier:
             "p1": project_id,
             "p2": user_id,
             "p3": after_event_id,
+            "p4": batch_size,
+        })
+        async for row in result:
+            yield models.ProjectEvent(
+                id=row[0],
+                project_id=row[1],
+                job_id=row[2],
+                attempt_id=row[3],
+                event_type=row[4],
+                source=row[5],
+                payload_version=row[6],
+                payload=row[7],
+                created_at=row[8],
+            )
+
+    async def list_recent_project_events(self, *, project_id: uuid.UUID, user_id: int, before_event_id: int, batch_size: int) -> AsyncIterator[models.ProjectEvent]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_RECENT_PROJECT_EVENTS), {
+            "p1": project_id,
+            "p2": user_id,
+            "p3": before_event_id,
             "p4": batch_size,
         })
         async for row in result:

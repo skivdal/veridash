@@ -6,9 +6,32 @@ import time
 from collections.abc import AsyncIterator
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from veridash_api.db.sqlc.analyses import AsyncQuerier
+from veridash_api.models import ProjectEventResponse
+from veridash_api.services.projects import get_project
+
+
+async def list_recent_project_events(
+    connection: AsyncConnection,
+    *,
+    user_id: int,
+    project_id: UUID,
+    before_event_id: int,
+    batch_size: int,
+) -> list[ProjectEventResponse]:
+    """Return a finite newest-first page from the safe durable event journal."""
+    await get_project(connection, user_id=user_id, project_id=project_id)
+    return [
+        ProjectEventResponse.model_validate(event, from_attributes=True)
+        async for event in AsyncQuerier(connection).list_recent_project_events(
+            project_id=project_id,
+            user_id=user_id,
+            before_event_id=before_event_id,
+            batch_size=batch_size,
+        )
+    ]
 
 
 def format_sse_event(*, event_id: int, event_type: str, data: object) -> bytes:

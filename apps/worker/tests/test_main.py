@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 from veridash_analysis import ProgressMessage
@@ -34,6 +36,21 @@ def test_child_environment_does_not_inherit_database_credentials(
     assert environment["PATH"] == "/usr/bin"
     assert "DATABASE_URL" not in environment
     assert "VERIDASH_WORKER_DATABASE_URL" not in environment
+
+
+def test_child_environment_receives_only_explicit_transcription_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VERIDASH_TRANSCRIPTION_MODEL_PATH", "/untrusted/inherited/path")
+    settings = Settings(data_root=tmp_path, transcription_device="cpu")
+
+    environment = child_environment(settings)
+
+    assert environment["VERIDASH_TRANSCRIPTION_MODEL_PATH"] == str(
+        tmp_path / "models" / "faster-whisper-medium"
+    )
+    assert environment["VERIDASH_TRANSCRIPTION_DEVICE"] == "cpu"
+    assert environment["VERIDASH_TRANSCRIPTION_COMPUTE_TYPE"] == "default"
 
 
 def test_repeated_progress_does_not_hide_a_stalled_kernel(monkeypatch: pytest.MonkeyPatch) -> None:

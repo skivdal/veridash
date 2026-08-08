@@ -188,6 +188,7 @@ describe("projects routing", () => {
               "metadata",
               "map",
               "notes",
+              "activity",
             ],
             hidden_modules: [],
             revision: 0,

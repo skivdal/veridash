@@ -20,6 +20,7 @@ export const dashboardModules = [
   { id: "metadata", label: "Metadata", target: "metadata" },
   { id: "map", label: "Map", target: "map" },
   { id: "notes", label: "Notes", target: "notes" },
+  { id: "activity", label: "Activity log", target: "activity" },
 ] as const;
 
 export type DashboardModuleId = (typeof dashboardModules)[number]["id"];
@@ -35,6 +36,18 @@ export function normalizedModuleOrder(
     order.every((moduleId) => moduleIds.has(moduleId))
   ) {
     return order as DashboardModuleId[];
+  }
+  const legacyModuleIds = dashboardModules.filter(
+    (module) => module.id !== "activity",
+  );
+  if (
+    order?.length === legacyModuleIds.length &&
+    new Set(order).size === legacyModuleIds.length &&
+    order.every(
+      (moduleId) => moduleId !== "activity" && moduleIds.has(moduleId),
+    )
+  ) {
+    return [...(order as DashboardModuleId[]), "activity"];
   }
   return dashboardModules.map((module) => module.id);
 }

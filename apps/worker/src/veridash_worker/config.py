@@ -22,6 +22,12 @@ class Settings(BaseSettings):
         default="deployment-unpinned",
         pattern=r"^(deployment-unpinned|sha256:[0-9a-f]{64})$",
     )
+    transcription_model_path: Path | None = None
+    transcription_device: str = Field(default="auto", pattern=r"^(auto|cpu|cuda)$")
+    transcription_compute_type: str = Field(
+        default="default",
+        pattern=r"^(default|float16|float32|int8|int8_float16|int8_float32)$",
+    )
 
     @field_validator("data_root")
     @classmethod
@@ -35,3 +41,9 @@ class Settings(BaseSettings):
         if self.heartbeat_interval_seconds >= self.lease_seconds:
             raise ValueError("heartbeat interval must be shorter than the attempt lease")
         return self
+
+    @property
+    def resolved_transcription_model_path(self) -> Path:
+        return self.transcription_model_path or (
+            self.data_root / "models" / "faster-whisper-medium"
+        )

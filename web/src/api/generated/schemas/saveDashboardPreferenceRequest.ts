@@ -8,11 +8,11 @@
 export interface SaveDashboardPreferenceRequest {
   /** @minimum 0 */
   expected_revision: number;
-  /** @maxItems 7 */
+  /** @maxItems 8 */
   hidden_modules: string[];
   /**
-     * @minItems 7
-     * @maxItems 7
+     * @minItems 8
+     * @maxItems 8
      */
   module_order: string[];
 }

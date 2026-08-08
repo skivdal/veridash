@@ -1,3 +1,4 @@
+import json
 import os
 from uuid import uuid4
 
@@ -63,6 +64,25 @@ async def test_dashboard_preferences_are_durable_and_revision_fenced() -> None:
                 persisted = await get_dashboard_preference(connection, user_id=user_id)
                 assert persisted.module_order == reversed_order
                 assert persisted.hidden_modules == ["map"]
+
+                legacy_order = [
+                    module_id for module_id in DASHBOARD_MODULE_IDS if module_id != "activity"
+                ]
+                await connection.execute(
+                    text(
+                        """
+                        UPDATE user_dashboard_preference
+                        SET
+                            module_order = CAST(:module_order AS jsonb),
+                            hidden_modules = '["map", "removed_module"]'::jsonb
+                        WHERE user_id = :user_id
+                        """
+                    ),
+                    {"module_order": json.dumps(legacy_order), "user_id": user_id},
+                )
+                migrated_legacy = await get_dashboard_preference(connection, user_id=user_id)
+                assert migrated_legacy.module_order == [*legacy_order, "activity"]
+                assert migrated_legacy.hidden_modules == ["map"]
             finally:
                 await transaction.rollback()
     finally:

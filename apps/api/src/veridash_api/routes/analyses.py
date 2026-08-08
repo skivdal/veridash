@@ -14,6 +14,7 @@ from veridash_api.models import (
     AnalysisArtifactResponse,
     AnalysisJobResponse,
     CreateFrameStitchRequest,
+    ProjectEventResponse,
 )
 from veridash_api.services import analyses as analysis_service
 from veridash_api.services import events as event_service
@@ -22,6 +23,7 @@ from veridash_api.services.projects import get_project
 from veridash_api.storage import ApiBlobStore
 
 router = APIRouter(tags=["analyses"])
+MAX_EVENT_ID = 2**63 - 1
 
 
 @router.get(
@@ -183,6 +185,30 @@ async def stream_project_analysis_artifact(
             "ETag": f'"sha256-{artifact.sha256_hex}"',
             "X-Content-Type-Options": "nosniff",
         },
+    )
+
+
+@router.get(
+    "/projects/{project_id}/event-log",
+    response_model=list[ProjectEventResponse],
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        404: {**PROBLEM_RESPONSE, "description": "Project not found"},
+    },
+)
+async def list_project_event_log(
+    project_id: UUID,
+    connection: DatabaseConnection,
+    session: CurrentSession,
+    before: int = Query(default=MAX_EVENT_ID, ge=1, le=MAX_EVENT_ID),
+    limit: int = Query(default=250, ge=1, le=500),
+) -> list[ProjectEventResponse]:
+    return await event_service.list_recent_project_events(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+        before_event_id=before,
+        batch_size=limit,
     )
 
 

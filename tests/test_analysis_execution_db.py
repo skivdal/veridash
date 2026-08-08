@@ -978,6 +978,7 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result(
                 cleanup_statements = (
                     "DELETE FROM project_event WHERE project_id = :project_id",
                     "DELETE FROM project_analysis_result WHERE project_id = :project_id",
+                    "DELETE FROM analysis_job_dependency WHERE project_id = :project_id",
                     """
                     DELETE FROM analysis_job_artifact
                     WHERE job_id IN (
@@ -1045,6 +1046,7 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             "probe_media",
             "extract_coordinates",
             "extract_keyframes",
+            "transcribe",
         ]
         async with engine.begin() as connection:
             await connection.execute(
@@ -1078,8 +1080,8 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             scheduler_settings,
             production_registry,
         )
-        assert reconciled.planned_jobs == 2
-        assert reconciled.resolved_jobs == 2
+        assert reconciled.planned_jobs == 3
+        assert reconciled.resolved_jobs == 3
         assert (
             await reconcile_once(engine, scheduler_settings, production_registry)
         ).planned_jobs == 0
@@ -1215,6 +1217,7 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
                 for statement in (
                     "DELETE FROM project_event WHERE project_id = :project_id",
                     "DELETE FROM project_analysis_result WHERE project_id = :project_id",
+                    "DELETE FROM analysis_job_dependency WHERE project_id = :project_id",
                     """
                     DELETE FROM analysis_job_artifact
                     WHERE job_id IN (
@@ -1254,7 +1257,8 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
                         WHERE module_id IN (
                             'probe_media',
                             'extract_keyframes',
-                            'extract_coordinates'
+                            'extract_coordinates',
+                            'transcribe'
                         )
                             AND implementation_version = '1.0.0'
                         """

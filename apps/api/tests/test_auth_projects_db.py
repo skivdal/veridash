@@ -440,6 +440,15 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             assert '"event_type":"job.state_changed"' in event_stream.text
             assert '"event_type":"job.retry_requested"' in event_stream.text
 
+            event_log = await client.get(f"/api/projects/{project['id']}/event-log?limit=3")
+            assert event_log.status_code == 200
+            assert len(event_log.json()) == 3
+            assert [event["id"] for event in event_log.json()] == sorted(
+                [event["id"] for event in event_log.json()], reverse=True
+            )
+            assert all("created_at" in event for event in event_log.json())
+            assert all("source" in event for event in event_log.json())
+
             invalid_cursor = await client.get(
                 f"/api/projects/{project['id']}/events",
                 headers={"Last-Event-ID": "invalid"},
@@ -451,6 +460,8 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
                 f"/api/projects/{other_project_id}/events?after=0"
             )
             assert unauthorized_events.status_code == 404
+            unauthorized_event_log = await client.get(f"/api/projects/{other_project_id}/event-log")
+            assert unauthorized_event_log.status_code == 404
 
             complete_again = await client.post(
                 f"/api/uploads/{media['id']}/complete",

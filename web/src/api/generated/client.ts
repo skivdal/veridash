@@ -31,8 +31,10 @@ import type {
   DashboardPreferenceResponse,
   HTTPValidationError,
   HealthResponse,
+  ListProjectEventLogApiProjectsProjectIdEventLogGetParams,
   LoginRequest,
   ProblemResponse,
+  ProjectEventResponse,
   ProjectNoteResponse,
   ProjectResponse,
   RenameProjectRequest,
@@ -2265,6 +2267,156 @@ export const useArchiveProjectApiProjectsProjectIdArchivePost = <TError = ErrorT
       > => {
       return useMutation(getArchiveProjectApiProjectsProjectIdArchivePostMutationOptions(options), queryClient);
     }
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponse200 = {
+  data: ProjectEventResponse[]
+  status: 200
+}
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponseSuccess = (listProjectEventLogApiProjectsProjectIdEventLogGetResponse200) & {
+  headers: Headers;
+};
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponseError = (listProjectEventLogApiProjectsProjectIdEventLogGetResponse401 | listProjectEventLogApiProjectsProjectIdEventLogGetResponse404 | listProjectEventLogApiProjectsProjectIdEventLogGetResponse422 | listProjectEventLogApiProjectsProjectIdEventLogGetResponse500) & {
+  headers: Headers;
+};
+
+export type listProjectEventLogApiProjectsProjectIdEventLogGetResponse = (listProjectEventLogApiProjectsProjectIdEventLogGetResponseSuccess | listProjectEventLogApiProjectsProjectIdEventLogGetResponseError)
+
+export const getListProjectEventLogApiProjectsProjectIdEventLogGetUrl = (projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/projects/${projectId}/event-log?${stringifiedParams}` : `/api/projects/${projectId}/event-log`
+}
+
+/**
+ * @summary List Project Event Log
+ */
+export const listProjectEventLogApiProjectsProjectIdEventLogGet = async (projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams, options?: RequestInit): Promise<listProjectEventLogApiProjectsProjectIdEventLogGetResponse> => {
+
+  return apiFetch<listProjectEventLogApiProjectsProjectIdEventLogGetResponse>(getListProjectEventLogApiProjectsProjectIdEventLogGetUrl(projectId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProjectEventLogApiProjectsProjectIdEventLogGetQueryKey = (projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams,) => {
+    return [
+    `/api/projects/${projectId}/event-log`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListProjectEventLogApiProjectsProjectIdEventLogGetQueryOptions = <TData = Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProjectEventLogApiProjectsProjectIdEventLogGetQueryKey(projectId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>> = ({ signal }) => listProjectEventLogApiProjectsProjectIdEventLogGet(projectId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListProjectEventLogApiProjectsProjectIdEventLogGetQueryResult = NonNullable<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>>
+export type ListProjectEventLogApiProjectsProjectIdEventLogGetQueryError = ErrorType<ProblemResponse | HTTPValidationError>
+
+
+export function useListProjectEventLogApiProjectsProjectIdEventLogGet<TData = Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params: undefined |  ListProjectEventLogApiProjectsProjectIdEventLogGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>,
+          TError,
+          Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProjectEventLogApiProjectsProjectIdEventLogGet<TData = Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>,
+          TError,
+          Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListProjectEventLogApiProjectsProjectIdEventLogGet<TData = Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Project Event Log
+ */
+
+export function useListProjectEventLogApiProjectsProjectIdEventLogGet<TData = Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError = ErrorType<ProblemResponse | HTTPValidationError>>(
+ projectId: string,
+    params?: ListProjectEventLogApiProjectsProjectIdEventLogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listProjectEventLogApiProjectsProjectIdEventLogGet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListProjectEventLogApiProjectsProjectIdEventLogGetQueryOptions(projectId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type streamProjectEventsApiProjectsProjectIdEventsGetResponse400 = {
   data: ProblemResponse

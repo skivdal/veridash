@@ -64,6 +64,13 @@ RUN uv sync --frozen --no-dev --package veridash-worker \
 USER 10001:10001
 ENTRYPOINT ["veridash-worker"]
 
+FROM python-runtime AS worker-gpu
+RUN uv sync --frozen --no-dev --package veridash-worker --extra gpu \
+    && rm -rf /root/.cache/uv
+ENV LD_LIBRARY_PATH="/opt/veridash/.venv/lib/python3.13/site-packages/nvidia/cublas/lib:/opt/veridash/.venv/lib/python3.13/site-packages/nvidia/cudnn/lib"
+USER 10001:10001
+ENTRYPOINT ["veridash-worker"]
+
 FROM ${DBMATE_IMAGE} AS migration
 COPY db/migrations /opt/veridash/db/migrations
 ENTRYPOINT ["/usr/local/bin/dbmate", "--migrations-dir", "/opt/veridash/db/migrations", "--no-dump-schema"]

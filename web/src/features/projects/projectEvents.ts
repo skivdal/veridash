@@ -6,6 +6,7 @@ import {
   getGetProjectNoteApiProjectsProjectIdNoteGetQueryKey,
   getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryKey,
   getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey,
+  getListProjectEventLogApiProjectsProjectIdEventLogGetQueryKey,
 } from "../../api/generated/client";
 
 interface ProjectEventEnvelope {
@@ -44,6 +45,12 @@ export function useProjectEvents(
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") return;
     return connectProjectEvents(projectId, (eventType) => {
+      void queryClient.invalidateQueries({
+        queryKey:
+          getListProjectEventLogApiProjectsProjectIdEventLogGetQueryKey(
+            projectId,
+          ),
+      });
       if (eventType === undefined || eventType.startsWith("job.")) {
         void queryClient.invalidateQueries({
           queryKey:

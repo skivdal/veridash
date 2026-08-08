@@ -45,6 +45,9 @@ function isProblemResponse(value: unknown): value is ProblemResponse {
 
 async function parseResponse(response: Response): Promise<unknown> {
   if ([204, 205, 304].includes(response.status)) return undefined;
+  const contentType = response.headers.get("Content-Type")?.toLowerCase() ?? "";
+  if (response.ok && !contentType.includes("json")) return response.blob();
+
   const body = await response.text();
   if (body.length === 0) return undefined;
 

@@ -319,6 +319,26 @@ FROM project_event AS event
 JOIN project ON project.id = event.project_id
 WHERE event.project_id = sqlc.arg(project_id) AND project.user_id = sqlc.arg(user_id);
 
+-- name: ListRecentProjectEvents :many
+SELECT
+    event.id,
+    event.project_id,
+    event.job_id,
+    event.attempt_id,
+    event.event_type,
+    event.source,
+    event.payload_version,
+    event.payload,
+    event.created_at
+FROM project_event AS event
+JOIN project ON project.id = event.project_id
+WHERE
+    event.project_id = sqlc.arg(project_id)
+    AND project.user_id = sqlc.arg(user_id)
+    AND event.id < sqlc.arg(before_event_id)
+ORDER BY event.id DESC
+LIMIT sqlc.arg(batch_size);
+
 -- name: ListCurrentKeyframeArtifacts :many
 SELECT
     job.id AS job_id,

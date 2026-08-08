@@ -6,6 +6,7 @@
       - veridash_api_image is regex('.+@sha256:[0-9a-f]{64}$')
       - veridash_scheduler_image is regex('.+@sha256:[0-9a-f]{64}$')
       - veridash_worker_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - not (veridash_enable_gpu_worker | bool) or veridash_worker_gpu_image is regex('.+@sha256:[0-9a-f]{64}$')
       - veridash_migration_image is regex('.+@sha256:[0-9a-f]{64}$')
       - veridash_gpu_concurrency | int <= 2
       - veridash_gpu_concurrency | int >= 1
@@ -27,11 +28,7 @@
   community.docker.docker_image:
     name: "{{ item }}"
     source: pull
-  loop:
-    - "{{ veridash_api_image }}"
-    - "{{ veridash_scheduler_image }}"
-    - "{{ veridash_worker_image }}"
-    - "{{ veridash_migration_image }}"
+  loop: "{{ [veridash_api_image, veridash_scheduler_image, veridash_worker_image, veridash_migration_image] + ([veridash_worker_gpu_image] if veridash_enable_gpu_worker else []) }}"
   notify: Restart VeriDash release
 
 - name: Read the media-tool fingerprint from each application image
@@ -44,10 +41,7 @@
       - cat
       - "{{ item }}"
       - /opt/veridash/FFMPEG_FINGERPRINT
-  loop:
-    - "{{ veridash_api_image }}"
-    - "{{ veridash_scheduler_image }}"
-    - "{{ veridash_worker_image }}"
+  loop: "{{ [veridash_api_image, veridash_scheduler_image, veridash_worker_image] + ([veridash_worker_gpu_image] if veridash_enable_gpu_worker else []) }}"
   register: veridash_image_fingerprints
   changed_when: false
 
@@ -168,7 +162,7 @@
   vars:
     veridash_service_name: veridash-worker-gpu
     veridash_service_description: VeriDash GPU analysis worker
-    veridash_service_image: "{{ veridash_worker_image }}"
+    veridash_service_image: "{{ veridash_worker_gpu_image }}"
     veridash_service_environment: worker
     veridash_service_command: "--pool gpu --concurrency {{ veridash_gpu_concurrency }}"
     veridash_service_data_mount: true
@@ -177,6 +171,24 @@
   notify:
     - Reload systemd
     - Restart VeriDash release
+
+- name: Install the pinned local transcription model
+  when: veridash_enable_gpu_worker | bool
+  ansible.builtin.command:
+    argv:
+      - docker
+      - run
+      - --rm
+      - --user
+      - "{{ veridash_system_uid }}:{{ veridash_system_uid }}"
+      - --mount
+      - "type=bind,src={{ veridash_data_root }},dst=/var/lib/veridash,rw"
+      - --entrypoint
+      - veridash-download-transcription-model
+      - "{{ veridash_worker_gpu_image }}"
+      - --target
+      - "{{ veridash_transcription_model_path }}"
+  changed_when: false
 
 - name: Disable an obsolete GPU worker
   when: not (veridash_enable_gpu_worker | bool)

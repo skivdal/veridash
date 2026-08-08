@@ -596,6 +596,76 @@
         "title": "ProblemResponse",
         "type": "object"
       },
+      "ProjectEventResponse": {
+        "properties": {
+          "attempt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "payload_version": {
+            "title": "Payload Version",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "job_id",
+          "attempt_id",
+          "event_type",
+          "source",
+          "payload_version",
+          "payload",
+          "created_at"
+        ],
+        "title": "ProjectEventResponse",
+        "type": "object"
+      },
       "ProjectNoteResponse": {
         "properties": {
           "body": {
@@ -716,7 +786,7 @@
             "items": {
               "type": "string"
             },
-            "maxItems": 7,
+            "maxItems": 8,
             "title": "Hidden Modules",
             "type": "array"
           },
@@ -724,8 +794,8 @@
             "items": {
               "type": "string"
             },
-            "maxItems": 7,
-            "minItems": 7,
+            "maxItems": 8,
+            "minItems": 8,
             "title": "Module Order",
             "type": "array"
           }
@@ -2263,6 +2333,107 @@
         "summary": "Archive Project",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/event-log": {
+      "get": {
+        "operationId": "list_project_event_log_api_projects__project_id__event_log_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "default": 9223372036854775807,
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Before",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 250,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectEventResponse"
+                  },
+                  "title": "Response List Project Event Log Api Projects  Project Id  Event Log Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Project not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List Project Event Log",
+        "tags": [
+          "analyses"
         ]
       }
     },

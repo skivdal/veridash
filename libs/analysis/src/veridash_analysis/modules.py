@@ -9,6 +9,7 @@ from veridash_analysis.keyframes import ExtractKeyframesModule
 from veridash_analysis.probe_media import ProbeMediaModule
 from veridash_analysis.stitching import StitchFramesModule
 from veridash_analysis.synthetic import SyntheticAnalysisModule
+from veridash_analysis.transcription import TranscribeModule
 
 ModuleFactory = Callable[[str], AnalysisModule]
 
@@ -33,12 +34,17 @@ def _stitch_frames(_ffmpeg_fingerprint: str) -> AnalysisModule:
     return StitchFramesModule()
 
 
+def _transcribe(_ffmpeg_fingerprint: str) -> AnalysisModule:
+    return TranscribeModule()
+
+
 BUILTIN_MODULE_FACTORIES: dict[str, ModuleFactory] = {
     ExtractCoordinatesModule.manifest.module_id: _extract_coordinates,
     ExtractKeyframesModule.manifest.module_id: _extract_keyframes,
     ProbeMediaModule.manifest.module_id: _probe_media,
     StitchFramesModule.manifest.module_id: _stitch_frames,
     SyntheticAnalysisModule.manifest.module_id: _synthetic,
+    TranscribeModule.manifest.module_id: _transcribe,
 }
 BUILTIN_MODULES = MappingProxyType(BUILTIN_MODULE_FACTORIES)
 

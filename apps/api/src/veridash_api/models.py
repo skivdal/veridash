@@ -13,6 +13,7 @@ DASHBOARD_MODULE_IDS = (
     "metadata",
     "map",
     "notes",
+    "activity",
 )
 
 
@@ -67,8 +68,8 @@ class ProjectNoteResponse(BaseModel):
 
 
 class SaveDashboardPreferenceRequest(BaseModel):
-    module_order: list[str] = Field(min_length=7, max_length=7)
-    hidden_modules: list[str] = Field(max_length=7)
+    module_order: list[str] = Field(min_length=8, max_length=8)
+    hidden_modules: list[str] = Field(max_length=8)
     expected_revision: int = Field(ge=0)
 
     @model_validator(mode="after")
@@ -186,6 +187,18 @@ class AnalysisArtifactResponse(BaseModel):
     json_payload: JsonValue | None
     schema_id: str
     schema_version: int
+    created_at: datetime.datetime
+
+
+class ProjectEventResponse(BaseModel):
+    id: int
+    project_id: uuid.UUID
+    job_id: uuid.UUID | None
+    attempt_id: uuid.UUID | None
+    event_type: str
+    source: str
+    payload_version: int
+    payload: JsonValue
     created_at: datetime.datetime
 
 

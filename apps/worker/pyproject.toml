@@ -5,6 +5,7 @@ description = "VeriDash analysis worker supervisor"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "asyncpg>=0.31.0",
+    "huggingface-hub>=1.7.1",
     "opencv-python-headless==4.12.0.88",
     "pydantic-settings>=2.12.0",
     "sqlalchemy[asyncio]>=2.0.44",
@@ -13,8 +14,16 @@ dependencies = [
     "veridash-storage",
 ]
 
+[project.optional-dependencies]
+gpu = [
+    "faster-whisper==1.2.1",
+    "nvidia-cublas-cu12>=12.6; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "nvidia-cudnn-cu12>=9.10; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
 [project.scripts]
 veridash-worker = "veridash_worker.main:main"
+veridash-download-transcription-model = "veridash_worker.models:main"
 
 [build-system]
 requires = ["hatchling"]

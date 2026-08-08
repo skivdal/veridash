@@ -15,13 +15,14 @@ pnpm --dir web check
 pnpm --dir web build
 ```
 
-Build the four image targets from the repository root, push them to the selected
+Build the image targets from the repository root, push them to the selected
 registry, and resolve their repository digests. Never deploy a mutable tag.
 
 ```sh
 docker build --target api -t REGISTRY/veridash-api:RELEASE .
 docker build --target scheduler -t REGISTRY/veridash-scheduler:RELEASE .
 docker build --target worker -t REGISTRY/veridash-worker:RELEASE .
+docker build --target worker-gpu -t REGISTRY/veridash-worker-gpu:RELEASE .
 docker build --target migration -t REGISTRY/veridash-migration:RELEASE .
 ```
 
@@ -77,8 +78,10 @@ curl --fail http://127.0.0.1:8000/api/health
 nginx -t
 ```
 
-If GPU execution is enabled, first install and verify NVIDIA Container Toolkit on
-the VPS, set `veridash_enable_gpu_worker: true`, and inspect:
+The GPU image adds the pinned CUDA 12/cuDNN 9 runtime libraries required by
+Faster-Whisper. If GPU execution is enabled, first install and verify NVIDIA
+Container Toolkit on the VPS, provide the digest-qualified `worker-gpu` image, set
+`veridash_enable_gpu_worker: true`, and inspect:
 
 ```sh
 systemctl status veridash-worker-gpu
@@ -86,6 +89,11 @@ docker run --rm --gpus all nvidia/cuda:VERSION-base nvidia-smi
 ```
 
 Use a deliberately selected, pinned CUDA image for that diagnostic.
+
+Deployment downloads the exact `Systran/faster-whisper-medium` revision into the
+host data root before starting the GPU worker. Analysis children use that local
+snapshot with network downloads disabled. A missing or mismatched model becomes a
+durable configuration failure rather than an implicit download during a job.
 
 ## Backup and restore
 

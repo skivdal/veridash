@@ -62,4 +62,26 @@ describe("apiFetch", () => {
       message: "The requested project does not exist.",
     } satisfies Partial<ApiError>);
   });
+
+  it("preserves successful non-JSON artifact responses as blobs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { "Content-Type": "application/octet-stream" },
+          }),
+      ),
+    );
+
+    const response = await apiFetch<{
+      data: Blob;
+      status: 200;
+      headers: Headers;
+    }>("/api/artifact", { method: "GET" });
+
+    expect(response.data).toBeInstanceOf(Blob);
+    expect(response.data.size).toBe(3);
+  });
 });

@@ -20,6 +20,7 @@ import {
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
+import { ActivityLogCard } from "./ActivityLogCard";
 import {
   DashboardCustomizer,
   type DashboardModuleId,
@@ -31,6 +32,7 @@ import { MapCard } from "./MapCard";
 import { MetadataCard } from "./MetadataCard";
 import { NotesCard } from "./NotesCard";
 import { useProjectEvents } from "./projectEvents";
+import { TranscriptCard } from "./TranscriptCard";
 
 interface ProjectPageProps {
   projectId: string;
@@ -254,15 +256,13 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
         );
       case "transcription":
         return (
-          <AnalysisCard
+          <TranscriptCard
             {...sharedActions}
             key={moduleId}
-            name="Transcription & Translation"
-            description="Timestamped source-language speech and its separate translation will appear here."
+            projectId={projectId}
             job={analysisJobs.find(
               (candidate) => candidate.module_id === "transcribe",
             )}
-            moduleId="transcribe"
           />
         );
       case "detection":
@@ -306,6 +306,14 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             key={moduleId}
             projectId={projectId}
             readOnly={projectState === "archived"}
+          />
+        );
+      case "activity":
+        return (
+          <ActivityLogCard
+            key={moduleId}
+            projectId={projectId}
+            jobs={analysisJobs}
           />
         );
     }
