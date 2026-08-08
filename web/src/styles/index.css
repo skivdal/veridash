@@ -648,8 +648,9 @@ h2 {
   flex: 1;
 }
 
-.analysis-chips a {
+.analysis-chips button {
   display: flex;
+  width: 100%;
   min-height: 43px;
   align-items: center;
   justify-content: center;
@@ -659,22 +660,35 @@ h2 {
   background: #deecff;
   box-shadow: 0 2px 7px rgb(16 24 40 / 8%);
   color: var(--color-primary);
+  cursor: pointer;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 720;
   padding: 8px 10px;
   text-align: center;
-  text-decoration: none;
   transition:
     background 150ms ease,
     transform 150ms ease;
 }
 
-.analysis-chips a:hover {
+.analysis-chips button:hover:not(:disabled) {
   background: #cfe2ff;
   transform: translateY(-1px);
 }
 
-.analysis-chips a span {
+.analysis-chips button[aria-pressed="false"] {
+  border-color: #cfd6e2;
+  background: white;
+  box-shadow: none;
+  color: var(--color-muted);
+}
+
+.analysis-chips button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.analysis-chips button span {
   display: grid;
   width: 16px;
   height: 16px;

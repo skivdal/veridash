@@ -9,18 +9,17 @@ import {
 import type { DashboardPreferenceResponse } from "../../api/generated/schemas";
 
 export const dashboardModules = [
-  { id: "source", label: "Source", target: "source-media" },
-  { id: "frames", label: "Frames", target: "frames" },
+  { id: "source", label: "Source" },
+  { id: "frames", label: "Frames" },
   {
     id: "transcription",
     label: "Transcription & Translation",
-    target: "transcribe",
   },
-  { id: "detection", label: "Object Detection", target: "detect_objects" },
-  { id: "metadata", label: "Metadata", target: "metadata" },
-  { id: "map", label: "Map", target: "map" },
-  { id: "notes", label: "Notes", target: "notes" },
-  { id: "activity", label: "Activity log", target: "activity" },
+  { id: "detection", label: "Object Detection" },
+  { id: "metadata", label: "Metadata" },
+  { id: "map", label: "Map" },
+  { id: "notes", label: "Notes" },
+  { id: "activity", label: "Activity log" },
 ] as const;
 
 export type DashboardModuleId = (typeof dashboardModules)[number]["id"];

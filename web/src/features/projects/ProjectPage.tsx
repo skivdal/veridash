@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 
 import { ApiError } from "../../api/fetcher";
 import {
+  getGetDashboardPreferenceApiPreferencesDashboardGetQueryKey,
   getGetProjectApiProjectsProjectIdGetQueryKey,
   getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey,
   getListProjectsApiProjectsGetQueryKey,
@@ -16,6 +17,7 @@ import {
   useRenameProjectApiProjectsProjectIdPatch,
   useRestoreProjectApiProjectsProjectIdRestorePost,
   useRetryProjectAnalysisApiProjectsProjectIdAnalysesJobIdRetryPost,
+  useSaveDashboardPreferenceApiPreferencesDashboardPut,
 } from "../../api/generated/client";
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
@@ -115,6 +117,18 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const restoreProject = useRestoreProjectApiProjectsProjectIdRestorePost({
     mutation: { onSuccess: updateCachedProject },
   });
+  const saveDashboardVisibility =
+    useSaveDashboardPreferenceApiPreferencesDashboardPut({
+      mutation: {
+        onSuccess: (response) => {
+          if (response.status !== 200) return;
+          queryClient.setQueryData(
+            getGetDashboardPreferenceApiPreferencesDashboardGetQueryKey(),
+            response,
+          );
+        },
+      },
+    });
   const cancelAnalysis =
     useCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost({
       mutation: {
@@ -219,9 +233,27 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             ? cancelAnalysis.error.message
             : retryAnalysis.error instanceof ApiError
               ? retryAnalysis.error.message
-              : undefined;
+              : saveDashboardVisibility.error instanceof ApiError
+                ? saveDashboardVisibility.error.message
+                : undefined;
   const lifecycleMutationPending =
     archiveProject.isPending || restoreProject.isPending;
+
+  function toggleDashboardModule(moduleId: DashboardModuleId) {
+    if (dashboardPreferenceData === undefined) return;
+    const nextHidden = new Set(hiddenModules);
+    if (nextHidden.has(moduleId)) nextHidden.delete(moduleId);
+    else nextHidden.add(moduleId);
+    saveDashboardVisibility.mutate({
+      data: {
+        module_order: moduleOrder,
+        hidden_modules: moduleOrder.filter((candidate) =>
+          nextHidden.has(candidate),
+        ),
+        expected_revision: dashboardPreferenceData.revision,
+      },
+    });
+  }
 
   function renderDashboardModule(moduleId: DashboardModuleId) {
     const cancelPendingJobId = cancelAnalysis.isPending
@@ -432,22 +464,29 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
 
         <nav className="module-navigation" aria-label="Dashboard modules">
           <ul className="analysis-chips">
-            {moduleOrder
-              .filter((moduleId) => !hiddenModules.has(moduleId))
-              .map((moduleId) => {
-                const module = dashboardModules.find(
-                  (candidate) => candidate.id === moduleId,
-                );
-                if (module === undefined) return null;
-                return (
-                  <li key={module.id}>
-                    <a href={`#${module.target}`}>
-                      <span aria-hidden="true">✓</span>
-                      {module.label}
-                    </a>
-                  </li>
-                );
-              })}
+            {moduleOrder.map((moduleId) => {
+              const module = dashboardModules.find(
+                (candidate) => candidate.id === moduleId,
+              );
+              if (module === undefined) return null;
+              const visible = !hiddenModules.has(moduleId);
+              return (
+                <li key={module.id}>
+                  <button
+                    type="button"
+                    aria-pressed={visible}
+                    disabled={
+                      dashboardPreferenceData === undefined ||
+                      saveDashboardVisibility.isPending
+                    }
+                    onClick={() => toggleDashboardModule(moduleId)}
+                  >
+                    <span aria-hidden="true">{visible ? "✓" : ""}</span>
+                    {module.label}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 

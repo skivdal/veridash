@@ -319,6 +319,9 @@ describe("projects routing", () => {
             },
           ]);
         }
+        if (url === "/api/projects/project-id/event-log?limit=250") {
+          return jsonResponse([]);
+        }
         if (
           url === "/api/projects/project-id/analyses/frame-stitches" &&
           init?.method === "POST"
@@ -484,14 +487,21 @@ describe("projects routing", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry analysis" }));
     await waitFor(() => expect(retryRequested).toBe(true));
+    const activityToggle = screen.getByRole("button", {
+      name: "Activity log",
+    });
+    expect(activityToggle.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(activityToggle);
+    await waitFor(() => expect(savedHiddenModules).toEqual([]));
+    expect(
+      await screen.findByRole("heading", { name: "Activity log" }),
+    ).toBeDefined();
     fireEvent.click(
       screen.getByRole("button", { name: "Customize dashboard" }),
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Show Map" }));
     fireEvent.click(screen.getByRole("button", { name: "Save dashboard" }));
-    await waitFor(() =>
-      expect(savedHiddenModules).toEqual(["map", "activity"]),
-    );
+    await waitFor(() => expect(savedHiddenModules).toEqual(["map"]));
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "Map" })).toBeNull(),
     );
