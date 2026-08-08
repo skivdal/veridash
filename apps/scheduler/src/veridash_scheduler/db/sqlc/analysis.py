@@ -47,7 +47,7 @@ WITH candidates AS MATERIALIZED (
         updated_at = now()
     FROM candidates
     WHERE job.id = candidates.id
-    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
 ), event AS (
     INSERT INTO project_event (project_id, job_id, event_type, source, payload)
     SELECT
@@ -62,7 +62,7 @@ WITH candidates AS MATERIALIZED (
         )
     FROM updated
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM updated ORDER BY created_at, id
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated ORDER BY created_at, id
 """
 
 
@@ -75,7 +75,7 @@ class BlockFailedDependentJobsRow:
     implementation_version: str
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -90,6 +90,7 @@ class BlockFailedDependentJobsRow:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 CREATE_ANALYSIS_JOB = """-- name: create_analysis_job \\:one
@@ -101,6 +102,7 @@ WITH inserted AS (
         module_id,
         implementation_version,
         parameters,
+        request_key,
         cache_key,
         priority,
         max_attempts
@@ -114,19 +116,20 @@ WITH inserted AS (
         :p6,
         :p7,
         :p8,
-        :p9
+        :p9,
+        :p10
     )
-    ON CONFLICT (project_id, source_media_id, module_id, cache_key) DO NOTHING
-    RETURNING id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id
+    ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
+    RETURNING id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key
 ), selected AS (
-    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM inserted
+    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM inserted
     UNION ALL
-    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM analysis_job
+    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM analysis_job
     WHERE
         project_id = :p2
         AND source_media_id = :p3
         AND module_id = :p4
-        AND cache_key = :p7
+        AND request_key = :p7
     LIMIT 1
 ), event AS (
     INSERT INTO project_event (project_id, job_id, event_type, source, payload)
@@ -138,7 +141,7 @@ WITH inserted AS (
         jsonb_build_object('state', state, 'module_id', module_id)
     FROM inserted
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM selected
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM selected
 """
 
 
@@ -150,7 +153,8 @@ class CreateAnalysisJobParams:
     module_id: str
     implementation_version: str
     parameters: Any
-    cache_key: str
+    request_key: str
+    cache_key: Optional[str]
     priority: int
     max_attempts: int
 
@@ -164,7 +168,7 @@ class CreateAnalysisJobRow:
     implementation_version: str
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -179,6 +183,7 @@ class CreateAnalysisJobRow:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 REGISTER_ANALYSIS_DEFINITION = """-- name: register_analysis_definition \\:one
@@ -261,7 +266,7 @@ WITH candidates AS MATERIALIZED (
         updated_at = now()
     FROM candidates
     WHERE job.id = candidates.id
-    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
 ), event AS (
     INSERT INTO project_event (project_id, job_id, event_type, source, payload)
     SELECT
@@ -272,7 +277,7 @@ WITH candidates AS MATERIALIZED (
         jsonb_build_object('state', state)
     FROM updated
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM updated ORDER BY priority DESC, ready_at, id
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated ORDER BY priority DESC, ready_at, id
 """
 
 
@@ -285,7 +290,7 @@ class ReleaseDueAnalysisRetriesRow:
     implementation_version: str
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -300,6 +305,7 @@ class ReleaseDueAnalysisRetriesRow:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 RESOLVE_READY_ANALYSIS_JOBS = """-- name: resolve_ready_analysis_jobs \\:many
@@ -308,6 +314,7 @@ WITH candidates AS MATERIALIZED (
     FROM analysis_job AS job
     WHERE
         job.state = 'waiting_for_dependencies'
+        AND job.cache_key IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
             FROM analysis_job_dependency AS dependency
@@ -325,7 +332,7 @@ WITH candidates AS MATERIALIZED (
         updated_at = now()
     FROM candidates
     WHERE job.id = candidates.id
-    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
 ), event AS (
     INSERT INTO project_event (project_id, job_id, event_type, source, payload)
     SELECT
@@ -336,7 +343,7 @@ WITH candidates AS MATERIALIZED (
         jsonb_build_object('state', state)
     FROM updated
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM updated ORDER BY priority DESC, created_at, id
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated ORDER BY priority DESC, created_at, id
 """
 
 
@@ -349,7 +356,7 @@ class ResolveReadyAnalysisJobsRow:
     implementation_version: str
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -364,6 +371,7 @@ class ResolveReadyAnalysisJobsRow:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 class AsyncQuerier:
@@ -384,7 +392,7 @@ class AsyncQuerier:
                 implementation_version=row[4],
                 state=row[5],
                 parameters=row[6],
-                cache_key=row[7],
+                request_key=row[7],
                 priority=row[8],
                 max_attempts=row[9],
                 next_attempt_at=row[10],
@@ -399,6 +407,7 @@ class AsyncQuerier:
                 created_at=row[19],
                 updated_at=row[20],
                 winning_attempt_id=row[21],
+                cache_key=row[22],
             )
 
     async def create_analysis_job(self, arg: CreateAnalysisJobParams) -> Optional[CreateAnalysisJobRow]:
@@ -409,9 +418,10 @@ class AsyncQuerier:
             "p4": arg.module_id,
             "p5": arg.implementation_version,
             "p6": arg.parameters,
-            "p7": arg.cache_key,
-            "p8": arg.priority,
-            "p9": arg.max_attempts,
+            "p7": arg.request_key,
+            "p8": arg.cache_key,
+            "p9": arg.priority,
+            "p10": arg.max_attempts,
         })).first()
         if row is None:
             return None
@@ -423,7 +433,7 @@ class AsyncQuerier:
             implementation_version=row[4],
             state=row[5],
             parameters=row[6],
-            cache_key=row[7],
+            request_key=row[7],
             priority=row[8],
             max_attempts=row[9],
             next_attempt_at=row[10],
@@ -438,6 +448,7 @@ class AsyncQuerier:
             created_at=row[19],
             updated_at=row[20],
             winning_attempt_id=row[21],
+            cache_key=row[22],
         )
 
     async def register_analysis_definition(self, arg: RegisterAnalysisDefinitionParams) -> Optional[RegisterAnalysisDefinitionRow]:
@@ -476,7 +487,7 @@ class AsyncQuerier:
                 implementation_version=row[4],
                 state=row[5],
                 parameters=row[6],
-                cache_key=row[7],
+                request_key=row[7],
                 priority=row[8],
                 max_attempts=row[9],
                 next_attempt_at=row[10],
@@ -491,6 +502,7 @@ class AsyncQuerier:
                 created_at=row[19],
                 updated_at=row[20],
                 winning_attempt_id=row[21],
+                cache_key=row[22],
             )
 
     async def resolve_ready_analysis_jobs(self, *, batch_size: int) -> AsyncIterator[ResolveReadyAnalysisJobsRow]:
@@ -504,7 +516,7 @@ class AsyncQuerier:
                 implementation_version=row[4],
                 state=row[5],
                 parameters=row[6],
-                cache_key=row[7],
+                request_key=row[7],
                 priority=row[8],
                 max_attempts=row[9],
                 next_attempt_at=row[10],
@@ -519,4 +531,5 @@ class AsyncQuerier:
                 created_at=row[19],
                 updated_at=row[20],
                 winning_attempt_id=row[21],
+                cache_key=row[22],
             )

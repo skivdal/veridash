@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import StreamingResponse
 from veridash_storage import BlobTooLargeError
 
+from veridash_api.analysis import ApiAnalysisRegistry
 from veridash_api.auth.dependencies import ApiSettings, CurrentSession, MutationSession
 from veridash_api.database import DatabaseConnection, DatabaseEngine
 from veridash_api.db.sqlc import models as database_models
@@ -172,11 +173,13 @@ async def complete_source_media_upload(
     session: MutationSession,
     settings: ApiSettings,
     store: ApiBlobStore,
+    registry: ApiAnalysisRegistry,
 ) -> SourceMediaResponse:
     media = await media_service.complete_upload(
         engine,
         store,
         settings,
+        registry,
         user_id=session.user_id,
         media_id=media_id,
     )

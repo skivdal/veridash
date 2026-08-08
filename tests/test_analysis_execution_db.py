@@ -138,6 +138,7 @@ async def _create_job(
             module_id=module_id,
             implementation_version="1.0.0",
             parameters="{}",
+            request_key=cache_character * 64,
             cache_key=cache_character * 64,
             priority=0,
             max_attempts=max_attempts,

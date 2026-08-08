@@ -126,6 +126,9 @@ describe("projects routing", () => {
             404,
           );
         }
+        if (url === "/api/projects/project-id/analyses") {
+          return jsonResponse([]);
+        }
         return jsonResponse({}, 404);
       }),
     );

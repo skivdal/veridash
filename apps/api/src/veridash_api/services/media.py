@@ -4,10 +4,12 @@ import asyncio
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
+from veridash_analysis import AnalysisRegistry
 from veridash_storage import UploadBlobStore
 
 from veridash_api.config import Settings
 from veridash_api.db.sqlc import models as database_models
+from veridash_api.db.sqlc.analyses import AsyncQuerier as AnalysisQuerier
 from veridash_api.db.sqlc.media import (
     AsyncQuerier,
     MarkSourceMediaUploadedParams,
@@ -19,6 +21,7 @@ from veridash_api.media_validation import (
     MediaValidationUnavailableError,
     validate_video,
 )
+from veridash_api.services.analysis_plans import create_automatic_analysis_dag
 from veridash_api.services.projects import get_project
 
 
@@ -158,6 +161,7 @@ async def complete_upload(
     engine: AsyncEngine,
     store: UploadBlobStore,
     settings: Settings,
+    registry: AnalysisRegistry,
     *,
     user_id: int,
     media_id: UUID,
@@ -173,6 +177,14 @@ async def complete_upload(
     if media.upload_state == database_models.MediaUploadState.UPLOADED:
         if media.sha256_hex is None or not store.exists(media.sha256_hex):
             raise RuntimeError("uploaded source-media row references a missing blob")
+        async with engine.begin() as connection:
+            await create_automatic_analysis_dag(
+                connection,
+                registry,
+                project_id=media.project_id,
+                source_media_id=media.id,
+                source_sha256=media.sha256_hex,
+            )
         return media
     if media.sha256_hex is None or media.size_bytes is None:
         raise ApiProblem(
@@ -228,7 +240,8 @@ async def complete_upload(
         )
 
     async with engine.begin() as connection:
-        completed = await AsyncQuerier(connection).mark_source_media_uploaded(
+        queries = AsyncQuerier(connection)
+        completed = await queries.mark_source_media_uploaded(
             MarkSourceMediaUploadedParams(
                 media_type=blob.media_type,
                 size_bytes=blob.size_bytes,
@@ -238,12 +251,23 @@ async def complete_upload(
                 user_id=user_id,
             )
         )
-    if completed is None:
-        raise ApiProblem(
-            status=409,
-            code="upload_changed",
-            title="Upload changed during validation",
-            detail="Refresh the project and try again.",
+        if completed is None:
+            raise ApiProblem(
+                status=409,
+                code="upload_changed",
+                title="Upload changed during validation",
+                detail="Refresh the project and try again.",
+            )
+        await create_automatic_analysis_dag(
+            connection,
+            registry,
+            project_id=completed.project_id,
+            source_media_id=completed.id,
+            source_sha256=blob.sha256,
+        )
+        await AnalysisQuerier(connection).append_media_uploaded_event(
+            project_id=completed.project_id,
+            media_id=completed.id,
         )
     store.discard_staging(str(media_id))
     return completed

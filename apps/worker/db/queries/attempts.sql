@@ -81,6 +81,8 @@ SELECT
     updated_job.module_id,
     updated_job.implementation_version,
     updated_job.parameters,
+    updated_job.request_key,
+    updated_job.cache_key,
     updated_job.source_media_id,
     candidate.resource_class
 FROM inserted_attempt

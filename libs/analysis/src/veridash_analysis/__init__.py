@@ -10,6 +10,7 @@ from veridash_analysis.registry import (
     AnalysisRegistry,
     InvalidAnalysisGraphError,
     analysis_cache_key,
+    analysis_request_key,
     manifest_document,
     manifest_hash,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "ModuleManifest",
     "ProgressStage",
     "analysis_cache_key",
+    "analysis_request_key",
     "manifest_document",
     "manifest_hash",
 ]

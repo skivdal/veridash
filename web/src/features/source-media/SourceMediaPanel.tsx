@@ -5,6 +5,7 @@ import { ApiError } from "../../api/fetcher";
 import {
   completeSourceMediaUploadApiUploadsMediaIdCompletePost,
   getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryKey,
+  getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey,
   reserveSourceMediaApiProjectsProjectIdMediaPost,
   useGetProjectSourceMediaApiProjectsProjectIdMediaGet,
 } from "../../api/generated/client";
@@ -75,6 +76,12 @@ export function SourceMediaPanel({
         getGetProjectSourceMediaApiProjectsProjectIdMediaGetQueryKey(projectId),
         { data: sourceMedia, status: 200, headers: new Headers() },
       );
+      void queryClient.invalidateQueries({
+        queryKey:
+          getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey(
+            projectId,
+          ),
+      });
     },
     onSettled: () => {
       abortControllerRef.current = null;

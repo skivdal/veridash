@@ -10,6 +10,7 @@ dependencies = [
     "pwdlib[argon2]>=0.3.0",
     "sqlalchemy[asyncio]>=2.0.44",
     "uvicorn>=0.38.0",
+    "veridash-analysis",
     "veridash-core",
     "veridash-storage",
 ]
@@ -27,5 +28,6 @@ packages = ["src/veridash_api"]
 artifacts = ["src/veridash_api/py.typed"]
 
 [tool.uv.sources]
+veridash-analysis = { workspace = true }
 veridash-core = { workspace = true }
 veridash-storage = { workspace = true }

@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from veridash_core.resources import ResourceClass
 
 
@@ -37,6 +37,7 @@ class ModuleManifest(BaseModel):
     result_schema_version: int = Field(ge=1)
     resource_class: ResourceClass
     dependencies: tuple[str, ...] = ()
+    default_parameters: dict[str, JsonValue] = Field(default_factory=dict)
     automatic: bool = True
     max_attempts: int = Field(default=3, ge=1, le=100)
     priority: int = Field(default=0, ge=-32768, le=32767)

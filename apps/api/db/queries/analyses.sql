@@ -9,6 +9,7 @@ SELECT
     definition.resource_class,
     job.state,
     job.parameters,
+    job.request_key,
     job.cache_key,
     job.priority,
     job.max_attempts,
@@ -68,6 +69,7 @@ SELECT
     definition.resource_class,
     job.state,
     job.parameters,
+    job.request_key,
     job.cache_key,
     job.priority,
     job.max_attempts,
@@ -129,3 +131,100 @@ WHERE
     AND event.id > sqlc.arg(after_event_id)
 ORDER BY event.id
 LIMIT sqlc.arg(batch_size);
+
+-- name: RegisterAnalysisDefinition :one
+WITH inserted AS (
+    INSERT INTO analysis_definition (
+        module_id,
+        implementation_version,
+        display_name,
+        result_schema_version,
+        resource_class,
+        automatic,
+        manifest_hash,
+        manifest
+    )
+    VALUES (
+        sqlc.arg(module_id),
+        sqlc.arg(implementation_version),
+        sqlc.arg(display_name),
+        sqlc.arg(result_schema_version),
+        sqlc.arg(resource_class),
+        sqlc.arg(automatic),
+        sqlc.arg(manifest_hash),
+        sqlc.arg(manifest)
+    )
+    ON CONFLICT (module_id, implementation_version) DO NOTHING
+    RETURNING *
+)
+SELECT * FROM inserted
+UNION ALL
+SELECT * FROM analysis_definition
+WHERE
+    module_id = sqlc.arg(module_id)
+    AND implementation_version = sqlc.arg(implementation_version)
+LIMIT 1;
+
+-- name: CreateAutomaticAnalysisJob :one
+WITH inserted AS (
+    INSERT INTO analysis_job (
+        id,
+        project_id,
+        source_media_id,
+        module_id,
+        implementation_version,
+        parameters,
+        request_key,
+        cache_key,
+        priority,
+        max_attempts
+    )
+    VALUES (
+        sqlc.arg(id),
+        sqlc.arg(project_id),
+        sqlc.arg(source_media_id),
+        sqlc.arg(module_id),
+        sqlc.arg(implementation_version),
+        sqlc.arg(parameters),
+        sqlc.arg(request_key),
+        sqlc.narg(cache_key),
+        sqlc.arg(priority),
+        sqlc.arg(max_attempts)
+    )
+    ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
+    RETURNING *
+), selected AS (
+    SELECT * FROM inserted
+    UNION ALL
+    SELECT * FROM analysis_job
+    WHERE
+        project_id = sqlc.arg(project_id)
+        AND source_media_id = sqlc.arg(source_media_id)
+        AND module_id = sqlc.arg(module_id)
+        AND request_key = sqlc.arg(request_key)
+    LIMIT 1
+), event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        project_id,
+        id,
+        'job.created',
+        'api',
+        jsonb_build_object('state', state, 'module_id', module_id)
+    FROM inserted
+)
+SELECT * FROM selected;
+
+-- name: AddAutomaticAnalysisDependency :exec
+INSERT INTO analysis_job_dependency (project_id, job_id, depends_on_job_id)
+VALUES (sqlc.arg(project_id), sqlc.arg(job_id), sqlc.arg(depends_on_job_id))
+ON CONFLICT (job_id, depends_on_job_id) DO NOTHING;
+
+-- name: AppendMediaUploadedEvent :exec
+INSERT INTO project_event (project_id, event_type, source, payload)
+VALUES (
+    sqlc.arg(project_id),
+    'media.uploaded',
+    'api',
+    jsonb_build_object('media_id', sqlc.arg(media_id)::UUID)
+);

@@ -532,6 +532,19 @@ h2 {
   font-size: 14px;
 }
 
+.analysis-progress {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.analysis-progress progress {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
 .notes-card {
   border-color: #e6d8b8;
   background: #fffdf7;

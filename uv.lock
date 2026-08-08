@@ -568,6 +568,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
+    { name = "veridash-analysis" },
     { name = "veridash-core" },
     { name = "veridash-storage" },
 ]
@@ -580,6 +581,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.44" },
     { name = "uvicorn", specifier = ">=0.38.0" },
+    { name = "veridash-analysis", editable = "libs/analysis" },
     { name = "veridash-core", editable = "libs/core" },
     { name = "veridash-storage", editable = "libs/storage" },
 ]

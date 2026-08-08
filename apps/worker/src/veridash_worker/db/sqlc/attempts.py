@@ -16,7 +16,7 @@ from veridash_worker.db.sqlc import models
 CLAIM_READY_ANALYSIS_JOB = """-- name: claim_ready_analysis_job \\:one
 WITH candidate AS MATERIALIZED (
     SELECT
-        job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id,
+        job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key,
         definition.resource_class,
         (
             SELECT count(*) + 1
@@ -47,7 +47,7 @@ WITH candidate AS MATERIALIZED (
         updated_at = now()
     FROM candidate
     WHERE job.id = candidate.id
-    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
 ), inserted_attempt AS (
     INSERT INTO analysis_job_attempt (
         id,
@@ -96,6 +96,8 @@ SELECT
     updated_job.module_id,
     updated_job.implementation_version,
     updated_job.parameters,
+    updated_job.request_key,
+    updated_job.cache_key,
     updated_job.source_media_id,
     candidate.resource_class
 FROM inserted_attempt
@@ -138,6 +140,8 @@ class ClaimReadyAnalysisJobRow:
     module_id: str
     implementation_version: str
     parameters: Any
+    request_key: str
+    cache_key: Optional[str]
     source_media_id: uuid.UUID
     resource_class: models.AnalysisResourceClass
 
@@ -168,7 +172,7 @@ WITH eligible AS MATERIALIZED (
         updated_at = now()
     FROM finished_attempt
     WHERE job.id = finished_attempt.job_id
-    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
 ), result AS (
     INSERT INTO project_analysis_result (
         project_id,
@@ -198,7 +202,7 @@ WITH eligible AS MATERIALIZED (
         jsonb_build_object('state', state)
     FROM updated_job
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM updated_job
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated_job
 """
 
 
@@ -211,7 +215,7 @@ class CompleteAnalysisAttemptRow:
     implementation_version: str
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -226,6 +230,7 @@ class CompleteAnalysisAttemptRow:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 FAIL_ANALYSIS_ATTEMPT = """-- name: fail_analysis_attempt \\:one
@@ -284,7 +289,7 @@ WITH eligible AS MATERIALIZED (
     FROM eligible
     JOIN finished_attempt ON finished_attempt.id = eligible.id
     WHERE job.id = eligible.job_id
-    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.cache_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
 ), event AS (
     INSERT INTO project_event (
         project_id,
@@ -310,7 +315,7 @@ WITH eligible AS MATERIALIZED (
     FROM updated_job
     JOIN finished_attempt ON finished_attempt.job_id = updated_job.id
 )
-SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, cache_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id FROM updated_job
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated_job
 """
 
 
@@ -334,7 +339,7 @@ class FailAnalysisAttemptRow:
     implementation_version: str
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -349,6 +354,7 @@ class FailAnalysisAttemptRow:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 RENEW_ANALYSIS_ATTEMPT_LEASE = """-- name: renew_analysis_attempt_lease \\:one
@@ -482,8 +488,10 @@ class AsyncQuerier:
             module_id=row[20],
             implementation_version=row[21],
             parameters=row[22],
-            source_media_id=row[23],
-            resource_class=row[24],
+            request_key=row[23],
+            cache_key=row[24],
+            source_media_id=row[25],
+            resource_class=row[26],
         )
 
     async def complete_analysis_attempt(self, *, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[CompleteAnalysisAttemptRow]:
@@ -498,7 +506,7 @@ class AsyncQuerier:
             implementation_version=row[4],
             state=row[5],
             parameters=row[6],
-            cache_key=row[7],
+            request_key=row[7],
             priority=row[8],
             max_attempts=row[9],
             next_attempt_at=row[10],
@@ -513,6 +521,7 @@ class AsyncQuerier:
             created_at=row[19],
             updated_at=row[20],
             winning_attempt_id=row[21],
+            cache_key=row[22],
         )
 
     async def fail_analysis_attempt(self, arg: FailAnalysisAttemptParams) -> Optional[FailAnalysisAttemptRow]:
@@ -535,7 +544,7 @@ class AsyncQuerier:
             implementation_version=row[4],
             state=row[5],
             parameters=row[6],
-            cache_key=row[7],
+            request_key=row[7],
             priority=row[8],
             max_attempts=row[9],
             next_attempt_at=row[10],
@@ -550,6 +559,7 @@ class AsyncQuerier:
             created_at=row[19],
             updated_at=row[20],
             winning_attempt_id=row[21],
+            cache_key=row[22],
         )
 
     async def renew_analysis_attempt_lease(self, *, lease_expires_at: datetime.datetime, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[models.AnalysisJobAttempt]:

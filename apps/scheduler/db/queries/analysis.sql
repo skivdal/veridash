@@ -40,6 +40,7 @@ WITH inserted AS (
         module_id,
         implementation_version,
         parameters,
+        request_key,
         cache_key,
         priority,
         max_attempts
@@ -51,11 +52,12 @@ WITH inserted AS (
         sqlc.arg(module_id),
         sqlc.arg(implementation_version),
         sqlc.arg(parameters),
+        sqlc.arg(request_key),
         sqlc.arg(cache_key),
         sqlc.arg(priority),
         sqlc.arg(max_attempts)
     )
-    ON CONFLICT (project_id, source_media_id, module_id, cache_key) DO NOTHING
+    ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
     RETURNING *
 ), selected AS (
     SELECT * FROM inserted
@@ -65,7 +67,7 @@ WITH inserted AS (
         project_id = sqlc.arg(project_id)
         AND source_media_id = sqlc.arg(source_media_id)
         AND module_id = sqlc.arg(module_id)
-        AND cache_key = sqlc.arg(cache_key)
+        AND request_key = sqlc.arg(request_key)
     LIMIT 1
 ), event AS (
     INSERT INTO project_event (project_id, job_id, event_type, source, payload)
@@ -90,6 +92,7 @@ WITH candidates AS MATERIALIZED (
     FROM analysis_job AS job
     WHERE
         job.state = 'waiting_for_dependencies'
+        AND job.cache_key IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
             FROM analysis_job_dependency AS dependency

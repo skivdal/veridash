@@ -107,7 +107,7 @@ class AnalysisJob:
     implementation_version: str
     state: AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -122,6 +122,7 @@ class AnalysisJob:
     created_at: datetime.datetime
     updated_at: datetime.datetime
     winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
 
 
 @dataclasses.dataclass()

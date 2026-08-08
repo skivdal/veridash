@@ -82,6 +82,48 @@ class SourceMediaResponse(BaseModel):
     failure_message: str | None
 
 
+class AnalysisAttemptResponse(BaseModel):
+    id: uuid.UUID
+    attempt_number: int
+    state: str
+    progress_stage: str | None
+    progress_completed: int | None
+    progress_total: int | None
+    progress_message: str | None
+    progress_at: datetime.datetime | None
+    heartbeat_at: datetime.datetime
+    error_kind: str | None
+    public_error_message: str | None
+    diagnostic_id: uuid.UUID | None
+    started_at: datetime.datetime
+    finished_at: datetime.datetime | None
+
+
+class AnalysisJobResponse(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    display_name: str
+    resource_class: str
+    state: str
+    parameters: dict[str, object]
+    max_attempts: int
+    next_attempt_at: datetime.datetime | None
+    ready_at: datetime.datetime | None
+    started_at: datetime.datetime | None
+    finished_at: datetime.datetime | None
+    cancel_requested_at: datetime.datetime | None
+    failure_kind: str | None
+    public_failure_message: str | None
+    diagnostic_id: uuid.UUID | None
+    reused: bool
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    attempts: list[AnalysisAttemptResponse]
+
+
 class ProblemResponse(BaseModel):
     """Safe RFC problem-details-style response shared by every API error."""
 

@@ -10,9 +10,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient, Cookies
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from veridash_analysis import AnalysisRegistry, ModuleManifest
 from veridash_api.auth.passwords import hash_password
 from veridash_api.config import Settings
 from veridash_api.main import create_app
+from veridash_core import ResourceClass
 from veridash_storage import FilesystemBlobStore
 
 
@@ -48,6 +50,31 @@ async def _create_test_project(engine: AsyncEngine, username: str) -> str:
 
 async def _delete_test_users(engine: AsyncEngine, usernames: list[str]) -> None:
     async with engine.begin() as connection:
+        project_filter = """
+            SELECT project.id
+            FROM project
+            JOIN app_user ON app_user.id = project.user_id
+            WHERE app_user.username = ANY(:usernames)
+        """
+        for table in (
+            "project_event",
+            "project_analysis_result",
+            "analysis_job_attempt",
+            "analysis_job_dependency",
+            "analysis_job",
+        ):
+            await connection.execute(
+                text(f"DELETE FROM {table} WHERE project_id IN ({project_filter})"),
+                {"usernames": usernames},
+            )
+        await connection.execute(
+            text(
+                """
+                DELETE FROM analysis_definition
+                WHERE module_id IN ('test_probe', 'test_derived')
+                """
+            )
+        )
         await connection.execute(
             text(
                 """
@@ -124,6 +151,26 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
     engine = create_async_engine(database_url)
     settings = Settings(database_url=database_url, session_cookie_secure=False)
     store = FilesystemBlobStore(tmp_path / "data")
+    analysis_registry = AnalysisRegistry(
+        (
+            ModuleManifest(
+                module_id="test_probe",
+                display_name="Test probe",
+                version="1.0.0",
+                result_schema_version=1,
+                resource_class=ResourceClass.CPU,
+            ),
+            ModuleManifest(
+                module_id="test_derived",
+                display_name="Test derived analysis",
+                version="1.0.0",
+                result_schema_version=1,
+                resource_class=ResourceClass.CPU,
+                dependencies=("test_probe",),
+                default_parameters={"threshold": 0.5},
+            ),
+        )
+    )
     video_bytes = _create_tiny_video(tmp_path / "source.mp4")
     remote_address = "198.51.100.10"
     await _create_test_user(engine, username, password)
@@ -131,7 +178,12 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
     other_project_id = await _create_test_project(engine, other_username)
 
     try:
-        app = create_app(settings=settings, database_engine=engine, blob_store=store)
+        app = create_app(
+            settings=settings,
+            database_engine=engine,
+            blob_store=store,
+            analysis_registry=analysis_registry,
+        )
         async with AsyncClient(
             transport=ASGITransport(app=app, client=(remote_address, 123)),
             base_url="http://test",
@@ -307,6 +359,25 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             assert media["media_type"] == "video/mp4"
             assert media["size_bytes"] == len(video_bytes)
 
+            analyses = await client.get(f"/api/projects/{project['id']}/analyses")
+            assert analyses.status_code == 200
+            assert {job["module_id"] for job in analyses.json()} == {
+                "test_probe",
+                "test_derived",
+            }
+            assert all(job["state"] == "waiting_for_dependencies" for job in analyses.json())
+
+            complete_again = await client.post(
+                f"/api/uploads/{media['id']}/complete",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert complete_again.status_code == 200
+            analyses_again = await client.get(f"/api/projects/{project['id']}/analyses")
+            assert len(analyses_again.json()) == 2
+
+            unauthorized_analyses = await client.get(f"/api/projects/{other_project_id}/analyses")
+            assert unauthorized_analyses.status_code == 404
+
             rejected_replacement = await client.put(
                 f"/api/uploads/{media['id']}/content",
                 content=video_bytes,
@@ -341,6 +412,7 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             settings=settings,
             database_engine=engine,
             blob_store=store,
+            analysis_registry=analysis_registry,
         )
         async with AsyncClient(
             transport=ASGITransport(app=restarted_app, client=(remote_address, 124)),
@@ -359,6 +431,12 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             persisted_media = await restarted_client.get(f"/api/projects/{project['id']}/media")
             assert persisted_media.status_code == 200
             assert persisted_media.json()["sha256_hex"] == media["sha256_hex"]
+
+            persisted_analyses = await restarted_client.get(
+                f"/api/projects/{project['id']}/analyses"
+            )
+            assert persisted_analyses.status_code == 200
+            assert len(persisted_analyses.json()) == 2
 
             persisted_range = await restarted_client.get(
                 f"/api/media/{media['id']}/content",

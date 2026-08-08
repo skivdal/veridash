@@ -9,21 +9,40 @@ import {
   useArchiveProjectApiProjectsProjectIdArchivePost,
   useGetCurrentUserApiAuthMeGet,
   useGetProjectApiProjectsProjectIdGet,
+  useListProjectAnalysesApiProjectsProjectIdAnalysesGet,
   useRenameProjectApiProjectsProjectIdPatch,
   useRestoreProjectApiProjectsProjectIdRestorePost,
 } from "../../api/generated/client";
+import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
 
 const modulePlaceholders = [
-  ["Metadata", "Container, stream, and embedded metadata will appear here."],
-  ["Frames", "Extracted frames and stitching controls will appear here."],
+  [
+    "Metadata",
+    "Container, stream, and embedded metadata will appear here.",
+    "probe_media",
+  ],
+  [
+    "Frames",
+    "Extracted frames and stitching controls will appear here.",
+    "extract_keyframes",
+  ],
   [
     "Transcription",
     "Timestamped source-language transcription will appear here.",
+    "transcribe",
   ],
-  ["Object Detection", "Detected objects will remain linked to source frames."],
-  ["Map", "Verified embedded coordinates can be inspected here."],
+  [
+    "Object Detection",
+    "Detected objects will remain linked to source frames.",
+    "detect_objects",
+  ],
+  [
+    "Map",
+    "Verified embedded coordinates can be inspected here.",
+    "extract_coordinates",
+  ],
 ] as const;
 const moduleNames = ["Source", ...modulePlaceholders.map(([name]) => name)];
 
@@ -41,10 +60,27 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const project = useGetProjectApiProjectsProjectIdGet(projectId, {
     query: { enabled: currentUser.isSuccess, retry: false },
   });
+  const analyses = useListProjectAnalysesApiProjectsProjectIdAnalysesGet(
+    projectId,
+    {
+      query: {
+        enabled: project.isSuccess,
+        retry: false,
+        refetchInterval: (query) => {
+          const response = query.state.data;
+          if (response?.status !== 200) return false;
+          return response.data.some((job) => !isTerminalJobState(job.state))
+            ? 3_000
+            : false;
+        },
+      },
+    },
+  );
   const sessionData =
     currentUser.data?.status === 200 ? currentUser.data.data : undefined;
   const projectData =
     project.data?.status === 200 ? project.data.data : undefined;
+  const analysisJobs = analyses.data?.status === 200 ? analyses.data.data : [];
   const updateCachedProject = async (response: unknown) => {
     const candidate = response as { status?: number };
     if (candidate.status !== 200) return;
@@ -244,14 +280,15 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             projectId={projectId}
             projectState={projectData.state}
           />
-          {modulePlaceholders.map(([name, description]) => (
-            <article className="analysis-card" key={name}>
-              <div className="analysis-card-heading">
-                <h2>{name}</h2>
-                <span className="status-pill">Waiting for video</span>
-              </div>
-              <p>{description}</p>
-            </article>
+          {modulePlaceholders.map(([name, description, moduleId]) => (
+            <AnalysisCard
+              description={description}
+              job={analysisJobs.find(
+                (candidate) => candidate.module_id === moduleId,
+              )}
+              key={name}
+              name={name}
+            />
           ))}
           <article className="analysis-card notes-card">
             <div className="analysis-card-heading">
@@ -269,6 +306,75 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
       </main>
     </div>
   );
+}
+
+function AnalysisCard({
+  name,
+  description,
+  job,
+}: {
+  name: string;
+  description: string;
+  job: AnalysisJobResponse | undefined;
+}) {
+  const latestAttempt = job?.attempts.at(-1);
+  const progress =
+    latestAttempt?.progress_completed !== null &&
+    latestAttempt?.progress_completed !== undefined &&
+    latestAttempt.progress_total !== null
+      ? (latestAttempt.progress_completed / latestAttempt.progress_total) * 100
+      : undefined;
+  const status =
+    job === undefined ? "Waiting for analysis" : jobStateLabel(job.state);
+  const errorMessage = job?.public_failure_message;
+
+  return (
+    <article className="analysis-card">
+      <div className="analysis-card-heading">
+        <h2>{name}</h2>
+        <span
+          className={`status-pill ${
+            job?.state === "succeeded"
+              ? "status-pill-ready"
+              : job?.state === "failed" || job?.state === "blocked"
+                ? "status-pill-error"
+                : ""
+          }`}
+        >
+          {status}
+        </span>
+      </div>
+      <p>{errorMessage ?? latestAttempt?.progress_message ?? description}</p>
+      {job?.state === "running" ? (
+        <div className="analysis-progress">
+          <span>{latestAttempt?.progress_stage ?? "Working"}</span>
+          <progress
+            aria-label={`${name} progress`}
+            max={100}
+            value={progress}
+          />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function jobStateLabel(state: string): string {
+  const labels: Record<string, string> = {
+    waiting_for_dependencies: "Waiting for dependencies",
+    ready: "Queued",
+    running: "Running",
+    retry_wait: "Retry scheduled",
+    succeeded: "Complete",
+    failed: "Failed",
+    blocked: "Blocked",
+    canceled: "Canceled",
+  };
+  return labels[state] ?? state.replaceAll("_", " ");
+}
+
+function isTerminalJobState(state: string): boolean {
+  return ["succeeded", "failed", "blocked", "canceled"].includes(state);
 }
 
 function LoadingScreen({ label }: { label: string }) {

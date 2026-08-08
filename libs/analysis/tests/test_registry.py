@@ -6,6 +6,7 @@ from veridash_analysis import (
     InvalidAnalysisGraphError,
     ModuleManifest,
     analysis_cache_key,
+    analysis_request_key,
     manifest_hash,
 )
 from veridash_core import ResourceClass
@@ -126,3 +127,20 @@ def test_cache_key_requires_every_declared_dependency() -> None:
             parameters=ExampleParameters(interval_seconds=1.0),
             dependency_artifact_hashes={},
         )
+
+
+def test_request_identity_uses_dependency_requests_before_outputs_exist() -> None:
+    current_manifest = manifest("detect_objects", dependencies=("extract_keyframes",))
+    first = analysis_request_key(
+        current_manifest,
+        source_sha256="a" * 64,
+        parameters=ExampleParameters(interval_seconds=1.0),
+        dependency_request_keys={"extract_keyframes": "b" * 64},
+    )
+
+    assert first != analysis_request_key(
+        current_manifest,
+        source_sha256="a" * 64,
+        parameters=ExampleParameters(interval_seconds=1.0),
+        dependency_request_keys={"extract_keyframes": "c" * 64},
+    )

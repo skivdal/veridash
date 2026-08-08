@@ -13,6 +13,117 @@ import sqlalchemy.ext.asyncio
 from veridash_api.db.sqlc import models
 
 
+ADD_AUTOMATIC_ANALYSIS_DEPENDENCY = """-- name: add_automatic_analysis_dependency \\:exec
+INSERT INTO analysis_job_dependency (project_id, job_id, depends_on_job_id)
+VALUES (:p1, :p2, :p3)
+ON CONFLICT (job_id, depends_on_job_id) DO NOTHING
+"""
+
+
+APPEND_MEDIA_UPLOADED_EVENT = """-- name: append_media_uploaded_event \\:exec
+INSERT INTO project_event (project_id, event_type, source, payload)
+VALUES (
+    :p1,
+    'media.uploaded',
+    'api',
+    jsonb_build_object('media_id', :p2\\:\\:UUID)
+)
+"""
+
+
+CREATE_AUTOMATIC_ANALYSIS_JOB = """-- name: create_automatic_analysis_job \\:one
+WITH inserted AS (
+    INSERT INTO analysis_job (
+        id,
+        project_id,
+        source_media_id,
+        module_id,
+        implementation_version,
+        parameters,
+        request_key,
+        cache_key,
+        priority,
+        max_attempts
+    )
+    VALUES (
+        :p1,
+        :p2,
+        :p3,
+        :p4,
+        :p5,
+        :p6,
+        :p7,
+        :p8,
+        :p9,
+        :p10
+    )
+    ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
+    RETURNING id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key
+), selected AS (
+    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM inserted
+    UNION ALL
+    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM analysis_job
+    WHERE
+        project_id = :p2
+        AND source_media_id = :p3
+        AND module_id = :p4
+        AND request_key = :p7
+    LIMIT 1
+), event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        project_id,
+        id,
+        'job.created',
+        'api',
+        jsonb_build_object('state', state, 'module_id', module_id)
+    FROM inserted
+)
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM selected
+"""
+
+
+@dataclasses.dataclass()
+class CreateAutomaticAnalysisJobParams:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    parameters: Any
+    request_key: str
+    cache_key: Optional[str]
+    priority: int
+    max_attempts: int
+
+
+@dataclasses.dataclass()
+class CreateAutomaticAnalysisJobRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: models.AnalysisJobState
+    parameters: Any
+    request_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[models.AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
+
+
 GET_ANALYSIS_JOB = """-- name: get_analysis_job \\:one
 SELECT
     job.id,
@@ -24,6 +135,7 @@ SELECT
     definition.resource_class,
     job.state,
     job.parameters,
+    job.request_key,
     job.cache_key,
     job.priority,
     job.max_attempts,
@@ -60,7 +172,8 @@ class GetAnalysisJobRow:
     resource_class: models.AnalysisResourceClass
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
+    cache_key: Optional[str]
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -172,6 +285,7 @@ SELECT
     definition.resource_class,
     job.state,
     job.parameters,
+    job.request_key,
     job.cache_key,
     job.priority,
     job.max_attempts,
@@ -208,7 +322,8 @@ class ListProjectAnalysisJobsRow:
     resource_class: models.AnalysisResourceClass
     state: models.AnalysisJobState
     parameters: Any
-    cache_key: str
+    request_key: str
+    cache_key: Optional[str]
     priority: int
     max_attempts: int
     next_attempt_at: Optional[datetime.datetime]
@@ -247,9 +362,116 @@ LIMIT :p4
 """
 
 
+REGISTER_ANALYSIS_DEFINITION = """-- name: register_analysis_definition \\:one
+WITH inserted AS (
+    INSERT INTO analysis_definition (
+        module_id,
+        implementation_version,
+        display_name,
+        result_schema_version,
+        resource_class,
+        automatic,
+        manifest_hash,
+        manifest
+    )
+    VALUES (
+        :p1,
+        :p2,
+        :p3,
+        :p4,
+        :p5,
+        :p6,
+        :p7,
+        :p8
+    )
+    ON CONFLICT (module_id, implementation_version) DO NOTHING
+    RETURNING module_id, implementation_version, display_name, result_schema_version, resource_class, automatic, manifest_hash, manifest, created_at
+)
+SELECT module_id, implementation_version, display_name, result_schema_version, resource_class, automatic, manifest_hash, manifest, created_at FROM inserted
+UNION ALL
+SELECT module_id, implementation_version, display_name, result_schema_version, resource_class, automatic, manifest_hash, manifest, created_at FROM analysis_definition
+WHERE
+    module_id = :p1
+    AND implementation_version = :p2
+LIMIT 1
+"""
+
+
+@dataclasses.dataclass()
+class RegisterAnalysisDefinitionParams:
+    module_id: str
+    implementation_version: str
+    display_name: str
+    result_schema_version: int
+    resource_class: models.AnalysisResourceClass
+    automatic: bool
+    manifest_hash: str
+    manifest: Any
+
+
+@dataclasses.dataclass()
+class RegisterAnalysisDefinitionRow:
+    module_id: str
+    implementation_version: str
+    display_name: str
+    result_schema_version: int
+    resource_class: models.AnalysisResourceClass
+    automatic: bool
+    manifest_hash: str
+    manifest: Any
+    created_at: datetime.datetime
+
+
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
+
+    async def add_automatic_analysis_dependency(self, *, project_id: uuid.UUID, job_id: uuid.UUID, depends_on_job_id: uuid.UUID) -> None:
+        await self._conn.execute(sqlalchemy.text(ADD_AUTOMATIC_ANALYSIS_DEPENDENCY), {"p1": project_id, "p2": job_id, "p3": depends_on_job_id})
+
+    async def append_media_uploaded_event(self, *, project_id: uuid.UUID, media_id: uuid.UUID) -> None:
+        await self._conn.execute(sqlalchemy.text(APPEND_MEDIA_UPLOADED_EVENT), {"p1": project_id, "p2": media_id})
+
+    async def create_automatic_analysis_job(self, arg: CreateAutomaticAnalysisJobParams) -> Optional[CreateAutomaticAnalysisJobRow]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_AUTOMATIC_ANALYSIS_JOB), {
+            "p1": arg.id,
+            "p2": arg.project_id,
+            "p3": arg.source_media_id,
+            "p4": arg.module_id,
+            "p5": arg.implementation_version,
+            "p6": arg.parameters,
+            "p7": arg.request_key,
+            "p8": arg.cache_key,
+            "p9": arg.priority,
+            "p10": arg.max_attempts,
+        })).first()
+        if row is None:
+            return None
+        return CreateAutomaticAnalysisJobRow(
+            id=row[0],
+            project_id=row[1],
+            source_media_id=row[2],
+            module_id=row[3],
+            implementation_version=row[4],
+            state=row[5],
+            parameters=row[6],
+            request_key=row[7],
+            priority=row[8],
+            max_attempts=row[9],
+            next_attempt_at=row[10],
+            ready_at=row[11],
+            started_at=row[12],
+            finished_at=row[13],
+            cancel_requested_at=row[14],
+            failure_kind=row[15],
+            public_failure_message=row[16],
+            diagnostic_id=row[17],
+            reused_from_job_id=row[18],
+            created_at=row[19],
+            updated_at=row[20],
+            winning_attempt_id=row[21],
+            cache_key=row[22],
+        )
 
     async def get_analysis_job(self, *, job_id: uuid.UUID, user_id: int) -> Optional[GetAnalysisJobRow]:
         row = (await self._conn.execute(sqlalchemy.text(GET_ANALYSIS_JOB), {"p1": job_id, "p2": user_id})).first()
@@ -265,21 +487,22 @@ class AsyncQuerier:
             resource_class=row[6],
             state=row[7],
             parameters=row[8],
-            cache_key=row[9],
-            priority=row[10],
-            max_attempts=row[11],
-            next_attempt_at=row[12],
-            ready_at=row[13],
-            started_at=row[14],
-            finished_at=row[15],
-            cancel_requested_at=row[16],
-            failure_kind=row[17],
-            public_failure_message=row[18],
-            diagnostic_id=row[19],
-            reused_from_job_id=row[20],
-            winning_attempt_id=row[21],
-            created_at=row[22],
-            updated_at=row[23],
+            request_key=row[9],
+            cache_key=row[10],
+            priority=row[11],
+            max_attempts=row[12],
+            next_attempt_at=row[13],
+            ready_at=row[14],
+            started_at=row[15],
+            finished_at=row[16],
+            cancel_requested_at=row[17],
+            failure_kind=row[18],
+            public_failure_message=row[19],
+            diagnostic_id=row[20],
+            reused_from_job_id=row[21],
+            winning_attempt_id=row[22],
+            created_at=row[23],
+            updated_at=row[24],
         )
 
     async def list_analysis_job_artifacts(self, *, job_id: uuid.UUID, user_id: int) -> AsyncIterator[ListAnalysisJobArtifactsRow]:
@@ -335,21 +558,22 @@ class AsyncQuerier:
                 resource_class=row[6],
                 state=row[7],
                 parameters=row[8],
-                cache_key=row[9],
-                priority=row[10],
-                max_attempts=row[11],
-                next_attempt_at=row[12],
-                ready_at=row[13],
-                started_at=row[14],
-                finished_at=row[15],
-                cancel_requested_at=row[16],
-                failure_kind=row[17],
-                public_failure_message=row[18],
-                diagnostic_id=row[19],
-                reused_from_job_id=row[20],
-                winning_attempt_id=row[21],
-                created_at=row[22],
-                updated_at=row[23],
+                request_key=row[9],
+                cache_key=row[10],
+                priority=row[11],
+                max_attempts=row[12],
+                next_attempt_at=row[13],
+                ready_at=row[14],
+                started_at=row[15],
+                finished_at=row[16],
+                cancel_requested_at=row[17],
+                failure_kind=row[18],
+                public_failure_message=row[19],
+                diagnostic_id=row[20],
+                reused_from_job_id=row[21],
+                winning_attempt_id=row[22],
+                created_at=row[23],
+                updated_at=row[24],
             )
 
     async def list_project_events_after(self, *, project_id: uuid.UUID, user_id: int, after_event_id: int, batch_size: int) -> AsyncIterator[models.ProjectEvent]:
@@ -371,3 +595,28 @@ class AsyncQuerier:
                 payload=row[7],
                 created_at=row[8],
             )
+
+    async def register_analysis_definition(self, arg: RegisterAnalysisDefinitionParams) -> Optional[RegisterAnalysisDefinitionRow]:
+        row = (await self._conn.execute(sqlalchemy.text(REGISTER_ANALYSIS_DEFINITION), {
+            "p1": arg.module_id,
+            "p2": arg.implementation_version,
+            "p3": arg.display_name,
+            "p4": arg.result_schema_version,
+            "p5": arg.resource_class,
+            "p6": arg.automatic,
+            "p7": arg.manifest_hash,
+            "p8": arg.manifest,
+        })).first()
+        if row is None:
+            return None
+        return RegisterAnalysisDefinitionRow(
+            module_id=row[0],
+            implementation_version=row[1],
+            display_name=row[2],
+            result_schema_version=row[3],
+            resource_class=row[4],
+            automatic=row[5],
+            manifest_hash=row[6],
+            manifest=row[7],
+            created_at=row[8],
+        )

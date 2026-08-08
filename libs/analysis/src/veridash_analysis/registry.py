@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
 
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 
 from veridash_analysis.contracts import ModuleManifest
 
@@ -70,7 +70,7 @@ def analysis_cache_key(
     manifest: ModuleManifest,
     *,
     source_sha256: str,
-    parameters: BaseModel,
+    parameters: BaseModel | Mapping[str, JsonValue],
     dependency_artifact_hashes: Mapping[str, Mapping[str, str]],
 ) -> str:
     """Hash every declared output-affecting input into a server-owned identity."""
@@ -91,8 +91,30 @@ def analysis_cache_key(
     identity = {
         "manifest_hash": manifest_hash(manifest),
         "source_sha256": source_sha256,
-        "parameters": parameters.model_dump(mode="json"),
+        "parameters": _parameter_document(parameters),
         "dependency_artifact_hashes": normalized_dependencies,
+    }
+    return hashlib.sha256(_canonical_json(identity).encode()).hexdigest()
+
+
+def analysis_request_key(
+    manifest: ModuleManifest,
+    *,
+    source_sha256: str,
+    parameters: BaseModel | Mapping[str, JsonValue],
+    dependency_request_keys: Mapping[str, str],
+) -> str:
+    """Identify an idempotent request before dependency artifacts are available."""
+    _require_sha256(source_sha256, label="source")
+    if set(dependency_request_keys) != set(manifest.dependencies):
+        raise ValueError("dependency request keys must match the module manifest")
+    for dependency, request_key in dependency_request_keys.items():
+        _require_sha256(request_key, label=f"dependency {dependency} request")
+    identity = {
+        "manifest_hash": manifest_hash(manifest),
+        "source_sha256": source_sha256,
+        "parameters": _parameter_document(parameters),
+        "dependency_request_keys": dict(dependency_request_keys),
     }
     return hashlib.sha256(_canonical_json(identity).encode()).hexdigest()
 
@@ -131,6 +153,14 @@ def _topological_order(
 
 def _canonical_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def _parameter_document(
+    parameters: BaseModel | Mapping[str, JsonValue],
+) -> object:
+    if isinstance(parameters, BaseModel):
+        return parameters.model_dump(mode="json")
+    return dict(parameters)
 
 
 def _require_sha256(value: str, *, label: str) -> None:
