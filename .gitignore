@@ -203,3 +203,5 @@ dist-ssr
 # Custom (jupytext)
 *.ipynb
 *.pt
+
+docs/rebuild-plan.md

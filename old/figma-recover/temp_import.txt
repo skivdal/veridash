@@ -1,0 +1,9 @@
+import React, { useState, useEffect } from 'react';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import svgPaths from '../imports/DenneViBrukerNa/svg-9l405kxn4u';
+import logoImage from '../imports/DenneViBrukerNa/c3fe4d2a48528e574f07f495bfc686f85aadc3ae.png';
+import HelpCenter from '../imports/HelpCenter/HelpCenter';
+import Archived from '../imports/Archived/Archived';
+import shareIconPaths from '../imports/Vector-1/svg-d2217cmjm3';
+import { MetadataExpandedView } from './components/MetadataExpandedView';

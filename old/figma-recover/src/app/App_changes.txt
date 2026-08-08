@@ -1,0 +1,5 @@
+Changes needed:
+1. After line 8, add: import { MetadataExpandedView } from './components/MetadataExpandedView';
+2. On line 2761, replace <MetadataWidget /> with <MetadataExpandedView />
+3. On line 615, add back: const [viewMode, setViewMode] = useState<'raw' | 'analyze'>('raw');
+4. Replace lines 757-918 with the toggle button version

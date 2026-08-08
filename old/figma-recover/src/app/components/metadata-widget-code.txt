@@ -1,0 +1,64 @@
+// This is the CORRECT MetadataWidget code with toggle buttons
+// Replace the current MetadataWidget function (lines ~614-920) with this:
+
+function MetadataWidget() {
+  const [viewMode, setViewMode] = useState<'raw' | 'analyze'>('raw');
+
+  const metadata = {
+    messageType: "metadata",
+    videoId: "5cd0c0b1-da37",
+    // ... rest of metadata object stays the same ...
+  };
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex justify-start gap-2 p-3 pb-2 flex-shrink-0">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewMode('raw');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            viewMode === 'raw'
+              ? 'bg-[#0065f4] text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          Metadata
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewMode('analyze');
+          }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            viewMode === 'analyze'
+              ? 'bg-[#0065f4] text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          Analyze
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
+        {viewMode === 'raw' ? (
+          <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+            {JSON.stringify(metadata, null, 2)}
+          </pre>
+        ) : (
+          <div className="space-y-4 text-sm">
+            {/* All the analyze content here */}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// KEY CHANGES:
+// 1. Added: const [viewMode, setViewMode] = useState<'raw' | 'analyze'>('raw');
+// 2. Removed: grid-cols-2 side-by-side layout
+// 3. Added back: Toggle buttons for Metadata/Analyze
+// 4. Added back: Conditional rendering based on viewMode
+
