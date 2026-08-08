@@ -32,6 +32,18 @@ class CreateProjectRequest(BaseModel):
         return normalized
 
 
+class RenameProjectRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title(cls, title: str) -> str:
+        normalized = title.strip()
+        if not normalized:
+            raise ValueError("title must not be blank")
+        return normalized
+
+
 class ProjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

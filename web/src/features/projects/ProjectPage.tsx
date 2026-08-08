@@ -1,9 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate } from "@tanstack/react-router";
+import { type FormEvent, useState } from "react";
 
 import { ApiError } from "../../api/fetcher";
 import {
+  getGetProjectApiProjectsProjectIdGetQueryKey,
+  getListProjectsApiProjectsGetQueryKey,
+  useArchiveProjectApiProjectsProjectIdArchivePost,
   useGetCurrentUserApiAuthMeGet,
   useGetProjectApiProjectsProjectIdGet,
+  useRenameProjectApiProjectsProjectIdPatch,
+  useRestoreProjectApiProjectsProjectIdRestorePost,
 } from "../../api/generated/client";
 import { AppHeader } from "../../components/AppHeader";
 
@@ -24,6 +31,9 @@ interface ProjectPageProps {
 }
 
 export function ProjectPage({ projectId }: ProjectPageProps) {
+  const queryClient = useQueryClient();
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
   const currentUser = useGetCurrentUserApiAuthMeGet({
     query: { retry: false },
   });
@@ -34,6 +44,31 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
     currentUser.data?.status === 200 ? currentUser.data.data : undefined;
   const projectData =
     project.data?.status === 200 ? project.data.data : undefined;
+  const updateCachedProject = async (response: unknown) => {
+    const candidate = response as { status?: number };
+    if (candidate.status !== 200) return;
+    queryClient.setQueryData(
+      getGetProjectApiProjectsProjectIdGetQueryKey(projectId),
+      response,
+    );
+    await queryClient.invalidateQueries({
+      queryKey: getListProjectsApiProjectsGetQueryKey(),
+    });
+  };
+  const renameProject = useRenameProjectApiProjectsProjectIdPatch({
+    mutation: {
+      onSuccess: async (response) => {
+        await updateCachedProject(response);
+        setIsRenaming(false);
+      },
+    },
+  });
+  const archiveProject = useArchiveProjectApiProjectsProjectIdArchivePost({
+    mutation: { onSuccess: updateCachedProject },
+  });
+  const restoreProject = useRestoreProjectApiProjectsProjectIdRestorePost({
+    mutation: { onSuccess: updateCachedProject },
+  });
 
   if (
     currentUser.error instanceof ApiError &&
@@ -95,6 +130,22 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
 
   if (sessionData === undefined || projectData === undefined) return null;
 
+  function submitRename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    renameProject.mutate({ projectId, data: { title: draftTitle } });
+  }
+
+  const mutationError =
+    renameProject.error instanceof ApiError
+      ? renameProject.error.message
+      : archiveProject.error instanceof ApiError
+        ? archiveProject.error.message
+        : restoreProject.error instanceof ApiError
+          ? restoreProject.error.message
+          : undefined;
+  const lifecycleMutationPending =
+    archiveProject.isPending || restoreProject.isPending;
+
   return (
     <div className="app-canvas">
       <AppHeader username={sessionData.user.username} />
@@ -106,13 +157,78 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             </Link>
             <h1>{projectData.title}</h1>
             <p className="workspace-meta">
-              Saved project · No source video yet
+              Saved project · {projectData.state} · No source video yet
             </p>
           </div>
-          <button className="button button-primary" type="button" disabled>
-            Upload video
-          </button>
+          <div className="workspace-actions">
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => {
+                setDraftTitle(projectData.title);
+                renameProject.reset();
+                setIsRenaming((visible) => !visible);
+              }}
+            >
+              {isRenaming ? "Cancel rename" : "Rename"}
+            </button>
+            {projectData.state === "archived" ? (
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={lifecycleMutationPending}
+                onClick={() => restoreProject.mutate({ projectId })}
+              >
+                {restoreProject.isPending ? "Restoring…" : "Restore project"}
+              </button>
+            ) : (
+              <button
+                className="button button-secondary"
+                type="button"
+                disabled={lifecycleMutationPending}
+                onClick={() => archiveProject.mutate({ projectId })}
+              >
+                {archiveProject.isPending ? "Archiving…" : "Archive project"}
+              </button>
+            )}
+            <button className="button button-primary" type="button" disabled>
+              Upload video
+            </button>
+          </div>
         </div>
+
+        {isRenaming ? (
+          <form className="rename-project-form" onSubmit={submitRename}>
+            <label className="field-label" htmlFor="rename-project-title">
+              Project title
+            </label>
+            <div className="inline-field">
+              <input
+                className="text-input"
+                id="rename-project-title"
+                maxLength={200}
+                required
+                value={draftTitle}
+                onChange={(event) => setDraftTitle(event.target.value)}
+              />
+              <button
+                className="button button-primary"
+                type="submit"
+                disabled={
+                  renameProject.isPending || draftTitle.trim().length === 0
+                }
+              >
+                {renameProject.isPending ? "Saving…" : "Save title"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {mutationError === undefined ? null : (
+          <p className="form-error workspace-error" role="alert">
+            {mutationError}
+          </p>
+        )}
 
         <ul className="analysis-chips" aria-label="Dashboard modules">
           {modulePlaceholders.map(([name]) => (

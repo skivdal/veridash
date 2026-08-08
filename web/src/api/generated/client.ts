@@ -29,6 +29,7 @@ import type {
   LoginRequest,
   ProblemResponse,
   ProjectResponse,
+  RenameProjectRequest,
   SessionResponse
 } from './schemas';
 
@@ -862,3 +863,340 @@ export function useGetProjectApiProjectsProjectIdGet<TData = Awaited<ReturnType<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
+export type renameProjectApiProjectsProjectIdPatchResponse200 = {
+  data: ProjectResponse
+  status: 200
+}
+
+export type renameProjectApiProjectsProjectIdPatchResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type renameProjectApiProjectsProjectIdPatchResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type renameProjectApiProjectsProjectIdPatchResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type renameProjectApiProjectsProjectIdPatchResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type renameProjectApiProjectsProjectIdPatchResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type renameProjectApiProjectsProjectIdPatchResponseSuccess = (renameProjectApiProjectsProjectIdPatchResponse200) & {
+  headers: Headers;
+};
+export type renameProjectApiProjectsProjectIdPatchResponseError = (renameProjectApiProjectsProjectIdPatchResponse401 | renameProjectApiProjectsProjectIdPatchResponse403 | renameProjectApiProjectsProjectIdPatchResponse404 | renameProjectApiProjectsProjectIdPatchResponse422 | renameProjectApiProjectsProjectIdPatchResponse500) & {
+  headers: Headers;
+};
+
+export type renameProjectApiProjectsProjectIdPatchResponse = (renameProjectApiProjectsProjectIdPatchResponseSuccess | renameProjectApiProjectsProjectIdPatchResponseError)
+
+export const getRenameProjectApiProjectsProjectIdPatchUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}`
+}
+
+/**
+ * @summary Rename Project
+ */
+export const renameProjectApiProjectsProjectIdPatch = async (projectId: string,
+    renameProjectRequest: RenameProjectRequest, options?: RequestInit): Promise<renameProjectApiProjectsProjectIdPatchResponse> => {
+
+  return apiFetch<renameProjectApiProjectsProjectIdPatchResponse>(getRenameProjectApiProjectsProjectIdPatchUrl(projectId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renameProjectRequest)
+  }
+);}
+
+
+
+
+
+export const getRenameProjectApiProjectsProjectIdPatchMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameProjectApiProjectsProjectIdPatch>>, TError,{projectId: string;data: BodyType<RenameProjectRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameProjectApiProjectsProjectIdPatch>>, TError,{projectId: string;data: BodyType<RenameProjectRequest>}, TContext> => {
+
+const mutationKey = ['renameProjectApiProjectsProjectIdPatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameProjectApiProjectsProjectIdPatch>>, {projectId: string;data: BodyType<RenameProjectRequest>}> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  renameProjectApiProjectsProjectIdPatch(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameProjectApiProjectsProjectIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof renameProjectApiProjectsProjectIdPatch>>>
+    export type RenameProjectApiProjectsProjectIdPatchMutationBody = BodyType<RenameProjectRequest>
+    export type RenameProjectApiProjectsProjectIdPatchMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Rename Project
+ */
+export const useRenameProjectApiProjectsProjectIdPatch = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameProjectApiProjectsProjectIdPatch>>, TError,{projectId: string;data: BodyType<RenameProjectRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof renameProjectApiProjectsProjectIdPatch>>,
+        TError,
+        {projectId: string;data: BodyType<RenameProjectRequest>},
+        TContext
+      > => {
+      return useMutation(getRenameProjectApiProjectsProjectIdPatchMutationOptions(options), queryClient);
+    }
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse200 = {
+  data: ProjectResponse
+  status: 200
+}
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponseSuccess = (archiveProjectApiProjectsProjectIdArchivePostResponse200) & {
+  headers: Headers;
+};
+export type archiveProjectApiProjectsProjectIdArchivePostResponseError = (archiveProjectApiProjectsProjectIdArchivePostResponse401 | archiveProjectApiProjectsProjectIdArchivePostResponse403 | archiveProjectApiProjectsProjectIdArchivePostResponse404 | archiveProjectApiProjectsProjectIdArchivePostResponse422 | archiveProjectApiProjectsProjectIdArchivePostResponse500) & {
+  headers: Headers;
+};
+
+export type archiveProjectApiProjectsProjectIdArchivePostResponse = (archiveProjectApiProjectsProjectIdArchivePostResponseSuccess | archiveProjectApiProjectsProjectIdArchivePostResponseError)
+
+export const getArchiveProjectApiProjectsProjectIdArchivePostUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/archive`
+}
+
+/**
+ * @summary Archive Project
+ */
+export const archiveProjectApiProjectsProjectIdArchivePost = async (projectId: string, options?: RequestInit): Promise<archiveProjectApiProjectsProjectIdArchivePostResponse> => {
+
+  return apiFetch<archiveProjectApiProjectsProjectIdArchivePostResponse>(getArchiveProjectApiProjectsProjectIdArchivePostUrl(projectId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveProjectApiProjectsProjectIdArchivePostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveProjectApiProjectsProjectIdArchivePost>>, TError,{projectId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveProjectApiProjectsProjectIdArchivePost>>, TError,{projectId: string}, TContext> => {
+
+const mutationKey = ['archiveProjectApiProjectsProjectIdArchivePost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveProjectApiProjectsProjectIdArchivePost>>, {projectId: string}> = (props) => {
+          const {projectId} = props ?? {};
+
+          return  archiveProjectApiProjectsProjectIdArchivePost(projectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveProjectApiProjectsProjectIdArchivePostMutationResult = NonNullable<Awaited<ReturnType<typeof archiveProjectApiProjectsProjectIdArchivePost>>>
+
+    export type ArchiveProjectApiProjectsProjectIdArchivePostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Archive Project
+ */
+export const useArchiveProjectApiProjectsProjectIdArchivePost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveProjectApiProjectsProjectIdArchivePost>>, TError,{projectId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof archiveProjectApiProjectsProjectIdArchivePost>>,
+        TError,
+        {projectId: string},
+        TContext
+      > => {
+      return useMutation(getArchiveProjectApiProjectsProjectIdArchivePostMutationOptions(options), queryClient);
+    }
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse200 = {
+  data: ProjectResponse
+  status: 200
+}
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponseSuccess = (restoreProjectApiProjectsProjectIdRestorePostResponse200) & {
+  headers: Headers;
+};
+export type restoreProjectApiProjectsProjectIdRestorePostResponseError = (restoreProjectApiProjectsProjectIdRestorePostResponse401 | restoreProjectApiProjectsProjectIdRestorePostResponse403 | restoreProjectApiProjectsProjectIdRestorePostResponse404 | restoreProjectApiProjectsProjectIdRestorePostResponse422 | restoreProjectApiProjectsProjectIdRestorePostResponse500) & {
+  headers: Headers;
+};
+
+export type restoreProjectApiProjectsProjectIdRestorePostResponse = (restoreProjectApiProjectsProjectIdRestorePostResponseSuccess | restoreProjectApiProjectsProjectIdRestorePostResponseError)
+
+export const getRestoreProjectApiProjectsProjectIdRestorePostUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/restore`
+}
+
+/**
+ * @summary Restore Project
+ */
+export const restoreProjectApiProjectsProjectIdRestorePost = async (projectId: string, options?: RequestInit): Promise<restoreProjectApiProjectsProjectIdRestorePostResponse> => {
+
+  return apiFetch<restoreProjectApiProjectsProjectIdRestorePostResponse>(getRestoreProjectApiProjectsProjectIdRestorePostUrl(projectId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRestoreProjectApiProjectsProjectIdRestorePostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreProjectApiProjectsProjectIdRestorePost>>, TError,{projectId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restoreProjectApiProjectsProjectIdRestorePost>>, TError,{projectId: string}, TContext> => {
+
+const mutationKey = ['restoreProjectApiProjectsProjectIdRestorePost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restoreProjectApiProjectsProjectIdRestorePost>>, {projectId: string}> = (props) => {
+          const {projectId} = props ?? {};
+
+          return  restoreProjectApiProjectsProjectIdRestorePost(projectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestoreProjectApiProjectsProjectIdRestorePostMutationResult = NonNullable<Awaited<ReturnType<typeof restoreProjectApiProjectsProjectIdRestorePost>>>
+
+    export type RestoreProjectApiProjectsProjectIdRestorePostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Restore Project
+ */
+export const useRestoreProjectApiProjectsProjectIdRestorePost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreProjectApiProjectsProjectIdRestorePost>>, TError,{projectId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof restoreProjectApiProjectsProjectIdRestorePost>>,
+        TError,
+        {projectId: string},
+        TContext
+      > => {
+      return useMutation(getRestoreProjectApiProjectsProjectIdRestorePostMutationOptions(options), queryClient);
+    }

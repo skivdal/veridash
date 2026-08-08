@@ -10,5 +10,6 @@ export * from './healthResponse';
 export * from './loginRequest';
 export * from './problemResponse';
 export * from './projectResponse';
+export * from './renameProjectRequest';
 export * from './sessionResponse';
 export * from './userResponse';

@@ -144,6 +144,47 @@ async def test_session_and_project_lifecycle_survives_api_restart() -> None:
             assert project_detail.status_code == 200
             assert project_detail.json() == project
 
+            rejected_rename = await client.patch(
+                f"/api/projects/{project['id']}",
+                json={"title": "Renamed investigation"},
+            )
+            assert rejected_rename.status_code == 403
+
+            rename = await client.patch(
+                f"/api/projects/{project['id']}",
+                json={"title": "  Renamed investigation  "},
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert rename.status_code == 200
+            project = rename.json()
+            assert project["title"] == "Renamed investigation"
+
+            archive = await client.post(
+                f"/api/projects/{project['id']}/archive",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert archive.status_code == 200
+            project = archive.json()
+            assert project["state"] == "archived"
+            assert project["archived_at"] is not None
+
+            archive_again = await client.post(
+                f"/api/projects/{project['id']}/archive",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert archive_again.status_code == 200
+            assert archive_again.json()["archived_at"] == project["archived_at"]
+            assert archive_again.json()["updated_at"] == project["updated_at"]
+
+            restore = await client.post(
+                f"/api/projects/{project['id']}/restore",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert restore.status_code == 200
+            project = restore.json()
+            assert project["state"] == "active"
+            assert project["archived_at"] is None
+
             missing = await client.get(f"/api/projects/{uuid4()}")
             assert missing.status_code == 404
             assert missing.json()["code"] == "project_not_found"
@@ -151,6 +192,13 @@ async def test_session_and_project_lifecycle_survives_api_restart() -> None:
             unauthorized_project = await client.get(f"/api/projects/{other_project_id}")
             assert unauthorized_project.status_code == 404
             assert unauthorized_project.json()["code"] == "project_not_found"
+
+            unauthorized_archive = await client.post(
+                f"/api/projects/{other_project_id}/archive",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert unauthorized_archive.status_code == 404
+            assert unauthorized_archive.json()["code"] == "project_not_found"
 
             persisted_cookies = Cookies(client.cookies)
 
@@ -163,6 +211,11 @@ async def test_session_and_project_lifecycle_survives_api_restart() -> None:
             current_user = await restarted_client.get("/api/auth/me")
             assert current_user.status_code == 200
             assert current_user.json()["user"]["username"] == username
+
+            persisted_project = await restarted_client.get(f"/api/projects/{project['id']}")
+            assert persisted_project.status_code == 200
+            assert persisted_project.json()["title"] == "Renamed investigation"
+            assert persisted_project.json()["state"] == "active"
 
             csrf_token = restarted_client.cookies.get(settings.csrf_cookie_name)
             assert csrf_token is not None

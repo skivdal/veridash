@@ -470,6 +470,29 @@ h2 {
   font-size: 14px;
 }
 
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.rename-project-form {
+  display: grid;
+  max-width: 680px;
+  gap: 8px;
+  margin-top: 24px;
+  border: 1px solid #bdd6ff;
+  border-radius: 14px;
+  background: #f7fbff;
+  padding: 18px;
+}
+
+.workspace-error {
+  max-width: 680px;
+  margin-top: 14px;
+}
+
 .analysis-chips {
   display: flex;
   flex-wrap: wrap;
@@ -564,6 +587,10 @@ h2 {
   .projects-heading,
   .workspace-heading {
     flex-direction: column;
+  }
+
+  .workspace-actions {
+    justify-content: flex-start;
   }
 
   .project-grid,

@@ -11,6 +11,17 @@ import sqlalchemy.ext.asyncio
 from veridash_api.db.sqlc import models
 
 
+ARCHIVE_PROJECT = """-- name: archive_project \\:one
+UPDATE project
+SET
+    state = 'archived',
+    archived_at = COALESCE(archived_at, now()),
+    updated_at = CASE WHEN state = 'active' THEN now() ELSE updated_at END
+WHERE id = :p1 AND user_id = :p2
+RETURNING id, user_id, title, state, created_at, updated_at, archived_at
+"""
+
+
 CREATE_PROJECT = """-- name: create_project \\:one
 INSERT INTO project (id, user_id, title)
 VALUES (:p1, :p2, :p3)
@@ -34,9 +45,42 @@ ORDER BY updated_at DESC, id DESC
 """
 
 
+RENAME_PROJECT = """-- name: rename_project \\:one
+UPDATE project
+SET title = :p1, updated_at = now()
+WHERE id = :p2 AND user_id = :p3
+RETURNING id, user_id, title, state, created_at, updated_at, archived_at
+"""
+
+
+RESTORE_PROJECT = """-- name: restore_project \\:one
+UPDATE project
+SET
+    state = 'active',
+    archived_at = NULL,
+    updated_at = CASE WHEN state = 'archived' THEN now() ELSE updated_at END
+WHERE id = :p1 AND user_id = :p2
+RETURNING id, user_id, title, state, created_at, updated_at, archived_at
+"""
+
+
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
+
+    async def archive_project(self, *, id: uuid.UUID, user_id: int) -> Optional[models.Project]:
+        row = (await self._conn.execute(sqlalchemy.text(ARCHIVE_PROJECT), {"p1": id, "p2": user_id})).first()
+        if row is None:
+            return None
+        return models.Project(
+            id=row[0],
+            user_id=row[1],
+            title=row[2],
+            state=row[3],
+            created_at=row[4],
+            updated_at=row[5],
+            archived_at=row[6],
+        )
 
     async def create_project(self, *, id: uuid.UUID, user_id: int, title: str) -> Optional[models.Project]:
         row = (await self._conn.execute(sqlalchemy.text(CREATE_PROJECT), {"p1": id, "p2": user_id, "p3": title})).first()
@@ -78,3 +122,31 @@ class AsyncQuerier:
                 updated_at=row[5],
                 archived_at=row[6],
             )
+
+    async def rename_project(self, *, title: str, id: uuid.UUID, user_id: int) -> Optional[models.Project]:
+        row = (await self._conn.execute(sqlalchemy.text(RENAME_PROJECT), {"p1": title, "p2": id, "p3": user_id})).first()
+        if row is None:
+            return None
+        return models.Project(
+            id=row[0],
+            user_id=row[1],
+            title=row[2],
+            state=row[3],
+            created_at=row[4],
+            updated_at=row[5],
+            archived_at=row[6],
+        )
+
+    async def restore_project(self, *, id: uuid.UUID, user_id: int) -> Optional[models.Project]:
+        row = (await self._conn.execute(sqlalchemy.text(RESTORE_PROJECT), {"p1": id, "p2": user_id})).first()
+        if row is None:
+            return None
+        return models.Project(
+            id=row[0],
+            user_id=row[1],
+            title=row[2],
+            state=row[3],
+            created_at=row[4],
+            updated_at=row[5],
+            archived_at=row[6],
+        )
