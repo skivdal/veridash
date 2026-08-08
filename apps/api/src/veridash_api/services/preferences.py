@@ -24,8 +24,13 @@ async def get_dashboard_preference(
     hidden = STRING_LIST.validate_python(row.hidden_modules)
     if row.revision == 0:
         order = [str(module_id) for module_id in DASHBOARD_MODULE_IDS]
-    elif set(order) == set(DASHBOARD_MODULE_IDS) - {"activity"}:
+        hidden = ["activity"]
+    elif len(order) == len(DASHBOARD_MODULE_IDS) - 1 and set(order) == set(DASHBOARD_MODULE_IDS) - {
+        "activity"
+    }:
         order.append("activity")
+        if "activity" not in hidden:
+            hidden.append("activity")
     hidden = [module_id for module_id in hidden if module_id in DASHBOARD_MODULE_IDS]
     return DashboardPreferenceResponse(
         user_id=row.user_id,

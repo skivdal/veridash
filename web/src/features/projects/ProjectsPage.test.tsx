@@ -148,6 +148,17 @@ describe("projects routing", () => {
       await screen.findByRole("heading", { name: "Source video" }),
     ).toBeDefined();
     expect(screen.getByLabelText("Choose video")).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Activity log" })).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Customize dashboard" }),
+    );
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "Show Activity log",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
   });
 
   it("shows timestamped immutable frames and opens the review surface", async () => {
@@ -190,7 +201,7 @@ describe("projects routing", () => {
               "notes",
               "activity",
             ],
-            hidden_modules: [],
+            hidden_modules: ["activity"],
             revision: 0,
             updated_at: "2026-08-08T12:00:00Z",
           });
@@ -478,7 +489,9 @@ describe("projects routing", () => {
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Show Map" }));
     fireEvent.click(screen.getByRole("button", { name: "Save dashboard" }));
-    await waitFor(() => expect(savedHiddenModules).toEqual(["map"]));
+    await waitFor(() =>
+      expect(savedHiddenModules).toEqual(["map", "activity"]),
+    );
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "Map" })).toBeNull(),
     );

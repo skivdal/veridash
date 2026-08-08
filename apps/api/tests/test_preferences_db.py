@@ -37,7 +37,7 @@ async def test_dashboard_preferences_are_durable_and_revision_fenced() -> None:
                 user_id = int(user.scalar_one())
                 defaults = await get_dashboard_preference(connection, user_id=user_id)
                 assert defaults.module_order == list(DASHBOARD_MODULE_IDS)
-                assert defaults.hidden_modules == []
+                assert defaults.hidden_modules == ["activity"]
                 assert defaults.revision == 0
 
                 reversed_order = [str(module_id) for module_id in reversed(DASHBOARD_MODULE_IDS)]
@@ -82,7 +82,7 @@ async def test_dashboard_preferences_are_durable_and_revision_fenced() -> None:
                 )
                 migrated_legacy = await get_dashboard_preference(connection, user_id=user_id)
                 assert migrated_legacy.module_order == [*legacy_order, "activity"]
-                assert migrated_legacy.hidden_modules == ["map"]
+                assert migrated_legacy.hidden_modules == ["map", "activity"]
             finally:
                 await transaction.rollback()
     finally:

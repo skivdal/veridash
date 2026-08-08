@@ -164,24 +164,15 @@ export function TranscriptCard({
       {transcript.data.segments.length === 0 ? (
         <p>No speech segments were detected.</p>
       ) : (
-        <ol className="transcript-segments transcript-segments-preview">
-          {transcript.data.segments.slice(0, 4).map((segment) => (
+        <ol
+          className="transcript-segments"
+          aria-label={`${transcript.data.segments.length} timestamped transcript segments`}
+        >
+          {transcript.data.segments.map((segment) => (
             <TranscriptRow key={segment.ordinal} segment={segment} />
           ))}
         </ol>
       )}
-      {transcript.data.segments.length > 4 ? (
-        <details className="transcript-details">
-          <summary>
-            Inspect all {transcript.data.segments.length} timestamped segments
-          </summary>
-          <ol className="transcript-segments">
-            {transcript.data.segments.map((segment) => (
-              <TranscriptRow key={segment.ordinal} segment={segment} />
-            ))}
-          </ol>
-        </details>
-      ) : null}
       <p className="evidence-caveat">
         This is machine transcription, not a verified quotation. Check important
         passages against the source video. No summary or interpretation is

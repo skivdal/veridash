@@ -90,6 +90,30 @@ describe("analysis result cards", () => {
                 end_seconds: 5,
                 text: "Dette er kildens tale.",
               },
+              {
+                ordinal: 2,
+                start_seconds: 6,
+                end_seconds: 8,
+                text: "Andre segment.",
+              },
+              {
+                ordinal: 3,
+                start_seconds: 9,
+                end_seconds: 11,
+                text: "Tredje segment.",
+              },
+              {
+                ordinal: 4,
+                start_seconds: 12,
+                end_seconds: 14,
+                text: "Fjerde segment.",
+              },
+              {
+                ordinal: 5,
+                start_seconds: 15,
+                end_seconds: 17,
+                text: "Femte segment er synlig med en gang.",
+              },
             ],
           });
         }
@@ -109,7 +133,11 @@ describe("analysis result cards", () => {
     );
 
     expect(await screen.findByText("Dette er kildens tale.")).toBeDefined();
+    expect(
+      screen.getByText("Femte segment er synlig med en gang."),
+    ).toBeDefined();
     expect(screen.getByText("0:03")).toBeDefined();
+    expect(screen.queryByText(/Inspect all/)).toBeNull();
     expect(
       screen.getByText(/No summary or interpretation is generated/),
     ).toBeDefined();

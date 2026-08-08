@@ -26,6 +26,20 @@ export const dashboardModules = [
 export type DashboardModuleId = (typeof dashboardModules)[number]["id"];
 
 const moduleIds = new Set<string>(dashboardModules.map((module) => module.id));
+const defaultHiddenModules: DashboardModuleId[] = ["activity"];
+
+function isLegacyModuleOrder(order: string[] | undefined): boolean {
+  const legacyModuleIds = dashboardModules.filter(
+    (module) => module.id !== "activity",
+  );
+  return (
+    order?.length === legacyModuleIds.length &&
+    new Set(order).size === legacyModuleIds.length &&
+    order.every(
+      (moduleId) => moduleId !== "activity" && moduleIds.has(moduleId),
+    )
+  );
+}
 
 export function normalizedModuleOrder(
   order: string[] | undefined,
@@ -37,19 +51,23 @@ export function normalizedModuleOrder(
   ) {
     return order as DashboardModuleId[];
   }
-  const legacyModuleIds = dashboardModules.filter(
-    (module) => module.id !== "activity",
-  );
-  if (
-    order?.length === legacyModuleIds.length &&
-    new Set(order).size === legacyModuleIds.length &&
-    order.every(
-      (moduleId) => moduleId !== "activity" && moduleIds.has(moduleId),
-    )
-  ) {
+  if (isLegacyModuleOrder(order)) {
     return [...(order as DashboardModuleId[]), "activity"];
   }
   return dashboardModules.map((module) => module.id);
+}
+
+export function normalizedHiddenModules(
+  hidden: string[] | undefined,
+  order: string[] | undefined,
+): DashboardModuleId[] {
+  const normalized = (hidden ?? defaultHiddenModules).filter((moduleId) =>
+    moduleIds.has(moduleId),
+  ) as DashboardModuleId[];
+  if (isLegacyModuleOrder(order) && !normalized.includes("activity")) {
+    normalized.push("activity");
+  }
+  return normalized;
 }
 
 export function DashboardCustomizer({
@@ -68,9 +86,10 @@ export function DashboardCustomizer({
   const [hidden, setHidden] = useState<Set<DashboardModuleId>>(
     () =>
       new Set(
-        preference?.hidden_modules.filter((moduleId) =>
-          moduleIds.has(moduleId),
-        ) as DashboardModuleId[] | undefined,
+        normalizedHiddenModules(
+          preference?.hidden_modules,
+          preference?.module_order,
+        ),
       ),
   );
   const save = useSaveDashboardPreferenceApiPreferencesDashboardPut({
@@ -180,7 +199,7 @@ export function DashboardCustomizer({
           type="button"
           onClick={() => {
             setOrder(dashboardModules.map((module) => module.id));
-            setHidden(new Set());
+            setHidden(new Set(defaultHiddenModules));
           }}
         >
           Reset layout

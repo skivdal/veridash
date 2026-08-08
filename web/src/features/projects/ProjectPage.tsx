@@ -25,6 +25,7 @@ import {
   DashboardCustomizer,
   type DashboardModuleId,
   dashboardModules,
+  normalizedHiddenModules,
   normalizedModuleOrder,
 } from "./DashboardCustomizer";
 import { FramesCard } from "./FramesCard";
@@ -83,7 +84,12 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const moduleOrder = normalizedModuleOrder(
     dashboardPreferenceData?.module_order,
   );
-  const hiddenModules = new Set(dashboardPreferenceData?.hidden_modules ?? []);
+  const hiddenModules = new Set(
+    normalizedHiddenModules(
+      dashboardPreferenceData?.hidden_modules,
+      dashboardPreferenceData?.module_order,
+    ),
+  );
   const updateCachedProject = async (response: unknown) => {
     const candidate = response as { status?: number };
     if (candidate.status !== 200) return;
