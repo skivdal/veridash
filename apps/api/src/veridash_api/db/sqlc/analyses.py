@@ -430,6 +430,98 @@ class RegisterAnalysisDefinitionRow:
     created_at: datetime.datetime
 
 
+REQUEST_PROJECT_ANALYSIS_JOB_CANCELLATION = """-- name: request_project_analysis_job_cancellation \\:one
+WITH target AS MATERIALIZED (
+    SELECT job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+    FROM analysis_job AS job
+    JOIN project ON project.id = job.project_id
+    WHERE
+        job.id = :p1
+        AND job.project_id = :p2
+        AND project.user_id = :p3
+        AND job.state IN (
+            'waiting_for_dependencies',
+            'ready',
+            'running',
+            'retry_wait',
+            'canceled'
+        )
+    FOR UPDATE OF job
+), updated AS (
+    UPDATE analysis_job AS job
+    SET
+        cancel_requested_at = COALESCE(job.cancel_requested_at, now()),
+        state = CASE
+            WHEN target.state = 'running' THEN 'running'\\:\\:analysis_job_state
+            ELSE 'canceled'\\:\\:analysis_job_state
+        END,
+        next_attempt_at = NULL,
+        finished_at = CASE
+            WHEN target.state = 'running' THEN NULL
+            ELSE COALESCE(job.finished_at, now())
+        END,
+        failure_kind = CASE
+            WHEN target.state = 'running' THEN NULL
+            ELSE 'canceled'\\:\\:analysis_error_kind
+        END,
+        public_failure_message = CASE
+            WHEN target.state = 'running' THEN NULL
+            ELSE 'The analysis was canceled.'
+        END,
+        diagnostic_id = NULL,
+        updated_at = CASE
+            WHEN target.cancel_requested_at IS NULL THEN now()
+            ELSE job.updated_at
+        END
+    FROM target
+    WHERE job.id = target.id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+), event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        updated.project_id,
+        updated.id,
+        CASE
+            WHEN updated.state = 'running' THEN 'job.cancel_requested'
+            ELSE 'job.state_changed'
+        END,
+        'user',
+        jsonb_build_object('state', updated.state)
+    FROM updated
+    JOIN target ON target.id = updated.id
+    WHERE target.cancel_requested_at IS NULL
+)
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated
+"""
+
+
+@dataclasses.dataclass()
+class RequestProjectAnalysisJobCancellationRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: models.AnalysisJobState
+    parameters: Any
+    request_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[models.AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
+
+
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
@@ -633,4 +725,34 @@ class AsyncQuerier:
             manifest_hash=row[6],
             manifest=row[7],
             created_at=row[8],
+        )
+
+    async def request_project_analysis_job_cancellation(self, *, job_id: uuid.UUID, project_id: uuid.UUID, user_id: int) -> Optional[RequestProjectAnalysisJobCancellationRow]:
+        row = (await self._conn.execute(sqlalchemy.text(REQUEST_PROJECT_ANALYSIS_JOB_CANCELLATION), {"p1": job_id, "p2": project_id, "p3": user_id})).first()
+        if row is None:
+            return None
+        return RequestProjectAnalysisJobCancellationRow(
+            id=row[0],
+            project_id=row[1],
+            source_media_id=row[2],
+            module_id=row[3],
+            implementation_version=row[4],
+            state=row[5],
+            parameters=row[6],
+            request_key=row[7],
+            priority=row[8],
+            max_attempts=row[9],
+            next_attempt_at=row[10],
+            ready_at=row[11],
+            started_at=row[12],
+            finished_at=row[13],
+            cancel_requested_at=row[14],
+            failure_kind=row[15],
+            public_failure_message=row[16],
+            diagnostic_id=row[17],
+            reused_from_job_id=row[18],
+            created_at=row[19],
+            updated_at=row[20],
+            winning_attempt_id=row[21],
+            cache_key=row[22],
         )

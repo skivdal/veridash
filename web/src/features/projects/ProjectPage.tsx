@@ -5,8 +5,10 @@ import { type FormEvent, useState } from "react";
 import { ApiError } from "../../api/fetcher";
 import {
   getGetProjectApiProjectsProjectIdGetQueryKey,
+  getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey,
   getListProjectsApiProjectsGetQueryKey,
   useArchiveProjectApiProjectsProjectIdArchivePost,
+  useCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost,
   useGetCurrentUserApiAuthMeGet,
   useGetProjectApiProjectsProjectIdGet,
   useListProjectAnalysesApiProjectsProjectIdAnalysesGet,
@@ -109,6 +111,19 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
   const restoreProject = useRestoreProjectApiProjectsProjectIdRestorePost({
     mutation: { onSuccess: updateCachedProject },
   });
+  const cancelAnalysis =
+    useCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost({
+      mutation: {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({
+            queryKey:
+              getListProjectAnalysesApiProjectsProjectIdAnalysesGetQueryKey(
+                projectId,
+              ),
+          });
+        },
+      },
+    });
 
   if (
     currentUser.error instanceof ApiError &&
@@ -182,7 +197,9 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
         ? archiveProject.error.message
         : restoreProject.error instanceof ApiError
           ? restoreProject.error.message
-          : undefined;
+          : cancelAnalysis.error instanceof ApiError
+            ? cancelAnalysis.error.message
+            : undefined;
   const lifecycleMutationPending =
     archiveProject.isPending || restoreProject.isPending;
 
@@ -291,6 +308,12 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
               )}
               key={name}
               name={name}
+              cancelPendingJobId={
+                cancelAnalysis.isPending
+                  ? cancelAnalysis.variables?.jobId
+                  : undefined
+              }
+              onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
             />
           ))}
           <article className="analysis-card notes-card">
@@ -315,10 +338,14 @@ function AnalysisCard({
   name,
   description,
   job,
+  cancelPendingJobId,
+  onCancel,
 }: {
   name: string;
   description: string;
   job: AnalysisJobResponse | undefined;
+  cancelPendingJobId: string | undefined;
+  onCancel: (jobId: string) => void;
 }) {
   const latestAttempt = job?.attempts.at(-1);
   const progress =
@@ -328,8 +355,18 @@ function AnalysisCard({
       ? (latestAttempt.progress_completed / latestAttempt.progress_total) * 100
       : undefined;
   const status =
-    job === undefined ? "Waiting for analysis" : jobStateLabel(job.state);
+    job === undefined
+      ? "Waiting for analysis"
+      : job.state === "running" && job.cancel_requested_at !== null
+        ? "Canceling"
+        : jobStateLabel(job.state);
   const errorMessage = job?.public_failure_message;
+  const isCancelable =
+    job !== undefined &&
+    ["waiting_for_dependencies", "ready", "running", "retry_wait"].includes(
+      job.state,
+    ) &&
+    job.cancel_requested_at === null;
 
   return (
     <article className="analysis-card">
@@ -357,6 +394,16 @@ function AnalysisCard({
             value={progress}
           />
         </div>
+      ) : null}
+      {isCancelable ? (
+        <button
+          className="button button-secondary"
+          type="button"
+          disabled={cancelPendingJobId === job.id}
+          onClick={() => onCancel(job.id)}
+        >
+          {cancelPendingJobId === job.id ? "Canceling…" : "Cancel analysis"}
+        </button>
       ) : null}
     </article>
   );

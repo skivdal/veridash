@@ -1,5 +1,6 @@
 """Executable PostgreSQL state-machine coverage across scheduler and worker owners."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -444,6 +445,53 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
             recovered_lost_job = await reconcile_connection(connection, scheduler_settings)
             assert recovered_lost_job.recovered_attempts == 1
 
+            await _register_definition(scheduler, "canceled_worker", [])
+            canceled_job_id = await _create_job(
+                scheduler,
+                project_id=project_id,
+                media_id=media_id,
+                module_id="canceled_worker",
+                cache_character="5",
+                max_attempts=2,
+            )
+            canceled_ready = await reconcile_connection(connection, scheduler_settings)
+            assert canceled_ready.resolved_jobs == 1
+            canceled_attempt_id = uuid4()
+            canceled_lease_token = uuid4()
+            claimed_canceled_job = await worker.claim_ready_analysis_job(
+                ClaimReadyAnalysisJobParams(
+                    resource_class=worker_models.AnalysisResourceClass.CPU,
+                    attempt_id=canceled_attempt_id,
+                    worker_id="cpu-worker-3",
+                    lease_token=canceled_lease_token,
+                    lease_seconds=60,
+                )
+            )
+            assert claimed_canceled_job is not None
+            assert claimed_canceled_job.job_id == canceled_job_id
+            await connection.execute(
+                text(
+                    """
+                    UPDATE analysis_job
+                    SET cancel_requested_at = now()
+                    WHERE id = :job_id
+                    """
+                ),
+                {"job_id": canceled_job_id},
+            )
+            await connection.execute(
+                text(
+                    """
+                    UPDATE analysis_job_attempt
+                    SET lease_expires_at = now() - interval '1 second'
+                    WHERE id = :attempt_id
+                    """
+                ),
+                {"attempt_id": canceled_attempt_id},
+            )
+            recovered_cancellation = await reconcile_connection(connection, scheduler_settings)
+            assert recovered_cancellation.recovered_attempts == 1
+
             api_queries = ApiAnalysisQuerier(connection)
             jobs = [
                 row
@@ -457,6 +505,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 "extract_coordinates": api_models.AnalysisJobState.FAILED,
                 "map_context": api_models.AnalysisJobState.BLOCKED,
                 "lost_worker": api_models.AnalysisJobState.FAILED,
+                "canceled_worker": api_models.AnalysisJobState.CANCELED,
             }
             attempts = [
                 row
@@ -472,6 +521,7 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
                 probe_job_id: [1],
                 coordinates_job_id: [1, 2],
                 lost_job_id: [1],
+                canceled_job_id: [1],
             }
             events = [
                 row
@@ -523,7 +573,7 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
                 project_id=project_id,
                 media_id=media_id,
                 module_id=manifest.module_id,
-                cache_character=uuid4().hex[0],
+                cache_character="6",
             )
             await connection.execute(
                 text("UPDATE analysis_job SET parameters = :parameters WHERE id = :job_id"),
@@ -540,7 +590,7 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
         worker_settings = WorkerSettings(
             database_url=database_url,
             lease_seconds=30,
-            heartbeat_interval_seconds=1,
+            heartbeat_interval_seconds=0.1,
             retry_delay_seconds=0,
         )
         assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 1
@@ -565,6 +615,48 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
         assert second_claim is not None
         second_outcome = await supervise_attempt(engine, second_claim, worker_settings)
         assert second_outcome.state == "succeeded"
+
+        async with engine.begin() as connection:
+            scheduler = SchedulerAnalysisQuerier(connection)
+            canceled_job_id = await _create_job(
+                scheduler,
+                project_id=project_id,
+                media_id=media_id,
+                module_id=manifest.module_id,
+                cache_character="7",
+            )
+            await connection.execute(
+                text("UPDATE analysis_job SET parameters = :parameters WHERE id = :job_id"),
+                {
+                    "job_id": canceled_job_id,
+                    "parameters": json.dumps({"steps": 5, "delay_seconds": 1}),
+                },
+            )
+        assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 1
+        canceled_claim = await claim_once(
+            engine,
+            resource_class=ResourceClass.CPU,
+            worker_id="supervisor-cancellation-test",
+            settings=worker_settings,
+        )
+        assert canceled_claim is not None
+        cancellation_run = asyncio.create_task(
+            supervise_attempt(engine, canceled_claim, worker_settings)
+        )
+        await asyncio.sleep(0.05)
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    """
+                    UPDATE analysis_job
+                    SET cancel_requested_at = now()
+                    WHERE id = :job_id
+                    """
+                ),
+                {"job_id": canceled_job_id},
+            )
+        canceled_outcome = await cancellation_run
+        assert canceled_outcome.state == "canceled"
 
         async with engine.connect() as connection:
             job = (
@@ -617,6 +709,31 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
                 "deterministic_value": "synthetic:2",
             }
             assert artifact.schema_id == "veridash.synthetic_test"
+            canceled_attempt = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT state, error_kind
+                        FROM analysis_job_attempt
+                        WHERE job_id = :job_id
+                        """
+                    ),
+                    {"job_id": canceled_job_id},
+                )
+            ).one()
+            assert canceled_attempt.state == "canceled"
+            assert canceled_attempt.error_kind == "canceled"
+            canceled_artifacts = await connection.scalar(
+                text(
+                    """
+                    SELECT count(*)
+                    FROM analysis_job_artifact
+                    WHERE job_id = :job_id
+                    """
+                ),
+                {"job_id": canceled_job_id},
+            )
+            assert canceled_artifacts == 0
     finally:
         if project_id is not None:
             async with engine.begin() as connection:

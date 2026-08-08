@@ -31,6 +31,7 @@ from veridash_worker.config import Settings
 from veridash_worker.db.sqlc import models
 from veridash_worker.db.sqlc.attempts import (
     AsyncQuerier,
+    CancelAnalysisAttemptRow,
     ClaimReadyAnalysisJobParams,
     ClaimReadyAnalysisJobRow,
     FailAnalysisAttemptParams,
@@ -54,6 +55,10 @@ CHILD_ENVIRONMENT_KEYS = (
 
 class LeaseLostError(RuntimeError):
     """The attempt is no longer owned by this supervisor."""
+
+
+class AttemptCanceledError(RuntimeError):
+    """The server has durably requested cancellation of this attempt."""
 
 
 class ChildProtocolError(RuntimeError):
@@ -183,6 +188,7 @@ async def supervise_attempt(
     terminal: ResultMessage | ErrorMessage | None = None
     protocol_failure: str | None = None
     stalled_failure: str | None = None
+    cancellation_requested = False
     progress_tracker = ProgressTracker.for_manifest(manifest, settings.startup_stall_seconds)
     try:
         while True:
@@ -231,6 +237,8 @@ async def supervise_attempt(
             if progress_tracker.remaining_seconds() <= 0:
                 stalled_failure = "child stopped making semantic progress"
                 break
+    except AttemptCanceledError:
+        cancellation_requested = True
     except (ChildProtocolError, LeaseLostError) as exception:
         protocol_failure = str(exception)
     except asyncio.CancelledError:
@@ -246,7 +254,9 @@ async def supervise_attempt(
         if terminal is not None
         else None
     )
-    if (protocol_failure is not None or stalled_failure is not None) and process.returncode is None:
+    if (
+        protocol_failure is not None or stalled_failure is not None or cancellation_requested
+    ) and process.returncode is None:
         await _stop_process(process)
     if process.returncode is None:
         try:
@@ -261,6 +271,11 @@ async def supervise_attempt(
         protocol_failure = "child emitted data after its terminal message"
     stderr = (await stderr_task).decode(errors="replace")
 
+    if cancellation_requested:
+        canceled = await _record_requested_cancellation(engine, claim)
+        if canceled is None:
+            raise LeaseLostError("attempt lease was lost while recording cancellation")
+        return _canceled_outcome(claim, canceled)
     if stalled_failure is not None:
         return await _fail(
             engine,
@@ -291,7 +306,20 @@ async def supervise_attempt(
                 settings,
             )
         try:
+            await _renew_lease(engine, claim, settings)
             await _publish_result(engine, claim, manifest, terminal)
+        except AttemptCanceledError as exception:
+            canceled = await _record_requested_cancellation(engine, claim)
+            if canceled is None:
+                raise LeaseLostError(
+                    "attempt lease was lost while recording cancellation"
+                ) from exception
+            return _canceled_outcome(claim, canceled)
+        except LeaseLostError:
+            canceled = await _record_requested_cancellation(engine, claim)
+            if canceled is not None:
+                return _canceled_outcome(claim, canceled)
+            raise
         except ChildProtocolError as exception:
             return await _fail_internal(engine, claim, str(exception), stderr, settings)
         return AttemptOutcome(job_id=claim.job_id, state="succeeded")
@@ -363,6 +391,8 @@ async def _renew_lease(
         )
     if renewed is None:
         raise LeaseLostError("attempt lease was lost")
+    if renewed.cancel_requested_at is not None:
+        raise AttemptCanceledError
 
 
 async def _report_progress(
@@ -385,6 +415,8 @@ async def _report_progress(
         )
     if updated is None:
         raise LeaseLostError("attempt lease was lost while reporting progress")
+    if updated.cancel_requested_at is not None:
+        raise AttemptCanceledError
 
 
 async def _publish_result(
@@ -493,8 +525,29 @@ async def _fail(
             )
         )
     if failed is None:
+        canceled = await _record_requested_cancellation(engine, claim)
+        if canceled is not None:
+            return _canceled_outcome(claim, canceled)
         raise LeaseLostError("attempt lease was lost while recording failure")
     return AttemptOutcome(job_id=claim.job_id, state=cast(str, failed.state))
+
+
+async def _record_requested_cancellation(
+    engine: AsyncEngine,
+    claim: ClaimReadyAnalysisJobRow,
+) -> CancelAnalysisAttemptRow | None:
+    async with engine.begin() as connection:
+        return await AsyncQuerier(connection).cancel_analysis_attempt(
+            attempt_id=claim.id,
+            lease_token=claim.lease_token,
+        )
+
+
+def _canceled_outcome(
+    claim: ClaimReadyAnalysisJobRow,
+    canceled: CancelAnalysisAttemptRow,
+) -> AttemptOutcome:
+    return AttemptOutcome(job_id=claim.job_id, state=cast(str, canceled.state))
 
 
 def _diagnostic_document(message: str | None, stderr: str) -> Mapping[str, str] | None:

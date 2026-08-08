@@ -302,7 +302,8 @@ WITH candidates AS MATERIALIZED (
         attempt.project_id,
         attempt.job_id,
         attempt.attempt_number,
-        job.max_attempts
+        job.max_attempts,
+        job.cancel_requested_at
     FROM analysis_job_attempt AS attempt
     JOIN analysis_job AS job ON job.id = attempt.job_id
     WHERE
@@ -315,9 +316,21 @@ WITH candidates AS MATERIALIZED (
 ), lost_attempt AS (
     UPDATE analysis_job_attempt AS attempt
     SET
-        state = 'lost',
-        error_kind = 'worker_lost',
-        public_error_message = 'The analysis worker stopped responding.',
+        state = CASE
+            WHEN candidates.cancel_requested_at IS NOT NULL
+            THEN 'canceled'\\:\\:analysis_attempt_state
+            ELSE 'lost'\\:\\:analysis_attempt_state
+        END,
+        error_kind = CASE
+            WHEN candidates.cancel_requested_at IS NOT NULL
+            THEN 'canceled'\\:\\:analysis_error_kind
+            ELSE 'worker_lost'\\:\\:analysis_error_kind
+        END,
+        public_error_message = CASE
+            WHEN candidates.cancel_requested_at IS NOT NULL
+            THEN 'The analysis was canceled.'
+            ELSE 'The analysis worker stopped responding.'
+        END,
         finished_at = now()
     FROM candidates
     WHERE attempt.id = candidates.id
@@ -326,22 +339,34 @@ WITH candidates AS MATERIALIZED (
     UPDATE analysis_job AS job
     SET
         state = CASE
+            WHEN candidates.cancel_requested_at IS NOT NULL
+            THEN 'canceled'\\:\\:analysis_job_state
             WHEN candidates.attempt_number < candidates.max_attempts
             THEN 'retry_wait'\\:\\:analysis_job_state
             ELSE 'failed'\\:\\:analysis_job_state
         END,
         next_attempt_at = CASE
-            WHEN candidates.attempt_number < candidates.max_attempts
+            WHEN candidates.cancel_requested_at IS NULL
+                AND candidates.attempt_number < candidates.max_attempts
             THEN now() + make_interval(secs => :p2\\:\\:INT)
             ELSE NULL
         END,
         finished_at = CASE
-            WHEN candidates.attempt_number < candidates.max_attempts
+            WHEN candidates.cancel_requested_at IS NULL
+                AND candidates.attempt_number < candidates.max_attempts
             THEN NULL
             ELSE now()
         END,
-        failure_kind = 'worker_lost',
-        public_failure_message = 'The analysis worker stopped responding.',
+        failure_kind = CASE
+            WHEN candidates.cancel_requested_at IS NOT NULL
+            THEN 'canceled'\\:\\:analysis_error_kind
+            ELSE 'worker_lost'\\:\\:analysis_error_kind
+        END,
+        public_failure_message = CASE
+            WHEN candidates.cancel_requested_at IS NOT NULL
+            THEN 'The analysis was canceled.'
+            ELSE 'The analysis worker stopped responding.'
+        END,
         updated_at = now()
     FROM candidates
     JOIN lost_attempt ON lost_attempt.id = candidates.id
@@ -360,7 +385,10 @@ WITH candidates AS MATERIALIZED (
         updated_job.project_id,
         updated_job.id,
         lost_attempt.id,
-        'job.error',
+        CASE
+            WHEN updated_job.state = 'canceled' THEN 'job.state_changed'
+            ELSE 'job.error'
+        END,
         'scheduler',
         jsonb_build_object(
             'state', updated_job.state,

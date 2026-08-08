@@ -1271,6 +1271,123 @@ export function useListProjectAnalysesApiProjectsProjectIdAnalysesGet<TData = Aw
 
 
 
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse200 = {
+  data: AnalysisJobResponse
+  status: 200
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponseSuccess = (cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse200) & {
+  headers: Headers;
+};
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponseError = (cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse401 | cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse403 | cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse404 | cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse409 | cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse422 | cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse500) & {
+  headers: Headers;
+};
+
+export type cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse = (cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponseSuccess | cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponseError)
+
+export const getCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostUrl = (projectId: string,
+    jobId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/analyses/${jobId}/cancel`
+}
+
+/**
+ * @summary Cancel Project Analysis
+ */
+export const cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost = async (projectId: string,
+    jobId: string, options?: RequestInit): Promise<cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse> => {
+
+  return apiFetch<cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostResponse>(getCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostUrl(projectId,jobId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostMutationOptions = <TError = ErrorType<ProblemResponse | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost>>, TError,{projectId: string;jobId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost>>, TError,{projectId: string;jobId: string}, TContext> => {
+
+const mutationKey = ['cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost>>, {projectId: string;jobId: string}> = (props) => {
+          const {projectId,jobId} = props ?? {};
+
+          return  cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost(projectId,jobId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostMutationResult = NonNullable<Awaited<ReturnType<typeof cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost>>>
+
+    export type CancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostMutationError = ErrorType<ProblemResponse | HTTPValidationError>
+
+    /**
+ * @summary Cancel Project Analysis
+ */
+export const useCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost = <TError = ErrorType<ProblemResponse | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost>>, TError,{projectId: string;jobId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPost>>,
+        TError,
+        {projectId: string;jobId: string},
+        TContext
+      > => {
+      return useMutation(getCancelProjectAnalysisApiProjectsProjectIdAnalysesJobIdCancelPostMutationOptions(options), queryClient);
+    }
+
 export type archiveProjectApiProjectsProjectIdArchivePostResponse200 = {
   data: ProjectResponse
   status: 200

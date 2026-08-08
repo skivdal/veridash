@@ -93,6 +93,69 @@ JOIN analysis_definition AS definition
 WHERE job.id = sqlc.arg(job_id) AND project.user_id = sqlc.arg(user_id)
 LIMIT 1;
 
+-- name: RequestProjectAnalysisJobCancellation :one
+WITH target AS MATERIALIZED (
+    SELECT job.*
+    FROM analysis_job AS job
+    JOIN project ON project.id = job.project_id
+    WHERE
+        job.id = sqlc.arg(job_id)
+        AND job.project_id = sqlc.arg(project_id)
+        AND project.user_id = sqlc.arg(user_id)
+        AND job.state IN (
+            'waiting_for_dependencies',
+            'ready',
+            'running',
+            'retry_wait',
+            'canceled'
+        )
+    FOR UPDATE OF job
+), updated AS (
+    UPDATE analysis_job AS job
+    SET
+        cancel_requested_at = COALESCE(job.cancel_requested_at, now()),
+        state = CASE
+            WHEN target.state = 'running' THEN 'running'::analysis_job_state
+            ELSE 'canceled'::analysis_job_state
+        END,
+        next_attempt_at = NULL,
+        finished_at = CASE
+            WHEN target.state = 'running' THEN NULL
+            ELSE COALESCE(job.finished_at, now())
+        END,
+        failure_kind = CASE
+            WHEN target.state = 'running' THEN NULL
+            ELSE 'canceled'::analysis_error_kind
+        END,
+        public_failure_message = CASE
+            WHEN target.state = 'running' THEN NULL
+            ELSE 'The analysis was canceled.'
+        END,
+        diagnostic_id = NULL,
+        updated_at = CASE
+            WHEN target.cancel_requested_at IS NULL THEN now()
+            ELSE job.updated_at
+        END
+    FROM target
+    WHERE job.id = target.id
+    RETURNING job.*
+), event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        updated.project_id,
+        updated.id,
+        CASE
+            WHEN updated.state = 'running' THEN 'job.cancel_requested'
+            ELSE 'job.state_changed'
+        END,
+        'user',
+        jsonb_build_object('state', updated.state)
+    FROM updated
+    JOIN target ON target.id = updated.id
+    WHERE target.cancel_requested_at IS NULL
+)
+SELECT * FROM updated;
+
 -- name: ListAnalysisJobArtifacts :many
 SELECT
     artifact.id,

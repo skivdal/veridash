@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
-from veridash_api.auth.dependencies import ApiSettings, CurrentSession
+from veridash_api.auth.dependencies import ApiSettings, CurrentSession, MutationSession
 from veridash_api.database import DatabaseConnection, DatabaseEngine
 from veridash_api.errors import ApiProblem
 from veridash_api.models import PROBLEM_RESPONSE, AnalysisJobResponse
@@ -34,6 +34,30 @@ async def list_project_analyses(
         connection,
         user_id=session.user_id,
         project_id=project_id,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/analyses/{job_id}/cancel",
+    response_model=AnalysisJobResponse,
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        403: {**PROBLEM_RESPONSE, "description": "CSRF check failed"},
+        404: {**PROBLEM_RESPONSE, "description": "Analysis not found"},
+        409: {**PROBLEM_RESPONSE, "description": "Analysis already finished"},
+    },
+)
+async def cancel_project_analysis(
+    project_id: UUID,
+    job_id: UUID,
+    connection: DatabaseConnection,
+    session: MutationSession,
+) -> AnalysisJobResponse:
+    return await analysis_service.cancel_project_analysis(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+        job_id=job_id,
     )
 
 

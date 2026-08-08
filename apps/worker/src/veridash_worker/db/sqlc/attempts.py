@@ -13,6 +13,91 @@ import sqlalchemy.ext.asyncio
 from veridash_worker.db.sqlc import models
 
 
+CANCEL_ANALYSIS_ATTEMPT = """-- name: cancel_analysis_attempt \\:one
+WITH eligible AS MATERIALIZED (
+    SELECT attempt.id, attempt.project_id, attempt.job_id
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.id = :p1
+        AND attempt.lease_token = :p2
+        AND attempt.state = 'running'
+        AND job.state = 'running'
+        AND job.cancel_requested_at IS NOT NULL
+    FOR UPDATE OF attempt, job
+), finished_attempt AS (
+    UPDATE analysis_job_attempt AS attempt
+    SET
+        state = 'canceled',
+        error_kind = 'canceled',
+        public_error_message = 'The analysis was canceled.',
+        finished_at = now()
+    FROM eligible
+    WHERE attempt.id = eligible.id
+    RETURNING attempt.id, attempt.project_id, attempt.job_id, attempt.attempt_number, attempt.state, attempt.worker_id, attempt.lease_token, attempt.lease_expires_at, attempt.heartbeat_at, attempt.progress_stage, attempt.progress_completed, attempt.progress_total, attempt.progress_message, attempt.progress_at, attempt.error_kind, attempt.public_error_message, attempt.diagnostic_id, attempt.diagnostic_details, attempt.started_at, attempt.finished_at
+), updated_job AS (
+    UPDATE analysis_job AS job
+    SET
+        state = 'canceled',
+        finished_at = now(),
+        failure_kind = 'canceled',
+        public_failure_message = 'The analysis was canceled.',
+        diagnostic_id = NULL,
+        updated_at = now()
+    FROM eligible
+    JOIN finished_attempt ON finished_attempt.id = eligible.id
+    WHERE job.id = eligible.job_id
+    RETURNING job.id, job.project_id, job.source_media_id, job.module_id, job.implementation_version, job.state, job.parameters, job.request_key, job.priority, job.max_attempts, job.next_attempt_at, job.ready_at, job.started_at, job.finished_at, job.cancel_requested_at, job.failure_kind, job.public_failure_message, job.diagnostic_id, job.reused_from_job_id, job.created_at, job.updated_at, job.winning_attempt_id, job.cache_key
+), event AS (
+    INSERT INTO project_event (
+        project_id,
+        job_id,
+        attempt_id,
+        event_type,
+        source,
+        payload
+    )
+    SELECT
+        updated_job.project_id,
+        updated_job.id,
+        finished_attempt.id,
+        'job.state_changed',
+        'worker',
+        jsonb_build_object('state', updated_job.state)
+    FROM updated_job
+    JOIN finished_attempt ON finished_attempt.job_id = updated_job.id
+)
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM updated_job
+"""
+
+
+@dataclasses.dataclass()
+class CancelAnalysisAttemptRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: models.AnalysisJobState
+    parameters: Any
+    request_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[models.AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
+
+
 CLAIM_READY_ANALYSIS_JOB = """-- name: claim_ready_analysis_job \\:one
 WITH candidate AS MATERIALIZED (
     SELECT
@@ -159,6 +244,7 @@ WITH eligible AS MATERIALIZED (
         AND attempt.lease_token = :p2
         AND attempt.state = 'running'
         AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
     FOR UPDATE OF attempt, job
 ), finished_attempt AS (
     UPDATE analysis_job_attempt AS attempt
@@ -251,6 +337,7 @@ WITH eligible AS MATERIALIZED (
         AND attempt.lease_token = :p2
         AND attempt.state = 'running'
         AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
     FOR UPDATE OF attempt, job
 ), finished_attempt AS (
     UPDATE analysis_job_attempt AS attempt
@@ -370,6 +457,7 @@ WITH eligible AS MATERIALIZED (
         AND attempt.lease_token = :p2
         AND attempt.state = 'running'
         AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
     FOR UPDATE OF attempt, job
 ), artifact AS (
     INSERT INTO analysis_artifact (
@@ -436,16 +524,46 @@ class PublishJsonAnalysisArtifactRow:
 
 
 RENEW_ANALYSIS_ATTEMPT_LEASE = """-- name: renew_analysis_attempt_lease \\:one
-UPDATE analysis_job_attempt AS attempt
-SET
-    heartbeat_at = now(),
-    lease_expires_at = now() + make_interval(secs => :p1\\:\\:INT)
-WHERE
-    attempt.id = :p2
-    AND attempt.lease_token = :p3
-    AND attempt.state = 'running'
-RETURNING attempt.id, attempt.project_id, attempt.job_id, attempt.attempt_number, attempt.state, attempt.worker_id, attempt.lease_token, attempt.lease_expires_at, attempt.heartbeat_at, attempt.progress_stage, attempt.progress_completed, attempt.progress_total, attempt.progress_message, attempt.progress_at, attempt.error_kind, attempt.public_error_message, attempt.diagnostic_id, attempt.diagnostic_details, attempt.started_at, attempt.finished_at
+WITH updated AS (
+    UPDATE analysis_job_attempt AS attempt
+    SET
+        heartbeat_at = now(),
+        lease_expires_at = now() + make_interval(secs => :p1\\:\\:INT)
+    WHERE
+        attempt.id = :p2
+        AND attempt.lease_token = :p3
+        AND attempt.state = 'running'
+    RETURNING attempt.id, attempt.project_id, attempt.job_id, attempt.attempt_number, attempt.state, attempt.worker_id, attempt.lease_token, attempt.lease_expires_at, attempt.heartbeat_at, attempt.progress_stage, attempt.progress_completed, attempt.progress_total, attempt.progress_message, attempt.progress_at, attempt.error_kind, attempt.public_error_message, attempt.diagnostic_id, attempt.diagnostic_details, attempt.started_at, attempt.finished_at
+)
+SELECT updated.id, updated.project_id, updated.job_id, updated.attempt_number, updated.state, updated.worker_id, updated.lease_token, updated.lease_expires_at, updated.heartbeat_at, updated.progress_stage, updated.progress_completed, updated.progress_total, updated.progress_message, updated.progress_at, updated.error_kind, updated.public_error_message, updated.diagnostic_id, updated.diagnostic_details, updated.started_at, updated.finished_at, job.cancel_requested_at
+FROM updated
+JOIN analysis_job AS job ON job.id = updated.job_id
 """
+
+
+@dataclasses.dataclass()
+class RenewAnalysisAttemptLeaseRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    job_id: uuid.UUID
+    attempt_number: int
+    state: models.AnalysisAttemptState
+    worker_id: str
+    lease_token: uuid.UUID
+    lease_expires_at: datetime.datetime
+    heartbeat_at: datetime.datetime
+    progress_stage: Optional[str]
+    progress_completed: Optional[int]
+    progress_total: Optional[int]
+    progress_message: Optional[str]
+    progress_at: Optional[datetime.datetime]
+    error_kind: Optional[models.AnalysisErrorKind]
+    public_error_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    diagnostic_details: Optional[Any]
+    started_at: datetime.datetime
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
 
 
 REPORT_ANALYSIS_ATTEMPT_PROGRESS = """-- name: report_analysis_attempt_progress \\:one
@@ -489,7 +607,9 @@ WITH updated_attempt AS (
         )
     FROM updated_attempt
 )
-SELECT id, project_id, job_id, attempt_number, state, worker_id, lease_token, lease_expires_at, heartbeat_at, progress_stage, progress_completed, progress_total, progress_message, progress_at, error_kind, public_error_message, diagnostic_id, diagnostic_details, started_at, finished_at FROM updated_attempt
+SELECT updated_attempt.id, updated_attempt.project_id, updated_attempt.job_id, updated_attempt.attempt_number, updated_attempt.state, updated_attempt.worker_id, updated_attempt.lease_token, updated_attempt.lease_expires_at, updated_attempt.heartbeat_at, updated_attempt.progress_stage, updated_attempt.progress_completed, updated_attempt.progress_total, updated_attempt.progress_message, updated_attempt.progress_at, updated_attempt.error_kind, updated_attempt.public_error_message, updated_attempt.diagnostic_id, updated_attempt.diagnostic_details, updated_attempt.started_at, updated_attempt.finished_at, job.cancel_requested_at
+FROM updated_attempt
+JOIN analysis_job AS job ON job.id = updated_attempt.job_id
 """
 
 
@@ -526,11 +646,42 @@ class ReportAnalysisAttemptProgressRow:
     diagnostic_details: Optional[Any]
     started_at: datetime.datetime
     finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
 
 
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
+
+    async def cancel_analysis_attempt(self, *, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[CancelAnalysisAttemptRow]:
+        row = (await self._conn.execute(sqlalchemy.text(CANCEL_ANALYSIS_ATTEMPT), {"p1": attempt_id, "p2": lease_token})).first()
+        if row is None:
+            return None
+        return CancelAnalysisAttemptRow(
+            id=row[0],
+            project_id=row[1],
+            source_media_id=row[2],
+            module_id=row[3],
+            implementation_version=row[4],
+            state=row[5],
+            parameters=row[6],
+            request_key=row[7],
+            priority=row[8],
+            max_attempts=row[9],
+            next_attempt_at=row[10],
+            ready_at=row[11],
+            started_at=row[12],
+            finished_at=row[13],
+            cancel_requested_at=row[14],
+            failure_kind=row[15],
+            public_failure_message=row[16],
+            diagnostic_id=row[17],
+            reused_from_job_id=row[18],
+            created_at=row[19],
+            updated_at=row[20],
+            winning_attempt_id=row[21],
+            cache_key=row[22],
+        )
 
     async def claim_ready_analysis_job(self, arg: ClaimReadyAnalysisJobParams) -> Optional[ClaimReadyAnalysisJobRow]:
         row = (await self._conn.execute(sqlalchemy.text(CLAIM_READY_ANALYSIS_JOB), {
@@ -670,11 +821,11 @@ class AsyncQuerier:
             created_at=row[10],
         )
 
-    async def renew_analysis_attempt_lease(self, *, lease_seconds: int, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[models.AnalysisJobAttempt]:
+    async def renew_analysis_attempt_lease(self, *, lease_seconds: int, attempt_id: uuid.UUID, lease_token: uuid.UUID) -> Optional[RenewAnalysisAttemptLeaseRow]:
         row = (await self._conn.execute(sqlalchemy.text(RENEW_ANALYSIS_ATTEMPT_LEASE), {"p1": lease_seconds, "p2": attempt_id, "p3": lease_token})).first()
         if row is None:
             return None
-        return models.AnalysisJobAttempt(
+        return RenewAnalysisAttemptLeaseRow(
             id=row[0],
             project_id=row[1],
             job_id=row[2],
@@ -695,6 +846,7 @@ class AsyncQuerier:
             diagnostic_details=row[17],
             started_at=row[18],
             finished_at=row[19],
+            cancel_requested_at=row[20],
         )
 
     async def report_analysis_attempt_progress(self, arg: ReportAnalysisAttemptProgressParams) -> Optional[ReportAnalysisAttemptProgressRow]:
@@ -730,4 +882,5 @@ class AsyncQuerier:
             diagnostic_details=row[17],
             started_at=row[18],
             finished_at=row[19],
+            cancel_requested_at=row[20],
         )

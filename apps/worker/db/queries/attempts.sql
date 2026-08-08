@@ -92,15 +92,20 @@ JOIN updated_job ON updated_job.id = inserted_attempt.job_id
 JOIN candidate ON candidate.id = inserted_attempt.job_id;
 
 -- name: RenewAnalysisAttemptLease :one
-UPDATE analysis_job_attempt AS attempt
-SET
-    heartbeat_at = now(),
-    lease_expires_at = now() + make_interval(secs => sqlc.arg(lease_seconds)::INT)
-WHERE
-    attempt.id = sqlc.arg(attempt_id)
-    AND attempt.lease_token = sqlc.arg(lease_token)
-    AND attempt.state = 'running'
-RETURNING attempt.*;
+WITH updated AS (
+    UPDATE analysis_job_attempt AS attempt
+    SET
+        heartbeat_at = now(),
+        lease_expires_at = now() + make_interval(secs => sqlc.arg(lease_seconds)::INT)
+    WHERE
+        attempt.id = sqlc.arg(attempt_id)
+        AND attempt.lease_token = sqlc.arg(lease_token)
+        AND attempt.state = 'running'
+    RETURNING attempt.*
+)
+SELECT updated.*, job.cancel_requested_at
+FROM updated
+JOIN analysis_job AS job ON job.id = updated.job_id;
 
 -- name: ReportAnalysisAttemptProgress :one
 WITH updated_attempt AS (
@@ -143,7 +148,65 @@ WITH updated_attempt AS (
         )
     FROM updated_attempt
 )
-SELECT * FROM updated_attempt;
+SELECT updated_attempt.*, job.cancel_requested_at
+FROM updated_attempt
+JOIN analysis_job AS job ON job.id = updated_attempt.job_id;
+
+-- name: CancelAnalysisAttempt :one
+WITH eligible AS MATERIALIZED (
+    SELECT attempt.id, attempt.project_id, attempt.job_id
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.id = sqlc.arg(attempt_id)
+        AND attempt.lease_token = sqlc.arg(lease_token)
+        AND attempt.state = 'running'
+        AND job.state = 'running'
+        AND job.cancel_requested_at IS NOT NULL
+    FOR UPDATE OF attempt, job
+), finished_attempt AS (
+    UPDATE analysis_job_attempt AS attempt
+    SET
+        state = 'canceled',
+        error_kind = 'canceled',
+        public_error_message = 'The analysis was canceled.',
+        finished_at = now()
+    FROM eligible
+    WHERE attempt.id = eligible.id
+    RETURNING attempt.*
+), updated_job AS (
+    UPDATE analysis_job AS job
+    SET
+        state = 'canceled',
+        finished_at = now(),
+        failure_kind = 'canceled',
+        public_failure_message = 'The analysis was canceled.',
+        diagnostic_id = NULL,
+        updated_at = now()
+    FROM eligible
+    JOIN finished_attempt ON finished_attempt.id = eligible.id
+    WHERE job.id = eligible.job_id
+    RETURNING job.*
+), event AS (
+    INSERT INTO project_event (
+        project_id,
+        job_id,
+        attempt_id,
+        event_type,
+        source,
+        payload
+    )
+    SELECT
+        updated_job.project_id,
+        updated_job.id,
+        finished_attempt.id,
+        'job.state_changed',
+        'worker',
+        jsonb_build_object('state', updated_job.state)
+    FROM updated_job
+    JOIN finished_attempt ON finished_attempt.job_id = updated_job.id
+)
+SELECT * FROM updated_job;
 
 -- name: CompleteAnalysisAttempt :one
 WITH eligible AS MATERIALIZED (
@@ -155,6 +218,7 @@ WITH eligible AS MATERIALIZED (
         AND attempt.lease_token = sqlc.arg(lease_token)
         AND attempt.state = 'running'
         AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
     FOR UPDATE OF attempt, job
 ), finished_attempt AS (
     UPDATE analysis_job_attempt AS attempt
@@ -213,6 +277,7 @@ WITH eligible AS MATERIALIZED (
         AND attempt.lease_token = sqlc.arg(lease_token)
         AND attempt.state = 'running'
         AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
     FOR UPDATE OF attempt, job
 ), artifact AS (
     INSERT INTO analysis_artifact (
@@ -262,6 +327,7 @@ WITH eligible AS MATERIALIZED (
         AND attempt.lease_token = sqlc.arg(lease_token)
         AND attempt.state = 'running'
         AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
     FOR UPDATE OF attempt, job
 ), finished_attempt AS (
     UPDATE analysis_job_attempt AS attempt

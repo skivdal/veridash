@@ -382,12 +382,34 @@ async def test_session_project_and_media_lifecycle_survives_api_restart(
             }
             assert all(job["state"] == "waiting_for_dependencies" for job in analyses.json())
 
+            derived_job = next(job for job in analyses.json() if job["module_id"] == "test_derived")
+            rejected_cancel = await client.post(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/cancel"
+            )
+            assert rejected_cancel.status_code == 403
+            cancel = await client.post(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/cancel",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert cancel.status_code == 200
+            canceled_job = cancel.json()
+            assert canceled_job["state"] == "canceled"
+            assert canceled_job["failure_kind"] == "canceled"
+            assert canceled_job["cancel_requested_at"] is not None
+            cancel_again = await client.post(
+                f"/api/projects/{project['id']}/analyses/{derived_job['id']}/cancel",
+                headers={"X-CSRF-Token": csrf_token},
+            )
+            assert cancel_again.status_code == 200
+            assert cancel_again.json()["finished_at"] == canceled_job["finished_at"]
+
             event_stream = await client.get(f"/api/projects/{project['id']}/events?after=0")
             assert event_stream.status_code == 200
             assert event_stream.headers["content-type"].startswith("text/event-stream")
             assert "event: project-event" in event_stream.text
             assert '"event_type":"media.uploaded"' in event_stream.text
             assert '"event_type":"job.created"' in event_stream.text
+            assert '"event_type":"job.state_changed"' in event_stream.text
 
             invalid_cursor = await client.get(
                 f"/api/projects/{project['id']}/events",
