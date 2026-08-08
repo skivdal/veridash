@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         default="default",
         pattern=r"^(default|float16|float32|int8|int8_float16|int8_float32)$",
     )
+    openai_api_key: SecretStr | None = None
 
     @field_validator("data_root")
     @classmethod

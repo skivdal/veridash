@@ -7,9 +7,13 @@
       - veridash_scheduler_image is regex('.+@sha256:[0-9a-f]{64}$')
       - veridash_worker_image is regex('.+@sha256:[0-9a-f]{64}$')
       - not (veridash_enable_gpu_worker | bool) or veridash_worker_gpu_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - not (veridash_enable_translation_worker | bool) or veridash_worker_translation_image is regex('.+@sha256:[0-9a-f]{64}$')
+      - not (veridash_enable_translation_worker | bool) or vault_veridash_openai_api_key | default('') | length > 0
       - veridash_migration_image is regex('.+@sha256:[0-9a-f]{64}$')
       - veridash_gpu_concurrency | int <= 2
       - veridash_gpu_concurrency | int >= 1
+      - veridash_translation_concurrency | int >= 1
+      - veridash_translation_concurrency | int <= 4
     fail_msg: Release images must use immutable OCI digest references.
 
 - name: Check the built frontend on the control host
@@ -28,7 +32,7 @@
   community.docker.docker_image:
     name: "{{ item }}"
     source: pull
-  loop: "{{ [veridash_api_image, veridash_scheduler_image, veridash_worker_image, veridash_migration_image] + ([veridash_worker_gpu_image] if veridash_enable_gpu_worker else []) }}"
+  loop: "{{ [veridash_api_image, veridash_scheduler_image, veridash_worker_image, veridash_migration_image] + ([veridash_worker_gpu_image] if veridash_enable_gpu_worker else []) + ([veridash_worker_translation_image] if veridash_enable_translation_worker else []) }}"
   notify: Restart VeriDash release
 
 - name: Read the media-tool fingerprint from each application image
@@ -41,7 +45,7 @@
       - cat
       - "{{ item }}"
       - /opt/veridash/FFMPEG_FINGERPRINT
-  loop: "{{ [veridash_api_image, veridash_scheduler_image, veridash_worker_image] + ([veridash_worker_gpu_image] if veridash_enable_gpu_worker else []) }}"
+  loop: "{{ [veridash_api_image, veridash_scheduler_image, veridash_worker_image] + ([veridash_worker_gpu_image] if veridash_enable_gpu_worker else []) + ([veridash_worker_translation_image] if veridash_enable_translation_worker else []) }}"
   register: veridash_image_fingerprints
   changed_when: false
 
@@ -93,6 +97,17 @@
     - scheduler
     - worker
     - migration
+  notify: Restart VeriDash release
+
+- name: Render the restricted translation worker environment
+  when: veridash_enable_translation_worker | bool
+  no_log: true
+  ansible.builtin.template:
+    src: translation.env.j2
+    dest: "{{ veridash_config_root }}/translation.env"
+    owner: root
+    group: "{{ veridash_system_group }}"
+    mode: "0640"
   notify: Restart VeriDash release
 
 - name: Render the one-shot migration unit
@@ -190,6 +205,27 @@
       - "{{ veridash_transcription_model_path }}"
   changed_when: false
 
+- name: Render the optional translation worker unit
+  when: veridash_enable_translation_worker | bool
+  ansible.builtin.template:
+    src: veridash-container.service.j2
+    dest: /etc/systemd/system/veridash-worker-translation.service
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    veridash_service_name: veridash-worker-translation
+    veridash_service_description: VeriDash transcript translation worker
+    veridash_service_image: "{{ veridash_worker_translation_image }}"
+    veridash_service_environment: translation
+    veridash_service_command: "--pool translation --concurrency {{ veridash_translation_concurrency }}"
+    veridash_service_data_mount: true
+    veridash_service_memory_max: "{{ veridash_translation_worker_memory_max }}"
+    veridash_service_gpu: false
+  notify:
+    - Reload systemd
+    - Restart VeriDash release
+
 - name: Disable an obsolete GPU worker
   when: not (veridash_enable_gpu_worker | bool)
   ansible.builtin.systemd_service:
@@ -203,6 +239,24 @@
   ansible.builtin.file:
     path: /etc/systemd/system/veridash-worker-gpu.service
     state: absent
+  notify: Reload systemd
+
+- name: Disable an obsolete translation worker
+  when: not (veridash_enable_translation_worker | bool)
+  ansible.builtin.systemd_service:
+    name: veridash-worker-translation.service
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Remove obsolete translation worker files
+  when: not (veridash_enable_translation_worker | bool)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/veridash-worker-translation.service
+    - "{{ veridash_config_root }}/translation.env"
   notify: Reload systemd
 
 - name: Flush deployment handlers before readiness checks

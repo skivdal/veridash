@@ -1,8 +1,9 @@
 # VeriDash single-host operations
 
 The initial production shape is one Debian VPS: PostgreSQL, Nginx/TLS, static web
-files, and backups run on the host; the API, scheduler, CPU worker, optional GPU
-worker, and one-shot migrations run as immutable containers supervised by systemd.
+files, and backups run on the host; the API, scheduler, CPU worker, optional GPU and
+translation workers, and one-shot migrations run as immutable containers supervised
+by systemd.
 Docker Compose is not a production control plane.
 
 ## Build a release
@@ -23,6 +24,7 @@ docker build --target api -t REGISTRY/veridash-api:RELEASE .
 docker build --target scheduler -t REGISTRY/veridash-scheduler:RELEASE .
 docker build --target worker -t REGISTRY/veridash-worker:RELEASE .
 docker build --target worker-gpu -t REGISTRY/veridash-worker-gpu:RELEASE .
+docker build --target worker-translation -t REGISTRY/veridash-worker-translation:RELEASE .
 docker build --target migration -t REGISTRY/veridash-migration:RELEASE .
 ```
 
@@ -45,9 +47,12 @@ ansible-vault create ansible/inventory/group_vars/all/vault.yml
 The tested Ansible core and collection versions are recorded in
 `tools/versions.env`; use those versions on the control host.
 
-The vault must define `vault_veridash_database_password`. The inventory must use
-digest-qualified image references and a unique release ID. Keep inventory and vault
-files outside Git; the relevant conventional paths are ignored.
+The vault must define `vault_veridash_database_password`. Enabling translation also
+requires `vault_veridash_openai_api_key`, the digest-qualified translation-worker
+image, and `veridash_enable_translation_worker: true`. The provider credential is
+rendered only into that worker's restricted environment file. The inventory must
+use digest-qualified image references and a unique release ID. Keep inventory and
+vault files outside Git; the relevant conventional paths are ignored.
 
 Provision a new server from the repository root:
 
@@ -72,8 +77,10 @@ Docker socket, and only API/workers receive the blob-store mount.
 Useful checks:
 
 ```sh
-systemctl status veridash-api veridash-scheduler veridash-worker-cpu
-journalctl -u veridash-api -u veridash-scheduler -u veridash-worker-cpu -f
+systemctl status veridash-api veridash-scheduler veridash-worker-cpu \
+  veridash-worker-translation
+journalctl -u veridash-api -u veridash-scheduler -u veridash-worker-cpu \
+  -u veridash-worker-translation -f
 curl --fail http://127.0.0.1:8000/api/health
 nginx -t
 ```
@@ -94,6 +101,12 @@ Deployment downloads the exact `Systran/faster-whisper-medium` revision into the
 host data root before starting the GPU worker. Analysis children use that local
 snapshot with network downloads disabled. A missing or mismatched model becomes a
 durable configuration failure rather than an implicit download during a job.
+
+Translation uses a dedicated networked worker pool with concurrency one by default.
+Its OpenAI credential is not supplied to the API, scheduler, CPU worker, GPU worker,
+or unrelated analysis child processes. Transcript batches are sent only after local
+transcription completes; source transcripts remain independently available if
+translation is queued or fails.
 
 ## Backup and restore
 
@@ -120,7 +133,7 @@ confirmation interface:
 
 ```sh
 systemctl stop veridash-api veridash-scheduler veridash-worker-cpu \
-  veridash-worker-gpu
+  veridash-worker-gpu veridash-worker-translation
 /usr/local/sbin/veridash-restore --confirm \
   /var/backups/veridash/snapshots/YYYYMMDDTHHMMSSZ
 systemctl start veridash-api veridash-scheduler veridash-worker-cpu

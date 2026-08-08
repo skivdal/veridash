@@ -1047,6 +1047,7 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             "extract_coordinates",
             "extract_keyframes",
             "transcribe",
+            "translate_transcript",
         ]
         async with engine.begin() as connection:
             await connection.execute(
@@ -1080,7 +1081,7 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
             scheduler_settings,
             production_registry,
         )
-        assert reconciled.planned_jobs == 3
+        assert reconciled.planned_jobs == 4
         assert reconciled.resolved_jobs == 3
         assert (
             await reconcile_once(engine, scheduler_settings, production_registry)
@@ -1258,7 +1259,8 @@ async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Pa
                             'probe_media',
                             'extract_keyframes',
                             'extract_coordinates',
-                            'transcribe'
+                            'transcribe',
+                            'translate_transcript'
                         )
                             AND implementation_version = '1.0.0'
                         """

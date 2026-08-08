@@ -55,6 +55,14 @@ const transcriptJob = {
   attempts: [],
 } satisfies AnalysisJobResponse;
 
+const translationJob = {
+  ...transcriptJob,
+  id: "translation-job",
+  module_id: "translate_transcript",
+  display_name: "English translation",
+  resource_class: "translation",
+} satisfies AnalysisJobResponse;
+
 describe("analysis result cards", () => {
   it("renders the immutable timestamped transcript without interpreting it", async () => {
     vi.stubGlobal(
@@ -125,6 +133,7 @@ describe("analysis result cards", () => {
       <TranscriptCard
         projectId="project-id"
         job={transcriptJob}
+        translationJob={undefined}
         cancelPendingJobId={undefined}
         onCancel={vi.fn()}
         retryPendingJobId={undefined}
@@ -138,6 +147,104 @@ describe("analysis result cards", () => {
     ).toBeDefined();
     expect(screen.getByText("0:03")).toBeDefined();
     expect(screen.queryByText(/Inspect all/)).toBeNull();
+    expect(
+      screen.getByText(/No summary or interpretation is generated/),
+    ).toBeDefined();
+  });
+
+  it("switches between the independently stored original and English translation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("transcript-job") && url.endsWith("/artifacts")) {
+          return jsonResponse([
+            {
+              id: "transcript-artifact",
+              output_name: "transcript",
+              kind: "blob",
+              sha256_hex: "a".repeat(64),
+              size_bytes: 100,
+              media_type: "application/json",
+              json_payload: null,
+              schema_id: "veridash.transcript",
+              schema_version: 1,
+              created_at: "2026-08-08T12:00:02Z",
+            },
+          ]);
+        }
+        if (url.includes("translation-job") && url.endsWith("/artifacts")) {
+          return jsonResponse([
+            {
+              id: "translation-artifact",
+              output_name: "translation",
+              kind: "blob",
+              sha256_hex: "b".repeat(64),
+              size_bytes: 100,
+              media_type: "application/json",
+              json_payload: null,
+              schema_id: "veridash.transcript_translation",
+              schema_version: 1,
+              created_at: "2026-08-08T12:00:04Z",
+            },
+          ]);
+        }
+        if (url.includes("transcript-artifact") && url.endsWith("/content")) {
+          return jsonResponse({
+            detected_language: "no",
+            detected_language_probability: 0.97,
+            inference_device: "cuda",
+            inference_compute_type: "float16",
+            segments: [
+              {
+                ordinal: 1,
+                start_seconds: 3,
+                end_seconds: 5,
+                text: "Dette er kildens tale.",
+              },
+            ],
+          });
+        }
+        if (url.includes("translation-artifact") && url.endsWith("/content")) {
+          return jsonResponse({
+            source_language: "no",
+            target_language: "en",
+            status: "translated",
+            segments: [
+              {
+                ordinal: 1,
+                start_seconds: 3,
+                end_seconds: 5,
+                text: "This is the source speech.",
+              },
+            ],
+          });
+        }
+        return jsonResponse({});
+      }),
+    );
+
+    renderWithQueryClient(
+      <TranscriptCard
+        projectId="project-id"
+        job={transcriptJob}
+        translationJob={translationJob}
+        cancelPendingJobId={undefined}
+        onCancel={vi.fn()}
+        retryPendingJobId={undefined}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Dette er kildens tale.")).toBeDefined();
+    const englishButton = await screen.findByRole("button", {
+      name: "English",
+    });
+    fireEvent.click(englishButton);
+
+    expect(await screen.findByText("This is the source speech.")).toBeDefined();
+    expect(screen.queryByText("Dette er kildens tale.")).toBeNull();
+    expect(englishButton.getAttribute("aria-pressed")).toBe("true");
     expect(
       screen.getByText(/No summary or interpretation is generated/),
     ).toBeDefined();

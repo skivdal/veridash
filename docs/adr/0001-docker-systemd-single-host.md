@@ -12,22 +12,27 @@ integration path for this host.
 
 ## Decision
 
-API, scheduler, CPU-worker, and GPU-worker release images are immutable OCI images.
-Explicit systemd units invoke `docker run`; Docker Compose is not a production
-control plane. PostgreSQL, Nginx/TLS, static SPA files, blob storage, and backups
-remain host-managed. A separate one-shot migration image owns dbmate and migrations.
+API, scheduler, CPU-worker, GPU-worker, and translation-worker release images are
+immutable OCI images. Explicit systemd units invoke `docker run`; Docker Compose is
+not a production control plane. PostgreSQL, Nginx/TLS, static SPA files, blob
+storage, and backups remain host-managed. A separate one-shot migration image owns
+dbmate and migrations.
 
 Only the API has an HTTP listener, bound to host loopback through Docker host
 networking. Worker and scheduler containers publish no ports. Containers run as a
 fixed non-root UID, drop capabilities, enable `no-new-privileges`, use read-only root
 filesystems, receive bounded tmpfs mounts, and never mount the Docker socket.
+The external-provider credential is rendered only into the dedicated translation
+worker's restricted environment and is allowlisted only into translation child
+processes. The API, scheduler, CPU/GPU workers, and unrelated children do not
+receive it.
 The API trusts forwarded client addresses only from loopback Nginx, which supplies
 the configured server name rather than an untrusted incoming Host value.
 
 Production image references must include an OCI digest. The release image contains
 a build-derived FFmpeg/FFprobe fingerprint. Ansible supplies that same value to all
-three applications; mismatched fingerprints fail closed rather than enabling cache
-reuse under an ambiguous tool revision.
+application processes; mismatched fingerprints fail closed rather than enabling
+cache reuse under an ambiguous tool revision.
 
 ## Consequences
 

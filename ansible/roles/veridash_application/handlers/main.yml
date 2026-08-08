@@ -31,6 +31,14 @@
     enabled: true
   listen: Restart VeriDash release
 
+- name: Restart optional translation worker
+  when: veridash_enable_translation_worker | bool
+  ansible.builtin.systemd_service:
+    name: veridash-worker-translation.service
+    state: restarted
+    enabled: true
+  listen: Restart VeriDash release
+
 - name: Reload nginx
   ansible.builtin.systemd_service:
     name: nginx

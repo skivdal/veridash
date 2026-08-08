@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from veridash_analysis import ProgressMessage
 from veridash_analysis.synthetic import SyntheticAnalysisModule
 from veridash_core import ResourceClass
@@ -44,13 +44,26 @@ def test_child_environment_receives_only_explicit_transcription_runtime(
     monkeypatch.setenv("VERIDASH_TRANSCRIPTION_MODEL_PATH", "/untrusted/inherited/path")
     settings = Settings(data_root=tmp_path, transcription_device="cpu")
 
-    environment = child_environment(settings)
+    environment = child_environment(settings, resource_class=ResourceClass.GPU)
 
     assert environment["VERIDASH_TRANSCRIPTION_MODEL_PATH"] == str(
         tmp_path / "models" / "faster-whisper-medium"
     )
     assert environment["VERIDASH_TRANSCRIPTION_DEVICE"] == "cpu"
     assert environment["VERIDASH_TRANSCRIPTION_COMPUTE_TYPE"] == "default"
+
+
+def test_provider_key_is_only_exposed_to_translation_children(tmp_path: Path) -> None:
+    settings = Settings(data_root=tmp_path, openai_api_key=SecretStr("provider-secret"))
+
+    translation = child_environment(settings, resource_class=ResourceClass.TRANSLATION)
+    cpu = child_environment(settings, resource_class=ResourceClass.CPU)
+    gpu = child_environment(settings, resource_class=ResourceClass.GPU)
+
+    assert translation["OPENAI_API_KEY"] == "provider-secret"
+    assert "OPENAI_API_KEY" not in cpu
+    assert "OPENAI_API_KEY" not in gpu
+    assert "VERIDASH_TRANSCRIPTION_MODEL_PATH" not in translation
 
 
 def test_repeated_progress_does_not_hide_a_stalled_kernel(monkeypatch: pytest.MonkeyPatch) -> None:

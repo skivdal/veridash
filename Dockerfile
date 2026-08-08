@@ -71,6 +71,12 @@ ENV LD_LIBRARY_PATH="/opt/veridash/.venv/lib/python3.13/site-packages/nvidia/cub
 USER 10001:10001
 ENTRYPOINT ["veridash-worker"]
 
+FROM python-runtime AS worker-translation
+RUN uv sync --frozen --no-dev --package veridash-worker --extra translation \
+    && rm -rf /root/.cache/uv
+USER 10001:10001
+ENTRYPOINT ["veridash-worker"]
+
 FROM ${DBMATE_IMAGE} AS migration
 COPY db/migrations /opt/veridash/db/migrations
 ENTRYPOINT ["/usr/local/bin/dbmate", "--migrations-dir", "/opt/veridash/db/migrations", "--no-dump-schema"]

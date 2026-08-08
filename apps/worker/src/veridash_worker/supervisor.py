@@ -207,7 +207,7 @@ async def _supervise_child(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         limit=settings.max_protocol_line_bytes + 1,
-        env=child_environment(settings),
+        env=child_environment(settings, resource_class=manifest.resource_class),
         start_new_session=True,
     )
     if process.stdin is None or process.stdout is None or process.stderr is None:
@@ -506,16 +506,26 @@ async def _materialize_inputs(
     return inputs
 
 
-def child_environment(settings: Settings | None = None) -> dict[str, str]:
+def child_environment(
+    settings: Settings | None = None,
+    *,
+    resource_class: ResourceClass | None = None,
+) -> dict[str, str]:
     """Build an allowlisted child environment with no database credentials."""
     environment = {key: os.environ[key] for key in CHILD_ENVIRONMENT_KEYS if key in os.environ}
     environment["PYTHONUNBUFFERED"] = "1"
-    if settings is not None:
+    if settings is not None and resource_class is ResourceClass.GPU:
         environment["VERIDASH_TRANSCRIPTION_MODEL_PATH"] = str(
             settings.resolved_transcription_model_path
         )
         environment["VERIDASH_TRANSCRIPTION_DEVICE"] = settings.transcription_device
         environment["VERIDASH_TRANSCRIPTION_COMPUTE_TYPE"] = settings.transcription_compute_type
+    if (
+        settings is not None
+        and resource_class is ResourceClass.TRANSLATION
+        and settings.openai_api_key is not None
+    ):
+        environment["OPENAI_API_KEY"] = settings.openai_api_key.get_secret_value()
     return environment
 
 

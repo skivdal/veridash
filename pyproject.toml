@@ -58,6 +58,7 @@ api = "uvicorn veridash_api.main:app --reload"
 scheduler = "veridash-scheduler"
 worker = "veridash-worker"
 "worker:gpu" = "uv run --package veridash-worker --extra gpu veridash-worker --pool gpu"
+"worker:translation" = "uv run --package veridash-worker --extra translation veridash-worker --pool translation"
 "transcription:model" = "veridash-download-transcription-model --target data/models/faster-whisper-medium"
 "api:openapi" = "python scripts/export_openapi.py"
 "api:openapi:check" = [

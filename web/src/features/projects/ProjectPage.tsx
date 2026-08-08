@@ -301,6 +301,9 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             job={analysisJobs.find(
               (candidate) => candidate.module_id === "transcribe",
             )}
+            translationJob={analysisJobs.find(
+              (candidate) => candidate.module_id === "translate_transcript",
+            )}
           />
         );
       case "detection":

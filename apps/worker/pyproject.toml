@@ -20,6 +20,9 @@ gpu = [
     "nvidia-cublas-cu12>=12.6; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "nvidia-cudnn-cu12>=9.10; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
+translation = [
+    "openai==2.53.0",
+]
 
 [project.scripts]
 veridash-worker = "veridash_worker.main:main"

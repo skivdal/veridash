@@ -784,6 +784,34 @@ h2 {
   list-style: none;
 }
 
+.transcript-language-switch {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 14px;
+  border: 1px solid #d8dfeb;
+  border-radius: 9px;
+  background: #f5f7fa;
+  padding: 3px;
+}
+
+.transcript-language-switch button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.transcript-language-switch button.is-active {
+  background: white;
+  box-shadow: 0 1px 3px rgb(16 24 40 / 12%);
+  color: var(--color-heading);
+}
+
 .transcript-segments li {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -815,6 +843,15 @@ h2 {
   border-radius: 10px;
   background: #f5f7fa;
   padding: 10px 12px;
+}
+
+.translation-status > p {
+  margin: 0;
+}
+
+.translation-status > .button {
+  margin-top: 12px;
+  margin-right: 8px;
 }
 
 .activity-card {

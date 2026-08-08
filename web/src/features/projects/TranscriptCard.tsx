@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import {
   getStreamProjectAnalysisArtifactApiProjectsProjectIdAnalysesJobIdArtifactsArtifactIdContentGetQueryKey,
@@ -23,9 +24,17 @@ interface TranscriptDocument {
   segments: TranscriptSegment[];
 }
 
+interface TranslationDocument {
+  source_language: string;
+  target_language: "en";
+  status: "translated" | "not_applicable" | "no_content";
+  segments: TranscriptSegment[];
+}
+
 interface TranscriptCardProps {
   projectId: string;
   job: AnalysisJobResponse | undefined;
+  translationJob: AnalysisJobResponse | undefined;
   cancelPendingJobId: string | undefined;
   onCancel: (jobId: string) => void;
   retryPendingJobId: string | undefined;
@@ -35,11 +44,15 @@ interface TranscriptCardProps {
 export function TranscriptCard({
   projectId,
   job,
+  translationJob,
   cancelPendingJobId,
   onCancel,
   retryPendingJobId,
   onRetry,
 }: TranscriptCardProps) {
+  const [visibleLanguage, setVisibleLanguage] = useState<
+    "original" | "english"
+  >("original");
   const artifacts =
     useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet(
       projectId,
@@ -75,6 +88,50 @@ export function TranscriptCard({
       if (!response.ok)
         throw new Error("Transcript artifact could not be loaded");
       return parseTranscript((await response.json()) as unknown);
+    },
+  });
+  const translationArtifacts =
+    useListProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGet(
+      projectId,
+      translationJob?.id ?? "",
+      {
+        query: {
+          enabled: translationJob?.state === "succeeded",
+          retry: false,
+        },
+      },
+    );
+  const translationArtifact =
+    translationArtifacts.data?.status === 200
+      ? translationArtifacts.data.data.find(
+          (candidate) => candidate.output_name === "translation",
+        )
+      : undefined;
+  const translation = useQuery({
+    queryKey:
+      getStreamProjectAnalysisArtifactApiProjectsProjectIdAnalysesJobIdArtifactsArtifactIdContentGetQueryKey(
+        projectId,
+        translationJob?.id ?? "",
+        translationArtifact?.id ?? "",
+      ),
+    enabled:
+      translationJob?.state === "succeeded" &&
+      translationArtifact !== undefined,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      if (translationJob === undefined || translationArtifact === undefined)
+        throw new Error("Translation artifact is unavailable");
+      const response = await fetch(
+        getStreamProjectAnalysisArtifactApiProjectsProjectIdAnalysesJobIdArtifactsArtifactIdContentGetUrl(
+          projectId,
+          translationJob.id,
+          translationArtifact.id,
+        ),
+        { credentials: "same-origin", signal },
+      );
+      if (!response.ok)
+        throw new Error("Translation artifact could not be loaded");
+      return parseTranslation((await response.json()) as unknown);
     },
   });
 
@@ -140,14 +197,30 @@ export function TranscriptCard({
     );
   }
 
+  const englishSegments =
+    translation.data?.status === "translated"
+      ? translation.data.segments
+      : undefined;
+  const hasEnglishTranslation = englishSegments !== undefined;
+  const visibleSegments =
+    visibleLanguage === "english" && hasEnglishTranslation
+      ? englishSegments
+      : transcript.data.segments;
+
   return (
     <article className="analysis-card transcript-card" id="transcribe">
       <div className="analysis-card-heading">
         <div>
-          <p className="card-eyebrow">Original speech</p>
+          <p className="card-eyebrow">
+            {visibleLanguage === "english" && hasEnglishTranslation
+              ? "English translation"
+              : "Original speech"}
+          </p>
           <h2>Transcription &amp; Translation</h2>
         </div>
-        <span className="status-pill status-pill-ready">Complete</span>
+        <span className="status-pill status-pill-ready">
+          {translation.data === undefined ? "Transcript ready" : "Complete"}
+        </span>
       </div>
       <dl className="transcript-facts">
         <div>
@@ -161,14 +234,35 @@ export function TranscriptCard({
           </dd>
         </div>
       </dl>
-      {transcript.data.segments.length === 0 ? (
+      {hasEnglishTranslation ? (
+        <fieldset className="transcript-language-switch">
+          <legend className="visually-hidden">Transcript language</legend>
+          <button
+            className={visibleLanguage === "original" ? "is-active" : undefined}
+            type="button"
+            aria-pressed={visibleLanguage === "original"}
+            onClick={() => setVisibleLanguage("original")}
+          >
+            Original
+          </button>
+          <button
+            className={visibleLanguage === "english" ? "is-active" : undefined}
+            type="button"
+            aria-pressed={visibleLanguage === "english"}
+            onClick={() => setVisibleLanguage("english")}
+          >
+            English
+          </button>
+        </fieldset>
+      ) : null}
+      {visibleSegments.length === 0 ? (
         <p>No speech segments were detected.</p>
       ) : (
         <ol
           className="transcript-segments"
-          aria-label={`${transcript.data.segments.length} timestamped transcript segments`}
+          aria-label={`${visibleSegments.length} timestamped transcript segments`}
         >
-          {transcript.data.segments.map((segment) => (
+          {visibleSegments.map((segment) => (
             <TranscriptRow key={segment.ordinal} segment={segment} />
           ))}
         </ol>
@@ -178,15 +272,127 @@ export function TranscriptCard({
         passages against the source video. No summary or interpretation is
         generated.
       </p>
-      <p className="translation-pending">
-        Translation has not run; the source-language transcript is preserved
-        independently.
-      </p>
+      <TranslationStatus
+        job={translationJob}
+        document={translation.data}
+        loadFailed={translation.isError}
+        cancelPendingJobId={cancelPendingJobId}
+        onCancel={onCancel}
+        retryPendingJobId={retryPendingJobId}
+        onRetry={onRetry}
+      />
       <AnalysisProvenance
         artifacts={artifacts.data?.status === 200 ? artifacts.data.data : []}
         job={job}
       />
+      {translationJob?.state === "succeeded" ? (
+        <AnalysisProvenance
+          artifacts={
+            translationArtifacts.data?.status === 200
+              ? translationArtifacts.data.data
+              : []
+          }
+          job={translationJob}
+        />
+      ) : null}
     </article>
+  );
+}
+
+function TranslationStatus({
+  job,
+  document,
+  loadFailed,
+  cancelPendingJobId,
+  onCancel,
+  retryPendingJobId,
+  onRetry,
+}: {
+  job: AnalysisJobResponse | undefined;
+  document: TranslationDocument | undefined;
+  loadFailed: boolean;
+  cancelPendingJobId: string | undefined;
+  onCancel: (jobId: string) => void;
+  retryPendingJobId: string | undefined;
+  onRetry: (jobId: string) => void;
+}) {
+  if (document?.status === "translated") {
+    return (
+      <p className="translation-pending">
+        English translation is ready. The original transcript remains unchanged.
+      </p>
+    );
+  }
+  if (document?.status === "not_applicable") {
+    return (
+      <p className="translation-pending">
+        The detected speech is already English; no provider translation was
+        needed.
+      </p>
+    );
+  }
+  if (document?.status === "no_content") {
+    return (
+      <p className="translation-pending">
+        No speech required translation, so the provider was not contacted.
+      </p>
+    );
+  }
+
+  const canCancel =
+    job !== undefined &&
+    ["waiting_for_dependencies", "ready", "running", "retry_wait"].includes(
+      job.state,
+    ) &&
+    job.cancel_requested_at === null;
+  const attempt = job?.attempts.at(-1);
+  return (
+    <div className="translation-pending translation-status">
+      <p>
+        {job?.public_failure_message ??
+          attempt?.progress_message ??
+          (loadFailed
+            ? "The completed English translation could not be loaded."
+            : job === undefined
+              ? "English translation has not been scheduled."
+              : `English translation: ${jobStatus(job)}.`)}
+      </p>
+      {job?.state === "running" ? (
+        <div className="analysis-progress">
+          <span>{attempt?.progress_stage ?? "Translating"}</span>
+          <progress
+            aria-label="Translation progress"
+            max={100}
+            value={progressPercent(job)}
+          />
+        </div>
+      ) : null}
+      {canCancel ? (
+        <button
+          className="button button-secondary"
+          type="button"
+          disabled={cancelPendingJobId === job.id}
+          onClick={() => onCancel(job.id)}
+        >
+          {cancelPendingJobId === job.id ? "Canceling…" : "Cancel translation"}
+        </button>
+      ) : null}
+      {job !== undefined && ["failed", "canceled"].includes(job.state) ? (
+        <button
+          className="button button-secondary"
+          type="button"
+          disabled={retryPendingJobId === job.id}
+          onClick={() => onRetry(job.id)}
+        >
+          {retryPendingJobId === job.id ? "Retrying…" : "Retry translation"}
+        </button>
+      ) : null}
+      {job?.diagnostic_id ? (
+        <small className="diagnostic-reference">
+          Error reference: {job.diagnostic_id}
+        </small>
+      ) : null}
+    </div>
   );
 }
 
@@ -216,6 +422,24 @@ function parseTranscript(value: unknown): TranscriptDocument {
   return candidate as TranscriptDocument;
 }
 
+function parseTranslation(value: unknown): TranslationDocument {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Translation document is invalid");
+  const candidate = value as Partial<TranslationDocument>;
+  if (
+    typeof candidate.source_language !== "string" ||
+    candidate.target_language !== "en" ||
+    !["translated", "not_applicable", "no_content"].includes(
+      candidate.status ?? "",
+    ) ||
+    !Array.isArray(candidate.segments) ||
+    !candidate.segments.every(isTranscriptSegment)
+  ) {
+    throw new Error("Translation document is invalid");
+  }
+  return candidate as TranslationDocument;
+}
+
 function isTranscriptSegment(value: unknown): value is TranscriptSegment {
   if (typeof value !== "object" || value === null || Array.isArray(value))
     return false;
@@ -233,7 +457,8 @@ function progressPercent(job: AnalysisJobResponse | undefined) {
   if (
     attempt?.progress_completed === null ||
     attempt?.progress_completed === undefined ||
-    attempt.progress_total === null
+    attempt.progress_total === null ||
+    attempt.progress_total <= 0
   )
     return undefined;
   return Math.min(
@@ -248,7 +473,10 @@ function jobStatus(job: AnalysisJobResponse | undefined): string {
     return "Canceling";
   const labels: Record<string, string> = {
     waiting_for_dependencies: "Waiting for dependencies",
-    ready: "Queued for GPU worker",
+    ready:
+      job.resource_class === "translation"
+        ? "Queued for translation worker"
+        : "Queued for GPU worker",
     running: "Running",
     retry_wait: "Retry scheduled",
     succeeded: "Complete",

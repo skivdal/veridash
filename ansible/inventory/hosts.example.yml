@@ -12,7 +12,10 @@ all:
     veridash_worker_image: registry.example.org/veridash/worker@sha256:replace
     # Required when veridash_enable_gpu_worker is true.
     veridash_worker_gpu_image: registry.example.org/veridash/worker-gpu@sha256:replace
+    # Required when veridash_enable_translation_worker is true.
+    veridash_worker_translation_image: registry.example.org/veridash/worker-translation@sha256:replace
     veridash_migration_image: registry.example.org/veridash/migration@sha256:replace
     veridash_tls_certificate: /etc/letsencrypt/live/veridash.example.org/fullchain.pem
     veridash_tls_certificate_key: /etc/letsencrypt/live/veridash.example.org/privkey.pem
-    # Put vault_veridash_database_password in an encrypted, ignored vault file.
+    # Put vault_veridash_database_password and, when translation is enabled,
+    # vault_veridash_openai_api_key in an encrypted, ignored vault file.
