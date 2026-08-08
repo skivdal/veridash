@@ -1,13 +1,26 @@
 """Authorized analysis snapshots assembled from application-owned queries."""
 
 from collections import defaultdict
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncConnection
-from veridash_analysis import ModuleManifest
+from veridash_analysis import (
+    AnalysisRegistry,
+    ModuleManifest,
+    analysis_cache_key,
+    analysis_request_key,
+    manifest_document,
+    manifest_hash,
+)
+from veridash_analysis.stitching import StitchFramesParameters
 
-from veridash_api.db.sqlc.analyses import AsyncQuerier
+from veridash_api.db.sqlc import models as database_models
+from veridash_api.db.sqlc.analyses import (
+    AsyncQuerier,
+    CreateRequestedAnalysisJobParams,
+    RegisterAnalysisDefinitionParams,
+)
 from veridash_api.errors import ApiProblem
 from veridash_api.models import (
     AnalysisArtifactResponse,
@@ -165,6 +178,128 @@ async def retry_project_analysis(
         if analysis.id == job_id:
             return analysis
     raise RuntimeError("retried analysis disappeared from its project snapshot")
+
+
+async def create_frame_stitch(
+    connection: AsyncConnection,
+    registry: AnalysisRegistry,
+    *,
+    user_id: int,
+    project_id: UUID,
+    selected_output_names: list[str],
+) -> AnalysisJobResponse:
+    """Create one idempotent user-requested stitch over the current keyframe result."""
+    project = await get_project(connection, user_id=user_id, project_id=project_id)
+    if project.state != database_models.ProjectState.ACTIVE:
+        raise ApiProblem(
+            status=409,
+            code="project_archived",
+            title="Project is archived",
+            detail="Restore the project before starting a frame stitch.",
+        )
+    manifest = registry.get("stitch_frames")
+    if manifest.automatic:
+        raise RuntimeError("frame stitching must remain an explicit analysis")
+    parameters = StitchFramesParameters(selected_output_names=selected_output_names)
+    queries = AsyncQuerier(connection)
+    frame_rows = [
+        row
+        async for row in queries.list_current_keyframe_artifacts(
+            project_id=project_id,
+            user_id=user_id,
+        )
+    ]
+    if not frame_rows:
+        raise ApiProblem(
+            status=409,
+            code="keyframes_not_ready",
+            title="Frames are not ready",
+            detail="Wait for frame extraction to finish before stitching frames.",
+        )
+    frames_by_name = {row.output_name: row for row in frame_rows}
+    try:
+        selected = [frames_by_name[name] for name in parameters.selected_output_names]
+    except KeyError as exception:
+        raise ApiProblem(
+            status=422,
+            code="invalid_frame_selection",
+            title="Invalid frame selection",
+            detail="Select frames from the current extracted-frame result.",
+        ) from exception
+    first = selected[0]
+    if first.source_sha256 is None:
+        raise RuntimeError("current keyframes reference source media without a content hash")
+    if any(
+        row.job_id != first.job_id
+        or row.source_media_id != first.source_media_id
+        or row.request_key != first.request_key
+        or row.source_sha256 != first.source_sha256
+        or row.kind != database_models.AnalysisArtifactKind.BLOB
+        or row.media_type != "image/jpeg"
+        or row.schema_id != "veridash.keyframe.jpeg"
+        or row.schema_version != 1
+        for row in selected
+    ):
+        raise RuntimeError("current keyframe artifacts violate the installed input contract")
+    request_key = analysis_request_key(
+        manifest,
+        source_sha256=first.source_sha256,
+        parameters=parameters,
+        dependency_request_keys={"extract_keyframes": first.request_key},
+    )
+    cache_key = analysis_cache_key(
+        manifest,
+        source_sha256=first.source_sha256,
+        parameters=parameters,
+        dependency_artifact_hashes={
+            "extract_keyframes": {row.output_name: row.sha256_hex for row in selected}
+        },
+    )
+    definition = await queries.register_analysis_definition(
+        RegisterAnalysisDefinitionParams(
+            module_id=manifest.module_id,
+            implementation_version=manifest.version,
+            display_name=manifest.display_name,
+            result_schema_version=manifest.result_schema_version,
+            resource_class=database_models.AnalysisResourceClass(manifest.resource_class.value),
+            automatic=manifest.automatic,
+            manifest_hash=manifest_hash(manifest),
+            manifest=manifest_document(manifest),
+        )
+    )
+    if definition is None:
+        raise RuntimeError("frame-stitch definition registration returned no row")
+    if definition.manifest_hash != manifest_hash(manifest):
+        raise RuntimeError("frame-stitch definition version was reused with another manifest")
+    job = await queries.create_requested_analysis_job(
+        CreateRequestedAnalysisJobParams(
+            id=uuid4(),
+            project_id=project_id,
+            source_media_id=first.source_media_id,
+            module_id=manifest.module_id,
+            implementation_version=manifest.version,
+            parameters=parameters.model_dump_json(),
+            request_key=request_key,
+            cache_key=cache_key,
+            priority=manifest.priority,
+            max_attempts=manifest.max_attempts,
+        )
+    )
+    if job is None:
+        raise RuntimeError("frame-stitch job creation returned no row")
+    await queries.add_analysis_job_dependency(
+        project_id=project_id,
+        job_id=job.id,
+        depends_on_job_id=first.job_id,
+    )
+    for response in await list_project_analyses(
+        connection,
+        user_id=user_id,
+        project_id=project_id,
+    ):
+        if response.id == job.id:
+            return response
+    raise RuntimeError("created frame-stitch job disappeared from the project snapshot")
 
 
 async def list_project_analysis_artifacts(

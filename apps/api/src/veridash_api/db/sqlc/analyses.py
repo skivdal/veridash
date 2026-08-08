@@ -13,7 +13,7 @@ import sqlalchemy.ext.asyncio
 from veridash_api.db.sqlc import models
 
 
-ADD_AUTOMATIC_ANALYSIS_DEPENDENCY = """-- name: add_automatic_analysis_dependency \\:exec
+ADD_ANALYSIS_JOB_DEPENDENCY = """-- name: add_analysis_job_dependency \\:exec
 INSERT INTO analysis_job_dependency (project_id, job_id, depends_on_job_id)
 VALUES (:p1, :p2, :p3)
 ON CONFLICT (job_id, depends_on_job_id) DO NOTHING
@@ -99,6 +99,99 @@ class CreateAutomaticAnalysisJobParams:
 
 @dataclasses.dataclass()
 class CreateAutomaticAnalysisJobRow:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    state: models.AnalysisJobState
+    parameters: Any
+    request_key: str
+    priority: int
+    max_attempts: int
+    next_attempt_at: Optional[datetime.datetime]
+    ready_at: Optional[datetime.datetime]
+    started_at: Optional[datetime.datetime]
+    finished_at: Optional[datetime.datetime]
+    cancel_requested_at: Optional[datetime.datetime]
+    failure_kind: Optional[models.AnalysisErrorKind]
+    public_failure_message: Optional[str]
+    diagnostic_id: Optional[uuid.UUID]
+    reused_from_job_id: Optional[uuid.UUID]
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    winning_attempt_id: Optional[uuid.UUID]
+    cache_key: Optional[str]
+
+
+CREATE_REQUESTED_ANALYSIS_JOB = """-- name: create_requested_analysis_job \\:one
+WITH inserted AS (
+    INSERT INTO analysis_job (
+        id,
+        project_id,
+        source_media_id,
+        module_id,
+        implementation_version,
+        parameters,
+        request_key,
+        cache_key,
+        priority,
+        max_attempts
+    )
+    VALUES (
+        :p1,
+        :p2,
+        :p3,
+        :p4,
+        :p5,
+        :p6,
+        :p7,
+        :p8,
+        :p9,
+        :p10
+    )
+    ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
+    RETURNING id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key
+), selected AS (
+    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM inserted
+    UNION ALL
+    SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM analysis_job
+    WHERE
+        project_id = :p2
+        AND source_media_id = :p3
+        AND module_id = :p4
+        AND request_key = :p7
+    LIMIT 1
+), event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        project_id,
+        id,
+        'job.created',
+        'user',
+        jsonb_build_object('state', state, 'module_id', module_id)
+    FROM inserted
+)
+SELECT id, project_id, source_media_id, module_id, implementation_version, state, parameters, request_key, priority, max_attempts, next_attempt_at, ready_at, started_at, finished_at, cancel_requested_at, failure_kind, public_failure_message, diagnostic_id, reused_from_job_id, created_at, updated_at, winning_attempt_id, cache_key FROM selected
+"""
+
+
+@dataclasses.dataclass()
+class CreateRequestedAnalysisJobParams:
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_media_id: uuid.UUID
+    module_id: str
+    implementation_version: str
+    parameters: Any
+    request_key: str
+    cache_key: Optional[str]
+    priority: int
+    max_attempts: int
+
+
+@dataclasses.dataclass()
+class CreateRequestedAnalysisJobRow:
     id: uuid.UUID
     project_id: uuid.UUID
     source_media_id: uuid.UUID
@@ -267,6 +360,50 @@ class ListAnalysisJobArtifactsRow:
     schema_id: str
     schema_version: int
     created_at: datetime.datetime
+
+
+LIST_CURRENT_KEYFRAME_ARTIFACTS = """-- name: list_current_keyframe_artifacts \\:many
+SELECT
+    job.id AS job_id,
+    job.source_media_id,
+    job.request_key,
+    source_media.sha256_hex AS source_sha256,
+    output.output_name,
+    artifact.id AS artifact_id,
+    artifact.kind,
+    artifact.sha256_hex,
+    artifact.media_type,
+    artifact.schema_id,
+    artifact.schema_version
+FROM project_analysis_result AS current_result
+JOIN analysis_job AS job ON job.id = current_result.job_id
+JOIN project ON project.id = job.project_id
+JOIN source_media ON source_media.id = job.source_media_id
+JOIN analysis_job_artifact AS output ON output.job_id = job.id
+JOIN analysis_artifact AS artifact ON artifact.id = output.artifact_id
+WHERE
+    current_result.project_id = :p1
+    AND current_result.module_id = 'extract_keyframes'
+    AND job.state = 'succeeded'
+    AND project.user_id = :p2
+    AND output.output_name ~ '^frames_[0-9]{6}$'
+ORDER BY output.output_name
+"""
+
+
+@dataclasses.dataclass()
+class ListCurrentKeyframeArtifactsRow:
+    job_id: uuid.UUID
+    source_media_id: uuid.UUID
+    request_key: str
+    source_sha256: Optional[str]
+    output_name: str
+    artifact_id: uuid.UUID
+    kind: models.AnalysisArtifactKind
+    sha256_hex: str
+    media_type: str
+    schema_id: str
+    schema_version: int
 
 
 LIST_PROJECT_ANALYSIS_ATTEMPTS = """-- name: list_project_analysis_attempts \\:many
@@ -689,8 +826,8 @@ class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
 
-    async def add_automatic_analysis_dependency(self, *, project_id: uuid.UUID, job_id: uuid.UUID, depends_on_job_id: uuid.UUID) -> None:
-        await self._conn.execute(sqlalchemy.text(ADD_AUTOMATIC_ANALYSIS_DEPENDENCY), {"p1": project_id, "p2": job_id, "p3": depends_on_job_id})
+    async def add_analysis_job_dependency(self, *, project_id: uuid.UUID, job_id: uuid.UUID, depends_on_job_id: uuid.UUID) -> None:
+        await self._conn.execute(sqlalchemy.text(ADD_ANALYSIS_JOB_DEPENDENCY), {"p1": project_id, "p2": job_id, "p3": depends_on_job_id})
 
     async def append_media_uploaded_event(self, *, project_id: uuid.UUID, media_id: uuid.UUID) -> None:
         await self._conn.execute(sqlalchemy.text(APPEND_MEDIA_UPLOADED_EVENT), {"p1": project_id, "p2": media_id})
@@ -711,6 +848,47 @@ class AsyncQuerier:
         if row is None:
             return None
         return CreateAutomaticAnalysisJobRow(
+            id=row[0],
+            project_id=row[1],
+            source_media_id=row[2],
+            module_id=row[3],
+            implementation_version=row[4],
+            state=row[5],
+            parameters=row[6],
+            request_key=row[7],
+            priority=row[8],
+            max_attempts=row[9],
+            next_attempt_at=row[10],
+            ready_at=row[11],
+            started_at=row[12],
+            finished_at=row[13],
+            cancel_requested_at=row[14],
+            failure_kind=row[15],
+            public_failure_message=row[16],
+            diagnostic_id=row[17],
+            reused_from_job_id=row[18],
+            created_at=row[19],
+            updated_at=row[20],
+            winning_attempt_id=row[21],
+            cache_key=row[22],
+        )
+
+    async def create_requested_analysis_job(self, arg: CreateRequestedAnalysisJobParams) -> Optional[CreateRequestedAnalysisJobRow]:
+        row = (await self._conn.execute(sqlalchemy.text(CREATE_REQUESTED_ANALYSIS_JOB), {
+            "p1": arg.id,
+            "p2": arg.project_id,
+            "p3": arg.source_media_id,
+            "p4": arg.module_id,
+            "p5": arg.implementation_version,
+            "p6": arg.parameters,
+            "p7": arg.request_key,
+            "p8": arg.cache_key,
+            "p9": arg.priority,
+            "p10": arg.max_attempts,
+        })).first()
+        if row is None:
+            return None
+        return CreateRequestedAnalysisJobRow(
             id=row[0],
             project_id=row[1],
             source_media_id=row[2],
@@ -808,6 +986,23 @@ class AsyncQuerier:
                 schema_id=row[7],
                 schema_version=row[8],
                 created_at=row[9],
+            )
+
+    async def list_current_keyframe_artifacts(self, *, project_id: uuid.UUID, user_id: int) -> AsyncIterator[ListCurrentKeyframeArtifactsRow]:
+        result = await self._conn.stream(sqlalchemy.text(LIST_CURRENT_KEYFRAME_ARTIFACTS), {"p1": project_id, "p2": user_id})
+        async for row in result:
+            yield ListCurrentKeyframeArtifactsRow(
+                job_id=row[0],
+                source_media_id=row[1],
+                request_key=row[2],
+                source_sha256=row[3],
+                output_name=row[4],
+                artifact_id=row[5],
+                kind=row[6],
+                sha256_hex=row[7],
+                media_type=row[8],
+                schema_id=row[9],
+                schema_version=row[10],
             )
 
     async def list_project_analysis_attempts(self, *, project_id: uuid.UUID, user_id: int) -> AsyncIterator[ListProjectAnalysisAttemptsRow]:

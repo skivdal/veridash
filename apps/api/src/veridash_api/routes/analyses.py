@@ -5,10 +5,16 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
 
+from veridash_api.analysis import ApiAnalysisRegistry
 from veridash_api.auth.dependencies import ApiSettings, CurrentSession, MutationSession
 from veridash_api.database import DatabaseConnection, DatabaseEngine
 from veridash_api.errors import ApiProblem
-from veridash_api.models import PROBLEM_RESPONSE, AnalysisArtifactResponse, AnalysisJobResponse
+from veridash_api.models import (
+    PROBLEM_RESPONSE,
+    AnalysisArtifactResponse,
+    AnalysisJobResponse,
+    CreateFrameStitchRequest,
+)
 from veridash_api.services import analyses as analysis_service
 from veridash_api.services import events as event_service
 from veridash_api.services.auth import authentication_required_problem, resolve_session
@@ -83,6 +89,34 @@ async def retry_project_analysis(
         user_id=session.user_id,
         project_id=project_id,
         job_id=job_id,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/analyses/frame-stitches",
+    response_model=AnalysisJobResponse,
+    status_code=201,
+    responses={
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        403: {**PROBLEM_RESPONSE, "description": "CSRF check failed"},
+        404: {**PROBLEM_RESPONSE, "description": "Project not found"},
+        409: {**PROBLEM_RESPONSE, "description": "Frames are not available"},
+        422: {**PROBLEM_RESPONSE, "description": "Invalid frame selection"},
+    },
+)
+async def create_frame_stitch(
+    project_id: UUID,
+    payload: CreateFrameStitchRequest,
+    connection: DatabaseConnection,
+    session: MutationSession,
+    registry: ApiAnalysisRegistry,
+) -> AnalysisJobResponse:
+    return await analysis_service.create_frame_stitch(
+        connection,
+        registry,
+        user_id=session.user_id,
+        project_id=project_id,
+        selected_output_names=payload.selected_output_names,
     )
 
 

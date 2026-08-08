@@ -7,6 +7,7 @@ from veridash_analysis.contracts import AnalysisModule, ModuleManifest
 from veridash_analysis.coordinates import ExtractCoordinatesModule
 from veridash_analysis.keyframes import ExtractKeyframesModule
 from veridash_analysis.probe_media import ProbeMediaModule
+from veridash_analysis.stitching import StitchFramesModule
 from veridash_analysis.synthetic import SyntheticAnalysisModule
 
 ModuleFactory = Callable[[str], AnalysisModule]
@@ -28,10 +29,15 @@ def _synthetic(_ffmpeg_fingerprint: str) -> AnalysisModule:
     return SyntheticAnalysisModule()
 
 
+def _stitch_frames(_ffmpeg_fingerprint: str) -> AnalysisModule:
+    return StitchFramesModule()
+
+
 BUILTIN_MODULE_FACTORIES: dict[str, ModuleFactory] = {
     ExtractCoordinatesModule.manifest.module_id: _extract_coordinates,
     ExtractKeyframesModule.manifest.module_id: _extract_keyframes,
     ProbeMediaModule.manifest.module_id: _probe_media,
+    StitchFramesModule.manifest.module_id: _stitch_frames,
     SyntheticAnalysisModule.manifest.module_id: _synthetic,
 }
 BUILTIN_MODULES = MappingProxyType(BUILTIN_MODULE_FACTORIES)
@@ -52,9 +58,13 @@ def get_builtin_module(
 def production_manifests(
     *, ffmpeg_fingerprint: str = "deployment-unpinned"
 ) -> tuple[ModuleManifest, ...]:
-    """Return scheduler-visible manifests enabled in normal project plans."""
+    """Return every production module, including explicit non-automatic tools."""
     modules = tuple(
         get_builtin_module(module_id, ffmpeg_fingerprint=ffmpeg_fingerprint)
         for module_id in BUILTIN_MODULES
     )
-    return tuple(module.manifest for module in modules if module.manifest.automatic)
+    return tuple(
+        module.manifest
+        for module in modules
+        if module.manifest.module_id != SyntheticAnalysisModule.manifest.module_id
+    )

@@ -421,6 +421,24 @@
         "title": "AnalysisJobResponse",
         "type": "object"
       },
+      "CreateFrameStitchRequest": {
+        "properties": {
+          "selected_output_names": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 2,
+            "title": "Selected Output Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "selected_output_names"
+        ],
+        "title": "CreateFrameStitchRequest",
+        "type": "object"
+      },
       "CreateProjectRequest": {
         "properties": {
           "title": {
@@ -1477,6 +1495,109 @@
           }
         },
         "summary": "List Project Analyses",
+        "tags": [
+          "analyses"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/analyses/frame-stitches": {
+      "post": {
+        "operationId": "create_frame_stitch_api_projects__project_id__analyses_frame_stitches_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFrameStitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisJobResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "CSRF check failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Project not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Frames are not available"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Invalid frame selection"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Create Frame Stitch",
         "tags": [
           "analyses"
         ]

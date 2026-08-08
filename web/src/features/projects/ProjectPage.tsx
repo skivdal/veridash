@@ -346,6 +346,10 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
                 : undefined
             }
             onRetry={(jobId) => retryAnalysis.mutate({ projectId, jobId })}
+            stitchJobs={analysisJobs.filter(
+              (candidate) => candidate.module_id === "stitch_frames",
+            )}
+            readOnly={projectData.state === "archived"}
           />
           <MapCard
             projectId={projectId}

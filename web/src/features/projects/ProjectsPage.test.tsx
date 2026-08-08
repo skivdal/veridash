@@ -153,6 +153,7 @@ describe("projects routing", () => {
   it("shows timestamped immutable frames and opens the review surface", async () => {
     let retryRequested = false;
     let savedNoteBody: string | undefined;
+    let stitchSelection: string[] | undefined;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -273,6 +274,16 @@ describe("projects routing", () => {
             },
           ]);
         }
+        if (
+          url === "/api/projects/project-id/analyses/frame-stitches" &&
+          init?.method === "POST"
+        ) {
+          const request = JSON.parse(String(init.body)) as {
+            selected_output_names: string[];
+          };
+          stitchSelection = request.selected_output_names;
+          return jsonResponse({ id: "stitch-job" }, 201);
+        }
         if (url === "/api/projects/project-id/note") {
           if (init?.method === "PUT") {
             const request = JSON.parse(String(init.body)) as {
@@ -317,6 +328,15 @@ describe("projects routing", () => {
             },
             {
               ...common,
+              id: "frame-artifact-2",
+              output_name: "frames_000002",
+              kind: "blob",
+              media_type: "image/jpeg",
+              json_payload: null,
+              schema_id: "veridash.keyframe.jpeg",
+            },
+            {
+              ...common,
               id: "index-artifact",
               output_name: "index",
               kind: "json",
@@ -327,6 +347,11 @@ describe("projects routing", () => {
                     output_name: "frames_000001",
                     ordinal: 1,
                     timestamp_seconds: 2.5,
+                  },
+                  {
+                    output_name: "frames_000002",
+                    ordinal: 2,
+                    timestamp_seconds: 3.5,
                   },
                 ],
               },
@@ -375,6 +400,18 @@ describe("projects routing", () => {
     expect(
       screen.getByRole("heading", { name: "Extracted frames" }),
     ).toBeDefined();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Select frame 2 for stitching" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Select frame 1 for stitching" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Stitch selected frames" }),
+    );
+    await waitFor(() =>
+      expect(stitchSelection).toEqual(["frames_000002", "frames_000001"]),
+    );
     expect(
       screen.getByText(/cross-project cache reuse is disabled/i),
     ).toBeDefined();

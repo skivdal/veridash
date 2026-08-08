@@ -69,7 +69,7 @@ async def create_automatic_analysis_dag(
         jobs_by_module[manifest.module_id] = job.id
 
         for dependency in manifest.dependencies:
-            await queries.add_automatic_analysis_dependency(
+            await queries.add_analysis_job_dependency(
                 project_id=project_id,
                 job_id=job.id,
                 depends_on_job_id=jobs_by_module[dependency],

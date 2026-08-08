@@ -26,6 +26,7 @@ import type {
 import type {
   AnalysisArtifactResponse,
   AnalysisJobResponse,
+  CreateFrameStitchRequest,
   CreateProjectRequest,
   HTTPValidationError,
   HealthResponse,
@@ -1273,6 +1274,122 @@ export function useListProjectAnalysesApiProjectsProjectIdAnalysesGet<TData = Aw
 
 
 
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse201 = {
+  data: AnalysisJobResponse
+  status: 201
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse404 = {
+  data: ProblemResponse
+  status: 404
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse409 = {
+  data: ProblemResponse
+  status: 409
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponseSuccess = (createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse201) & {
+  headers: Headers;
+};
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponseError = (createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse401 | createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse403 | createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse404 | createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse409 | createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse422 | createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse500) & {
+  headers: Headers;
+};
+
+export type createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse = (createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponseSuccess | createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponseError)
+
+export const getCreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostUrl = (projectId: string,) => {
+
+
+
+
+  return `/api/projects/${projectId}/analyses/frame-stitches`
+}
+
+/**
+ * @summary Create Frame Stitch
+ */
+export const createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost = async (projectId: string,
+    createFrameStitchRequest: CreateFrameStitchRequest, options?: RequestInit): Promise<createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse> => {
+
+  return apiFetch<createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostResponse>(getCreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createFrameStitchRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost>>, TError,{projectId: string;data: BodyType<CreateFrameStitchRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost>>, TError,{projectId: string;data: BodyType<CreateFrameStitchRequest>}, TContext> => {
+
+const mutationKey = ['createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost>>, {projectId: string;data: BodyType<CreateFrameStitchRequest>}> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostMutationResult = NonNullable<Awaited<ReturnType<typeof createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost>>>
+    export type CreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostMutationBody = BodyType<CreateFrameStitchRequest>
+    export type CreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Create Frame Stitch
+ */
+export const useCreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost>>, TError,{projectId: string;data: BodyType<CreateFrameStitchRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPost>>,
+        TError,
+        {projectId: string;data: BodyType<CreateFrameStitchRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateFrameStitchApiProjectsProjectIdAnalysesFrameStitchesPostMutationOptions(options), queryClient);
+    }
 
 export type listProjectAnalysisArtifactsApiProjectsProjectIdAnalysesJobIdArtifactsGetResponse200 = {
   data: AnalysisArtifactResponse[]

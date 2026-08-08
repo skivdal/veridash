@@ -10,6 +10,7 @@ export * from './analysisAttemptResponse';
 export * from './analysisJobResponse';
 export * from './analysisJobResponseImplementationFingerprints';
 export * from './analysisJobResponseParameters';
+export * from './createFrameStitchRequest';
 export * from './createProjectRequest';
 export * from './healthResponse';
 export * from './hTTPValidationError';

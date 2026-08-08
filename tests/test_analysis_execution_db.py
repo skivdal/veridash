@@ -21,6 +21,7 @@ from veridash_api.db.sqlc import models as api_models
 from veridash_api.db.sqlc.analyses import AsyncQuerier as ApiAnalysisQuerier
 from veridash_api.errors import ApiProblem
 from veridash_api.services.analyses import (
+    create_frame_stitch,
     get_project_analysis_blob_artifact,
     list_project_analysis_artifacts,
     retry_project_analysis,
@@ -48,6 +49,174 @@ from veridash_worker.db.sqlc.attempts import (
     ReportAnalysisAttemptProgressParams,
 )
 from veridash_worker.supervisor import claim_once, supervise_attempt
+
+
+@pytest.mark.db
+async def test_explicit_frame_stitch_is_idempotent_and_order_sensitive() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            transaction = await connection.begin_nested()
+            user_id, project_id, media_id = await _create_uploaded_project(connection)
+            registry = AnalysisRegistry(production_manifests())
+            keyframe_manifest = registry.get("extract_keyframes")
+            scheduler = SchedulerAnalysisQuerier(connection)
+            registered = await scheduler.register_analysis_definition(
+                RegisterAnalysisDefinitionParams(
+                    module_id=keyframe_manifest.module_id,
+                    implementation_version=keyframe_manifest.version,
+                    display_name=keyframe_manifest.display_name,
+                    result_schema_version=keyframe_manifest.result_schema_version,
+                    resource_class=scheduler_models.AnalysisResourceClass.CPU,
+                    automatic=True,
+                    manifest_hash=manifest_hash(keyframe_manifest),
+                    manifest=manifest_document(keyframe_manifest),
+                )
+            )
+            assert registered is not None
+            keyframe_job_id = await _create_job(
+                scheduler,
+                project_id=project_id,
+                media_id=media_id,
+                module_id="extract_keyframes",
+                cache_character="d",
+            )
+            await scheduler.resolve_analysis_job_cache(
+                job_id=keyframe_job_id,
+                cache_key="d" * 64,
+            )
+            worker = WorkerAttemptQuerier(connection)
+            attempt_id = uuid4()
+            lease_token = uuid4()
+            claimed = await worker.claim_ready_analysis_job(
+                ClaimReadyAnalysisJobParams(
+                    resource_class=worker_models.AnalysisResourceClass.CPU,
+                    attempt_id=attempt_id,
+                    worker_id="frame-stitch-api-test",
+                    lease_token=lease_token,
+                    lease_seconds=60,
+                )
+            )
+            assert claimed is not None
+            assert claimed.job_id == keyframe_job_id
+            for ordinal, digest in ((1, "e" * 64), (2, "f" * 64)):
+                artifact_id = uuid4()
+                await connection.execute(
+                    text(
+                        """
+                        INSERT INTO analysis_artifact (
+                            id, producer_attempt_id, kind, sha256_hex, size_bytes,
+                            media_type, blob_key, schema_id, schema_version
+                        )
+                        VALUES (
+                            :artifact_id, :attempt_id, 'blob', :digest, 4,
+                            'image/jpeg', :digest, 'veridash.keyframe.jpeg', 1
+                        )
+                        """
+                    ),
+                    {
+                        "artifact_id": artifact_id,
+                        "attempt_id": attempt_id,
+                        "digest": digest,
+                    },
+                )
+                await connection.execute(
+                    text(
+                        """
+                        INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+                        VALUES (:job_id, :artifact_id, :output_name)
+                        """
+                    ),
+                    {
+                        "job_id": keyframe_job_id,
+                        "artifact_id": artifact_id,
+                        "output_name": f"frames_{ordinal:06d}",
+                    },
+                )
+            completed = await worker.complete_analysis_attempt(
+                attempt_id=attempt_id,
+                lease_token=lease_token,
+            )
+            assert completed is not None
+
+            reverse = await create_frame_stitch(
+                connection,
+                registry,
+                user_id=user_id,
+                project_id=project_id,
+                selected_output_names=["frames_000002", "frames_000001"],
+            )
+            duplicate = await create_frame_stitch(
+                connection,
+                registry,
+                user_id=user_id,
+                project_id=project_id,
+                selected_output_names=["frames_000002", "frames_000001"],
+            )
+            forward = await create_frame_stitch(
+                connection,
+                registry,
+                user_id=user_id,
+                project_id=project_id,
+                selected_output_names=["frames_000001", "frames_000002"],
+            )
+
+            assert reverse.id == duplicate.id
+            assert reverse.id != forward.id
+            assert reverse.module_id == "stitch_frames"
+            assert reverse.parameters["selected_output_names"] == [
+                "frames_000002",
+                "frames_000001",
+            ]
+            persisted = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT request_key, cache_key
+                        FROM analysis_job
+                        WHERE id IN (:reverse_id, :forward_id)
+                        ORDER BY id
+                        """
+                    ),
+                    {"reverse_id": reverse.id, "forward_id": forward.id},
+                )
+            ).all()
+            assert len(persisted) == 2
+            assert persisted[0].request_key != persisted[1].request_key
+            assert persisted[0].cache_key != persisted[1].cache_key
+            dependencies = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT count(*)
+                        FROM analysis_job_dependency
+                        WHERE job_id = :job_id AND depends_on_job_id = :dependency_id
+                        """
+                    ),
+                    {"job_id": reverse.id, "dependency_id": keyframe_job_id},
+                )
+            ).scalar_one()
+            assert dependencies == 1
+            created_events = (
+                await connection.execute(
+                    text(
+                        """
+                        SELECT count(*)
+                        FROM project_event
+                        WHERE job_id = :job_id AND event_type = 'job.created'
+                        """
+                    ),
+                    {"job_id": reverse.id},
+                )
+            ).scalar_one()
+            assert created_events == 1
+            await transaction.rollback()
+    finally:
+        await engine.dispose()
 
 
 async def _create_uploaded_project(connection: AsyncConnection) -> tuple[int, UUID, UUID]:

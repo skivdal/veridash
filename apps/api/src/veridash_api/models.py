@@ -152,6 +152,17 @@ class AnalysisArtifactResponse(BaseModel):
     created_at: datetime.datetime
 
 
+class CreateFrameStitchRequest(BaseModel):
+    selected_output_names: list[str] = Field(min_length=2, max_length=12)
+
+    @field_validator("selected_output_names")
+    @classmethod
+    def validate_selected_frames(cls, names: list[str]) -> list[str]:
+        from veridash_analysis.stitching import StitchFramesParameters
+
+        return StitchFramesParameters(selected_output_names=names).selected_output_names
+
+
 class ProblemResponse(BaseModel):
     """Safe RFC problem-details-style response shared by every API error."""
 

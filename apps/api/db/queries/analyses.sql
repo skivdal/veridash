@@ -319,6 +319,33 @@ FROM project_event AS event
 JOIN project ON project.id = event.project_id
 WHERE event.project_id = sqlc.arg(project_id) AND project.user_id = sqlc.arg(user_id);
 
+-- name: ListCurrentKeyframeArtifacts :many
+SELECT
+    job.id AS job_id,
+    job.source_media_id,
+    job.request_key,
+    source_media.sha256_hex AS source_sha256,
+    output.output_name,
+    artifact.id AS artifact_id,
+    artifact.kind,
+    artifact.sha256_hex,
+    artifact.media_type,
+    artifact.schema_id,
+    artifact.schema_version
+FROM project_analysis_result AS current_result
+JOIN analysis_job AS job ON job.id = current_result.job_id
+JOIN project ON project.id = job.project_id
+JOIN source_media ON source_media.id = job.source_media_id
+JOIN analysis_job_artifact AS output ON output.job_id = job.id
+JOIN analysis_artifact AS artifact ON artifact.id = output.artifact_id
+WHERE
+    current_result.project_id = sqlc.arg(project_id)
+    AND current_result.module_id = 'extract_keyframes'
+    AND job.state = 'succeeded'
+    AND project.user_id = sqlc.arg(user_id)
+    AND output.output_name ~ '^frames_[0-9]{6}$'
+ORDER BY output.output_name;
+
 -- name: RegisterAnalysisDefinition :one
 WITH inserted AS (
     INSERT INTO analysis_definition (
@@ -402,7 +429,57 @@ WITH inserted AS (
 )
 SELECT * FROM selected;
 
--- name: AddAutomaticAnalysisDependency :exec
+-- name: CreateRequestedAnalysisJob :one
+WITH inserted AS (
+    INSERT INTO analysis_job (
+        id,
+        project_id,
+        source_media_id,
+        module_id,
+        implementation_version,
+        parameters,
+        request_key,
+        cache_key,
+        priority,
+        max_attempts
+    )
+    VALUES (
+        sqlc.arg(id),
+        sqlc.arg(project_id),
+        sqlc.arg(source_media_id),
+        sqlc.arg(module_id),
+        sqlc.arg(implementation_version),
+        sqlc.arg(parameters),
+        sqlc.arg(request_key),
+        sqlc.arg(cache_key),
+        sqlc.arg(priority),
+        sqlc.arg(max_attempts)
+    )
+    ON CONFLICT (project_id, source_media_id, module_id, request_key) DO NOTHING
+    RETURNING *
+), selected AS (
+    SELECT * FROM inserted
+    UNION ALL
+    SELECT * FROM analysis_job
+    WHERE
+        project_id = sqlc.arg(project_id)
+        AND source_media_id = sqlc.arg(source_media_id)
+        AND module_id = sqlc.arg(module_id)
+        AND request_key = sqlc.arg(request_key)
+    LIMIT 1
+), event AS (
+    INSERT INTO project_event (project_id, job_id, event_type, source, payload)
+    SELECT
+        project_id,
+        id,
+        'job.created',
+        'user',
+        jsonb_build_object('state', state, 'module_id', module_id)
+    FROM inserted
+)
+SELECT * FROM selected;
+
+-- name: AddAnalysisJobDependency :exec
 INSERT INTO analysis_job_dependency (project_id, job_id, depends_on_job_id)
 VALUES (sqlc.arg(project_id), sqlc.arg(job_id), sqlc.arg(depends_on_job_id))
 ON CONFLICT (job_id, depends_on_job_id) DO NOTHING;
