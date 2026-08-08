@@ -4,12 +4,14 @@ from collections.abc import Callable
 from types import MappingProxyType
 
 from veridash_analysis.contracts import AnalysisModule, ModuleManifest
+from veridash_analysis.keyframes import ExtractKeyframesModule
 from veridash_analysis.probe_media import ProbeMediaModule
 from veridash_analysis.synthetic import SyntheticAnalysisModule
 
 ModuleFactory = Callable[[], AnalysisModule]
 
 BUILTIN_MODULE_FACTORIES: dict[str, ModuleFactory] = {
+    ExtractKeyframesModule.manifest.module_id: ExtractKeyframesModule,
     ProbeMediaModule.manifest.module_id: ProbeMediaModule,
     SyntheticAnalysisModule.manifest.module_id: SyntheticAnalysisModule,
 }

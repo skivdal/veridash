@@ -460,6 +460,82 @@ class FailAnalysisAttemptRow:
     cache_key: Optional[str]
 
 
+PUBLISH_BLOB_ANALYSIS_ARTIFACT = """-- name: publish_blob_analysis_artifact \\:one
+WITH eligible AS MATERIALIZED (
+    SELECT attempt.id, attempt.job_id
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.id = :p1
+        AND attempt.lease_token = :p2
+        AND attempt.state = 'running'
+        AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
+    FOR UPDATE OF attempt, job
+), artifact AS (
+    INSERT INTO analysis_artifact (
+        id,
+        producer_attempt_id,
+        kind,
+        sha256_hex,
+        size_bytes,
+        media_type,
+        blob_key,
+        schema_id,
+        schema_version
+    )
+    SELECT
+        :p3,
+        eligible.id,
+        'blob',
+        :p4,
+        :p5,
+        :p6,
+        :p7,
+        :p8,
+        :p9
+    FROM eligible
+    RETURNING id, producer_attempt_id, kind, sha256_hex, size_bytes, media_type, blob_key, json_payload, schema_id, schema_version, created_at
+), output AS (
+    INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+    SELECT eligible.job_id, artifact.id, :p10
+    FROM artifact
+    JOIN eligible ON eligible.id = artifact.producer_attempt_id
+    RETURNING job_id
+)
+SELECT artifact.id, artifact.producer_attempt_id, artifact.kind, artifact.sha256_hex, artifact.size_bytes, artifact.media_type, artifact.blob_key, artifact.json_payload, artifact.schema_id, artifact.schema_version, artifact.created_at FROM artifact JOIN output ON TRUE
+"""
+
+
+@dataclasses.dataclass()
+class PublishBlobAnalysisArtifactParams:
+    attempt_id: uuid.UUID
+    lease_token: uuid.UUID
+    artifact_id: uuid.UUID
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    blob_key: Optional[str]
+    schema_id: str
+    schema_version: int
+    output_name: str
+
+
+@dataclasses.dataclass()
+class PublishBlobAnalysisArtifactRow:
+    id: uuid.UUID
+    producer_attempt_id: uuid.UUID
+    kind: models.AnalysisArtifactKind
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    blob_key: Optional[str]
+    json_payload: Optional[Any]
+    schema_id: str
+    schema_version: int
+    created_at: datetime.datetime
+
+
 PUBLISH_JSON_ANALYSIS_ARTIFACT = """-- name: publish_json_analysis_artifact \\:one
 WITH eligible AS MATERIALIZED (
     SELECT attempt.id, attempt.job_id
@@ -807,6 +883,35 @@ class AsyncQuerier:
             updated_at=row[20],
             winning_attempt_id=row[21],
             cache_key=row[22],
+        )
+
+    async def publish_blob_analysis_artifact(self, arg: PublishBlobAnalysisArtifactParams) -> Optional[PublishBlobAnalysisArtifactRow]:
+        row = (await self._conn.execute(sqlalchemy.text(PUBLISH_BLOB_ANALYSIS_ARTIFACT), {
+            "p1": arg.attempt_id,
+            "p2": arg.lease_token,
+            "p3": arg.artifact_id,
+            "p4": arg.sha256_hex,
+            "p5": arg.size_bytes,
+            "p6": arg.media_type,
+            "p7": arg.blob_key,
+            "p8": arg.schema_id,
+            "p9": arg.schema_version,
+            "p10": arg.output_name,
+        })).first()
+        if row is None:
+            return None
+        return PublishBlobAnalysisArtifactRow(
+            id=row[0],
+            producer_attempt_id=row[1],
+            kind=row[2],
+            sha256_hex=row[3],
+            size_bytes=row[4],
+            media_type=row[5],
+            blob_key=row[6],
+            json_payload=row[7],
+            schema_id=row[8],
+            schema_version=row[9],
+            created_at=row[10],
         )
 
     async def publish_json_analysis_artifact(self, arg: PublishJsonAnalysisArtifactParams) -> Optional[PublishJsonAnalysisArtifactRow]:

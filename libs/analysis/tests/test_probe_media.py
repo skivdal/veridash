@@ -7,6 +7,7 @@ from veridash_analysis.probe_media import ProbeMediaModule, ProbeMediaParameters
 
 
 class RecordingContext:
+    output_directory = Path("/tmp/veridash-test-output")
     attempt_number = 1
 
     def __init__(self) -> None:
@@ -61,14 +62,21 @@ def test_probe_media_preserves_raw_ffprobe_document(
     )
 
     assert result.model_dump(mode="json") == {
-        "source_sha256": "a" * 64,
-        "probe": {
-            "format": {
-                "format_name": "mov,mp4",
-                "tags": {"location": "+1+2/"},
+        "outputs": {
+            "result": {
+                "type": "json",
+                "value": {
+                    "source_sha256": "a" * 64,
+                    "probe": {
+                        "format": {
+                            "format_name": "mov,mp4",
+                            "tags": {"location": "+1+2/"},
+                        },
+                        "streams": [],
+                    },
+                },
             },
-            "streams": [],
-        },
+        }
     }
     assert captured_command is not None
     assert captured_command[:5] == (

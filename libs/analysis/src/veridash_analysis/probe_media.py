@@ -10,7 +10,9 @@ from veridash_core import ArtifactKind, ErrorKind, ResourceClass
 
 from veridash_analysis.contracts import (
     ImplementationFingerprint,
+    JsonArtifactOutput,
     ModuleManifest,
+    ModuleResult,
     OutputSpec,
     ProgressStage,
     RunContext,
@@ -66,7 +68,7 @@ class ProbeMediaModule:
         context: RunContext,
         inputs: Mapping[str, Any],
         parameters: BaseModel,
-    ) -> BaseModel:
+    ) -> ModuleResult:
         ProbeMediaParameters.model_validate(parameters)
         try:
             source = FileInput.model_validate(inputs["source_video"])
@@ -147,4 +149,13 @@ class ProbeMediaModule:
             total=1,
             message="Media metadata ready",
         )
-        return ProbeMediaResult(source_sha256=source.sha256, probe=probe)
+        return ModuleResult(
+            outputs={
+                "result": JsonArtifactOutput(
+                    value=ProbeMediaResult(
+                        source_sha256=source.sha256,
+                        probe=probe,
+                    ).model_dump(mode="json")
+                )
+            }
+        )

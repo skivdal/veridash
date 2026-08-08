@@ -198,6 +198,38 @@ WHERE event.project_id = :p1 AND project.user_id = :p2
 """
 
 
+GET_PROJECT_ANALYSIS_BLOB_ARTIFACT = """-- name: get_project_analysis_blob_artifact \\:one
+SELECT
+    artifact.id,
+    link.output_name,
+    artifact.sha256_hex,
+    artifact.size_bytes,
+    artifact.media_type,
+    artifact.blob_key
+FROM analysis_job_artifact AS link
+JOIN analysis_artifact AS artifact ON artifact.id = link.artifact_id
+JOIN analysis_job AS job ON job.id = link.job_id
+JOIN project ON project.id = job.project_id
+WHERE
+    job.project_id = :p1
+    AND link.job_id = :p2
+    AND artifact.id = :p3
+    AND artifact.kind = 'blob'
+    AND project.user_id = :p4
+LIMIT 1
+"""
+
+
+@dataclasses.dataclass()
+class GetProjectAnalysisBlobArtifactRow:
+    id: uuid.UUID
+    output_name: str
+    sha256_hex: str
+    size_bytes: int
+    media_type: str
+    blob_key: Optional[str]
+
+
 LIST_ANALYSIS_JOB_ARTIFACTS = """-- name: list_analysis_job_artifacts \\:many
 SELECT
     artifact.id,
@@ -610,6 +642,24 @@ class AsyncQuerier:
         if row is None:
             return None
         return row[0]
+
+    async def get_project_analysis_blob_artifact(self, *, project_id: uuid.UUID, job_id: uuid.UUID, artifact_id: uuid.UUID, user_id: int) -> Optional[GetProjectAnalysisBlobArtifactRow]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_PROJECT_ANALYSIS_BLOB_ARTIFACT), {
+            "p1": project_id,
+            "p2": job_id,
+            "p3": artifact_id,
+            "p4": user_id,
+        })).first()
+        if row is None:
+            return None
+        return GetProjectAnalysisBlobArtifactRow(
+            id=row[0],
+            output_name=row[1],
+            sha256_hex=row[2],
+            size_bytes=row[3],
+            media_type=row[4],
+            blob_key=row[5],
+        )
 
     async def list_analysis_job_artifacts(self, *, job_id: uuid.UUID, user_id: int) -> AsyncIterator[ListAnalysisJobArtifactsRow]:
         result = await self._conn.stream(sqlalchemy.text(LIST_ANALYSIS_JOB_ARTIFACTS), {"p1": job_id, "p2": user_id})

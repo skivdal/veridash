@@ -58,3 +58,23 @@ async def test_oversized_stage_never_replaces_existing_content(tmp_path: Path) -
 def test_filesystem_store_rejects_relative_root() -> None:
     with pytest.raises(ValueError, match="absolute"):
         FilesystemBlobStore(Path("relative/data"))
+
+
+def test_filesystem_store_publishes_only_regular_files_below_staging(
+    tmp_path: Path,
+) -> None:
+    store = FilesystemBlobStore(tmp_path)
+    output_directory = tmp_path / "staging" / "attempts" / str(uuid4()) / "outputs"
+    output_directory.mkdir(parents=True)
+    output = output_directory / "frame.jpg"
+    output.write_bytes(b"jpeg")
+
+    assert store.publish(output, media_type="image/jpeg").size_bytes == 4
+    outside = tmp_path / "outside.jpg"
+    outside.write_bytes(b"outside")
+    with pytest.raises(ValueError, match="outside"):
+        store.publish(outside, media_type="image/jpeg")
+    symbolic = output_directory / "symbolic.jpg"
+    symbolic.symlink_to(output)
+    with pytest.raises(ValueError, match="symbolic"):
+        store.publish(symbolic, media_type="image/jpeg")

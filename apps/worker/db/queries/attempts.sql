@@ -321,6 +321,51 @@ WITH eligible AS MATERIALIZED (
 )
 SELECT artifact.* FROM artifact JOIN output ON TRUE;
 
+-- name: PublishBlobAnalysisArtifact :one
+WITH eligible AS MATERIALIZED (
+    SELECT attempt.id, attempt.job_id
+    FROM analysis_job_attempt AS attempt
+    JOIN analysis_job AS job ON job.id = attempt.job_id
+    WHERE
+        attempt.id = sqlc.arg(attempt_id)
+        AND attempt.lease_token = sqlc.arg(lease_token)
+        AND attempt.state = 'running'
+        AND job.state = 'running'
+        AND job.cancel_requested_at IS NULL
+    FOR UPDATE OF attempt, job
+), artifact AS (
+    INSERT INTO analysis_artifact (
+        id,
+        producer_attempt_id,
+        kind,
+        sha256_hex,
+        size_bytes,
+        media_type,
+        blob_key,
+        schema_id,
+        schema_version
+    )
+    SELECT
+        sqlc.arg(artifact_id),
+        eligible.id,
+        'blob',
+        sqlc.arg(sha256_hex),
+        sqlc.arg(size_bytes),
+        sqlc.arg(media_type),
+        sqlc.arg(blob_key),
+        sqlc.arg(schema_id),
+        sqlc.arg(schema_version)
+    FROM eligible
+    RETURNING *
+), output AS (
+    INSERT INTO analysis_job_artifact (job_id, artifact_id, output_name)
+    SELECT eligible.job_id, artifact.id, sqlc.arg(output_name)
+    FROM artifact
+    JOIN eligible ON eligible.id = artifact.producer_attempt_id
+    RETURNING job_id
+)
+SELECT artifact.* FROM artifact JOIN output ON TRUE;
+
 -- name: FailAnalysisAttempt :one
 WITH eligible AS MATERIALIZED (
     SELECT

@@ -18,7 +18,11 @@ from veridash_analysis.modules import production_manifests
 from veridash_analysis.synthetic import SyntheticAnalysisModule
 from veridash_api.db.sqlc import models as api_models
 from veridash_api.db.sqlc.analyses import AsyncQuerier as ApiAnalysisQuerier
-from veridash_api.services.analyses import list_project_analysis_artifacts
+from veridash_api.errors import ApiProblem
+from veridash_api.services.analyses import (
+    get_project_analysis_blob_artifact,
+    list_project_analysis_artifacts,
+)
 from veridash_api.services.analysis_plans import create_automatic_analysis_dag
 from veridash_core import ResourceClass
 from veridash_scheduler.config import Settings as SchedulerSettings
@@ -37,6 +41,7 @@ from veridash_worker.db.sqlc import models as worker_models
 from veridash_worker.db.sqlc.attempts import AsyncQuerier as WorkerAttemptQuerier
 from veridash_worker.db.sqlc.attempts import (
     ClaimReadyAnalysisJobParams,
+    ClaimReadyAnalysisJobRow,
     FailAnalysisAttemptParams,
     ReportAnalysisAttemptProgressParams,
 )
@@ -578,7 +583,9 @@ async def test_analysis_dag_progress_retry_and_events_are_durable() -> None:
 
 
 @pytest.mark.db
-async def test_supervisor_isolates_child_and_atomically_publishes_result() -> None:
+async def test_supervisor_isolates_child_and_atomically_publishes_result(
+    tmp_path: Path,
+) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if database_url is None:
         pytest.skip("TEST_DATABASE_URL is not configured")
@@ -625,6 +632,7 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
         )
         worker_settings = WorkerSettings(
             database_url=database_url,
+            data_root=tmp_path / "data",
             lease_seconds=30,
             heartbeat_interval_seconds=0.1,
             retry_delay_seconds=0,
@@ -822,7 +830,7 @@ async def test_supervisor_isolates_child_and_atomically_publishes_result() -> No
 
 
 @pytest.mark.db
-async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) -> None:
+async def test_real_source_analyses_publish_json_and_blob_artifacts(tmp_path: Path) -> None:
     database_url = os.environ.get("TEST_DATABASE_URL")
     if database_url is None:
         pytest.skip("TEST_DATABASE_URL is not configured")
@@ -838,7 +846,10 @@ async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) 
         await store.stage(str(media_id), _byte_chunks(content), max_bytes=len(content) + 1)
         blob = store.publish(store.staging_path(str(media_id)), media_type="video/mp4")
         registry = AnalysisRegistry(production_manifests())
-        assert [manifest.module_id for manifest in registry.automatic_plan()] == ["probe_media"]
+        assert [manifest.module_id for manifest in registry.automatic_plan()] == [
+            "extract_keyframes",
+            "probe_media",
+        ]
         async with engine.begin() as connection:
             await connection.execute(
                 text(
@@ -866,23 +877,28 @@ async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) 
             )
 
         scheduler_settings = SchedulerSettings(database_url=database_url)
-        assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 1
+        assert (await reconcile_once(engine, scheduler_settings)).resolved_jobs == 2
         worker_settings = WorkerSettings(
             database_url=database_url,
             data_root=tmp_path / "data",
             lease_seconds=30,
             heartbeat_interval_seconds=0.1,
         )
-        claim = await claim_once(
-            engine,
-            resource_class=ResourceClass.CPU,
-            worker_id="probe-integration-test",
-            settings=worker_settings,
-        )
-        assert claim is not None
-        assert claim.module_id == "probe_media"
-        outcome = await supervise_attempt(engine, claim, worker_settings)
-        assert outcome.state == "succeeded"
+        claims: dict[str, ClaimReadyAnalysisJobRow] = {}
+        for _ in range(2):
+            claim = await claim_once(
+                engine,
+                resource_class=ResourceClass.CPU,
+                worker_id="source-analysis-integration-test",
+                settings=worker_settings,
+            )
+            assert claim is not None
+            claims[claim.module_id] = claim
+            outcome = await supervise_attempt(engine, claim, worker_settings)
+            assert outcome.state == "succeeded"
+        assert set(claims) == {"extract_keyframes", "probe_media"}
+        probe_claim = claims["probe_media"]
+        frames_claim = claims["extract_keyframes"]
 
         async with engine.connect() as connection:
             assert user_id is not None
@@ -890,7 +906,7 @@ async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) 
                 connection,
                 user_id=user_id,
                 project_id=project_id,
-                job_id=claim.job_id,
+                job_id=probe_claim.job_id,
             )
             assert len(authorized_artifacts) == 1
             assert authorized_artifacts[0].schema_id == "veridash.probe_media.raw"
@@ -905,7 +921,7 @@ async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) 
                         WHERE output.job_id = :job_id AND output.output_name = 'result'
                         """
                     ),
-                    {"job_id": claim.job_id},
+                    {"job_id": probe_claim.job_id},
                 )
             ).one()
             assert artifact.schema_id == "veridash.probe_media.raw"
@@ -914,7 +930,48 @@ async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) 
                 stream.get("codec_type") == "video"
                 for stream in artifact.json_payload["probe"]["streams"]
             )
-        assert not (tmp_path / "data" / "scratch" / "attempts" / str(claim.id)).exists()
+            frame_artifacts = await list_project_analysis_artifacts(
+                connection,
+                user_id=user_id,
+                project_id=project_id,
+                job_id=frames_claim.job_id,
+            )
+            assert [item.output_name for item in frame_artifacts] == [
+                "frames_000001",
+                "index",
+            ]
+            frame = frame_artifacts[0]
+            assert frame.kind == "blob"
+            assert frame.schema_id == "veridash.keyframe.jpeg"
+            assert store.exists(frame.sha256_hex)
+            authorized_frame = await get_project_analysis_blob_artifact(
+                connection,
+                user_id=user_id,
+                project_id=project_id,
+                job_id=frames_claim.job_id,
+                artifact_id=frame.id,
+            )
+            assert authorized_frame.sha256_hex == frame.sha256_hex
+            with pytest.raises(ApiProblem) as hidden:
+                await get_project_analysis_blob_artifact(
+                    connection,
+                    user_id=-1,
+                    project_id=project_id,
+                    job_id=frames_claim.job_id,
+                    artifact_id=frame.id,
+                )
+            assert hidden.value.status == 404
+            with store.open(frame.sha256_hex) as content_file:
+                assert content_file.read(2) == b"\xff\xd8"
+            index = frame_artifacts[1].json_payload
+            assert isinstance(index, dict)
+            indexed_frames = index["frames"]
+            assert isinstance(indexed_frames, list)
+            first_frame = indexed_frames[0]
+            assert isinstance(first_frame, dict)
+            assert first_frame["output_name"] == "frames_000001"
+        for claim in claims.values():
+            assert not (tmp_path / "data" / "staging" / "attempts" / str(claim.id)).exists()
     finally:
         if project_id is not None:
             async with engine.begin() as connection:
@@ -957,7 +1014,8 @@ async def test_real_probe_media_runs_from_immutable_source_blob(tmp_path: Path) 
                     text(
                         """
                         DELETE FROM analysis_definition
-                        WHERE module_id = 'probe_media' AND implementation_version = '1.0.0'
+                        WHERE module_id IN ('probe_media', 'extract_keyframes')
+                            AND implementation_version = '1.0.0'
                         """
                     )
                 )

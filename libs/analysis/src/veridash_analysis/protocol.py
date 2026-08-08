@@ -6,7 +6,9 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 from veridash_core import ErrorKind
 
-PROTOCOL_VERSION = 1
+from veridash_analysis.contracts import ArtifactOutput
+
+PROTOCOL_VERSION = 2
 
 
 class FileInput(BaseModel):
@@ -21,10 +23,11 @@ class FileInput(BaseModel):
 class ChildRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    protocol_version: Literal[1] = PROTOCOL_VERSION
+    protocol_version: Literal[2] = PROTOCOL_VERSION
     module_id: str
     implementation_version: str
     attempt_number: int = Field(ge=1)
+    output_directory: Path
     parameters: dict[str, JsonValue]
     inputs: dict[str, FileInput] = Field(default_factory=dict)
 
@@ -49,7 +52,7 @@ class ResultMessage(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     type: Literal["result"] = "result"
-    outputs: dict[str, JsonValue]
+    outputs: dict[str, ArtifactOutput]
 
 
 class ErrorMessage(BaseModel):

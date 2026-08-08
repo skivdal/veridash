@@ -7,7 +7,14 @@ from typing import Any
 from pydantic import BaseModel, Field
 from veridash_core import ArtifactKind, ErrorKind, ResourceClass
 
-from veridash_analysis.contracts import ModuleManifest, OutputSpec, ProgressStage, RunContext
+from veridash_analysis.contracts import (
+    JsonArtifactOutput,
+    ModuleManifest,
+    ModuleResult,
+    OutputSpec,
+    ProgressStage,
+    RunContext,
+)
 from veridash_analysis.errors import AnalysisExecutionError
 
 
@@ -51,7 +58,7 @@ class SyntheticAnalysisModule:
         context: RunContext,
         inputs: Mapping[str, Any],
         parameters: BaseModel,
-    ) -> BaseModel:
+    ) -> ModuleResult:
         del inputs
         parsed = SyntheticParameters.model_validate(parameters)
         if context.attempt_number <= parsed.fail_attempts:
@@ -77,7 +84,13 @@ class SyntheticAnalysisModule:
                 message=f"Completed step {completed} of {parsed.steps}",
             )
             context.heartbeat()
-        return SyntheticResult(
-            steps_completed=parsed.steps,
-            deterministic_value=f"synthetic:{parsed.steps}",
+        return ModuleResult(
+            outputs={
+                "result": JsonArtifactOutput(
+                    value=SyntheticResult(
+                        steps_completed=parsed.steps,
+                        deterministic_value=f"synthetic:{parsed.steps}",
+                    ).model_dump(mode="json")
+                )
+            }
         )

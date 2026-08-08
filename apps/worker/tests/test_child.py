@@ -1,10 +1,12 @@
 import io
+from pathlib import Path
 
 from veridash_analysis import (
     CHILD_MESSAGE_ADAPTER,
     ChildMessage,
     ChildRequest,
     ErrorMessage,
+    JsonArtifactOutput,
     ResultMessage,
 )
 from veridash_core import ErrorKind
@@ -22,6 +24,7 @@ def test_synthetic_child_reports_progress_and_result() -> None:
             module_id="synthetic_test",
             implementation_version="1.0.0",
             attempt_number=1,
+            output_directory=Path("/tmp/veridash-test-output"),
             parameters={"steps": 2},
         ),
         stream,
@@ -37,7 +40,11 @@ def test_synthetic_child_reports_progress_and_result() -> None:
         "result",
     ]
     assert messages[-1] == ResultMessage(
-        outputs={"result": {"steps_completed": 2, "deterministic_value": "synthetic:2"}}
+        outputs={
+            "result": JsonArtifactOutput(
+                value={"steps_completed": 2, "deterministic_value": "synthetic:2"}
+            )
+        }
     )
 
 
@@ -48,6 +55,7 @@ def test_synthetic_child_classifies_requested_transient_failure() -> None:
             module_id="synthetic_test",
             implementation_version="1.0.0",
             attempt_number=1,
+            output_directory=Path("/tmp/veridash-test-output"),
             parameters={"fail_attempts": 1},
         ),
         stream,

@@ -22,10 +22,12 @@ from veridash_analysis import (
     ErrorMessage,
     FileInput,
     HeartbeatMessage,
+    JsonArtifactOutput,
     ModuleManifest,
     ProgressMessage,
     ResultMessage,
     manifest_document,
+    resolve_output_specs,
 )
 from veridash_analysis.modules import get_builtin_module
 from veridash_core import ArtifactKind, ErrorKind, ResourceClass
@@ -39,6 +41,7 @@ from veridash_worker.db.sqlc.attempts import (
     ClaimReadyAnalysisJobParams,
     ClaimReadyAnalysisJobRow,
     FailAnalysisAttemptParams,
+    PublishBlobAnalysisArtifactParams,
     PublishJsonAnalysisArtifactParams,
     ReportAnalysisAttemptProgressParams,
 )
@@ -162,14 +165,19 @@ async def supervise_attempt(
     settings: Settings,
 ) -> AttemptOutcome:
     """Run one child and make its terminal result durable if the lease remains valid."""
-    scratch_directory = settings.data_root / "scratch" / "attempts" / str(claim.id)
+    attempt_directory = settings.data_root / "staging" / "attempts" / str(claim.id)
     try:
-        inputs = _materialize_inputs(claim, settings, scratch_directory)
-        return await _supervise_child(engine, claim, settings, inputs)
+        attempt_directory.mkdir(mode=0o750, parents=True, exist_ok=False)
+        input_directory = attempt_directory / "inputs"
+        output_directory = attempt_directory / "outputs"
+        input_directory.mkdir(mode=0o750)
+        output_directory.mkdir(mode=0o750)
+        inputs = _materialize_inputs(claim, settings, input_directory)
+        return await _supervise_child(engine, claim, settings, inputs, output_directory)
     except ChildProtocolError as exception:
         return await _fail_internal(engine, claim, str(exception), "", settings)
     finally:
-        shutil.rmtree(scratch_directory, ignore_errors=True)
+        shutil.rmtree(attempt_directory, ignore_errors=True)
 
 
 async def _supervise_child(
@@ -177,9 +185,10 @@ async def _supervise_child(
     claim: ClaimReadyAnalysisJobRow,
     settings: Settings,
     inputs: dict[str, FileInput],
+    output_directory: Path,
 ) -> AttemptOutcome:
     try:
-        request, manifest = _validated_request_and_manifest(claim, inputs)
+        request, manifest = _validated_request_and_manifest(claim, inputs, output_directory)
     except ChildProtocolError as exception:
         return await _fail_internal(engine, claim, str(exception), "", settings)
     process = await asyncio.create_subprocess_exec(
@@ -327,7 +336,7 @@ async def _supervise_child(
             )
         try:
             await _renew_lease(engine, claim, settings)
-            await _publish_result(engine, claim, manifest, terminal)
+            await _publish_result(engine, claim, manifest, terminal, settings, output_directory)
         except AttemptCanceledError as exception:
             canceled = await _record_requested_cancellation(engine, claim)
             if canceled is None:
@@ -357,6 +366,7 @@ async def _supervise_child(
 def _validated_request_and_manifest(
     claim: ClaimReadyAnalysisJobRow,
     inputs: dict[str, FileInput],
+    output_directory: Path,
 ) -> tuple[ChildRequest, ModuleManifest]:
     try:
         persisted = ModuleManifest.model_validate(claim.manifest)
@@ -373,6 +383,7 @@ def _validated_request_and_manifest(
             module_id=claim.module_id,
             implementation_version=claim.implementation_version,
             attempt_number=claim.attempt_number,
+            output_directory=output_directory,
             parameters=parameters,
             inputs=inputs,
         ),
@@ -383,7 +394,7 @@ def _validated_request_and_manifest(
 def _materialize_inputs(
     claim: ClaimReadyAnalysisJobRow,
     settings: Settings,
-    scratch_directory: Path,
+    input_directory: Path,
 ) -> dict[str, FileInput]:
     try:
         module = get_builtin_module(claim.module_id)
@@ -398,11 +409,10 @@ def _materialize_inputs(
         or claim.source_media_type is None
     ):
         raise ChildProtocolError("claimed job source has no valid immutable blob identity")
-    scratch_directory.mkdir(mode=0o750, parents=True, exist_ok=False)
     try:
         path = FilesystemBlobStore(settings.data_root).materialize(
             claim.source_sha256,
-            scratch_directory / "source-video",
+            input_directory / "source-video",
         )
     except (FileNotFoundError, OSError, ValueError) as exception:
         raise ChildProtocolError("source blob could not be materialized") from exception
@@ -482,21 +492,20 @@ async def _publish_result(
     claim: ClaimReadyAnalysisJobRow,
     manifest: ModuleManifest,
     message: ResultMessage,
+    settings: Settings,
+    output_directory: Path,
 ) -> None:
-    specs = {output.name: output for output in manifest.outputs}
-    if set(message.outputs) != set(specs):
-        raise ChildProtocolError("child result does not contain every declared output")
-    canonical_outputs: list[tuple[str, str, bytes]] = []
-    for output_name, value in message.outputs.items():
-        spec = specs[output_name]
-        if spec.kind is not ArtifactKind.JSON:
-            raise ChildProtocolError("blob output publication is not implemented")
-        document = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-        canonical_outputs.append((output_name, document, document.encode()))
+    specs, canonical_json_outputs, blob_outputs = await asyncio.to_thread(
+        _prepare_outputs,
+        manifest,
+        message,
+        settings,
+        output_directory,
+    )
 
     async with engine.begin() as connection:
         queries = AsyncQuerier(connection)
-        for output_name, document, content in canonical_outputs:
+        for output_name, document, content in canonical_json_outputs:
             spec = specs[output_name]
             published = await queries.publish_json_analysis_artifact(
                 PublishJsonAnalysisArtifactParams(
@@ -514,12 +523,79 @@ async def _publish_result(
             )
             if published is None:
                 raise LeaseLostError("attempt lease was lost while publishing output")
+        for output_name, sha256, size_bytes in blob_outputs:
+            spec = specs[output_name]
+            published = await queries.publish_blob_analysis_artifact(
+                PublishBlobAnalysisArtifactParams(
+                    attempt_id=claim.id,
+                    lease_token=claim.lease_token,
+                    artifact_id=uuid4(),
+                    sha256_hex=sha256,
+                    size_bytes=size_bytes,
+                    media_type=spec.media_type,
+                    blob_key=sha256,
+                    schema_id=spec.schema_id,
+                    schema_version=spec.schema_version,
+                    output_name=output_name,
+                )
+            )
+            if published is None:
+                raise LeaseLostError("attempt lease was lost while publishing output")
         completed = await queries.complete_analysis_attempt(
             attempt_id=claim.id,
             lease_token=claim.lease_token,
         )
         if completed is None:
             raise LeaseLostError("attempt lease was lost while completing")
+
+
+def _prepare_outputs(
+    manifest: ModuleManifest,
+    message: ResultMessage,
+    settings: Settings,
+    output_directory: Path,
+):
+    try:
+        specs = resolve_output_specs(manifest, message.outputs)
+    except ValueError as exception:
+        raise ChildProtocolError(str(exception)) from exception
+    canonical_json_outputs: list[tuple[str, str, bytes]] = []
+    blob_outputs: list[tuple[str, str, int]] = []
+    store = FilesystemBlobStore(settings.data_root)
+    resolved_output_directory = output_directory.resolve(strict=True)
+    seen_paths: set[Path] = set()
+    for output_name, output in message.outputs.items():
+        spec = specs[output_name]
+        if isinstance(output, JsonArtifactOutput):
+            if spec.kind is not ArtifactKind.JSON:
+                raise ChildProtocolError("child returned JSON for a blob output")
+            document = json.dumps(
+                output.value,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            canonical_json_outputs.append((output_name, document, document.encode()))
+            continue
+        if spec.kind is not ArtifactKind.BLOB:
+            raise ChildProtocolError("child returned a blob for a JSON output")
+        if output.path.is_symlink():
+            raise ChildProtocolError("child output must not be a symbolic link")
+        try:
+            resolved_path = output.path.resolve(strict=True)
+            resolved_path.relative_to(resolved_output_directory)
+        except (FileNotFoundError, OSError, ValueError) as exception:
+            raise ChildProtocolError(
+                "child blob output is outside its output directory"
+            ) from exception
+        if not resolved_path.is_file():
+            raise ChildProtocolError("child blob output is not a regular file")
+        if resolved_path in seen_paths:
+            raise ChildProtocolError("child returned the same blob path more than once")
+        seen_paths.add(resolved_path)
+        published = store.publish(resolved_path, media_type=spec.media_type)
+        blob_outputs.append((output_name, published.sha256, published.size_bytes))
+    return specs, canonical_json_outputs, blob_outputs
 
 
 async def _record_child_error(

@@ -2,10 +2,16 @@
 
 from veridash_analysis.contracts import (
     AnalysisModule,
+    ArtifactOutput,
+    BlobArtifactOutput,
     ImplementationFingerprint,
+    JsonArtifactOutput,
     ModuleManifest,
+    ModuleResult,
     OutputSpec,
     ProgressStage,
+    match_output_spec,
+    resolve_output_specs,
 )
 from veridash_analysis.errors import AnalysisExecutionError
 from veridash_analysis.protocol import (
@@ -34,6 +40,8 @@ __all__ = [
     "AnalysisExecutionError",
     "AnalysisModule",
     "AnalysisRegistry",
+    "ArtifactOutput",
+    "BlobArtifactOutput",
     "ChildMessage",
     "ChildRequest",
     "ErrorMessage",
@@ -41,7 +49,9 @@ __all__ = [
     "HeartbeatMessage",
     "ImplementationFingerprint",
     "InvalidAnalysisGraphError",
+    "JsonArtifactOutput",
     "ModuleManifest",
+    "ModuleResult",
     "OutputSpec",
     "ProgressMessage",
     "ProgressStage",
@@ -50,4 +60,6 @@ __all__ = [
     "analysis_request_key",
     "manifest_document",
     "manifest_hash",
+    "match_output_spec",
+    "resolve_output_specs",
 ]

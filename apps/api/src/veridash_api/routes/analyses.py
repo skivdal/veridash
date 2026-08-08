@@ -13,6 +13,7 @@ from veridash_api.services import analyses as analysis_service
 from veridash_api.services import events as event_service
 from veridash_api.services.auth import authentication_required_problem, resolve_session
 from veridash_api.services.projects import get_project
+from veridash_api.storage import ApiBlobStore
 
 router = APIRouter(tags=["analyses"])
 
@@ -81,6 +82,56 @@ async def list_project_analysis_artifacts(
         project_id=project_id,
         job_id=job_id,
     )
+
+
+@router.get(
+    "/projects/{project_id}/analyses/{job_id}/artifacts/{artifact_id}/content",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "description": "Immutable analysis artifact content",
+            "content": {
+                "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+            },
+        },
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        404: {**PROBLEM_RESPONSE, "description": "Analysis artifact not found"},
+    },
+)
+async def stream_project_analysis_artifact(
+    project_id: UUID,
+    job_id: UUID,
+    artifact_id: UUID,
+    connection: DatabaseConnection,
+    session: CurrentSession,
+    store: ApiBlobStore,
+) -> StreamingResponse:
+    artifact = await analysis_service.get_project_analysis_blob_artifact(
+        connection,
+        user_id=session.user_id,
+        project_id=project_id,
+        job_id=job_id,
+        artifact_id=artifact_id,
+    )
+    if not store.exists(artifact.sha256_hex):
+        raise RuntimeError("analysis artifact row references a missing blob")
+    return StreamingResponse(
+        _read_artifact(store, artifact.sha256_hex),
+        media_type=artifact.media_type,
+        headers={
+            "Content-Length": str(artifact.size_bytes),
+            "Content-Disposition": f'inline; filename="{artifact.output_name}"',
+            "Cache-Control": "private, max-age=3600",
+            "ETag": f'"sha256-{artifact.sha256_hex}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def _read_artifact(store: ApiBlobStore, sha256: str):
+    with store.open(sha256) as content:
+        while chunk := content.read(1024 * 1024):
+            yield chunk
 
 
 @router.get(

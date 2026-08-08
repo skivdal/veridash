@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAppRouter } from "../../router";
@@ -142,5 +142,120 @@ describe("projects routing", () => {
       await screen.findByRole("heading", { name: "Source video" }),
     ).toBeDefined();
     expect(screen.getByLabelText("Choose video")).toBeDefined();
+  });
+
+  it("shows timestamped immutable frames and opens the review surface", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/api/auth/me") {
+          return jsonResponse({ user: { id: 1, username: "journalist" } });
+        }
+        if (url === "/api/projects/project-id") {
+          return jsonResponse({
+            id: "project-id",
+            title: "Frame review",
+            state: "active",
+            created_at: "2026-08-08T12:00:00Z",
+            updated_at: "2026-08-08T12:00:00Z",
+            archived_at: null,
+          });
+        }
+        if (url === "/api/projects/project-id/media") {
+          return jsonResponse({
+            id: "media-id",
+            project_id: "project-id",
+            upload_state: "uploaded",
+            original_filename: "source.mp4",
+            media_type: "video/mp4",
+            size_bytes: 100,
+            sha256_hex: "a".repeat(64),
+            created_at: "2026-08-08T12:00:00Z",
+            uploaded_at: "2026-08-08T12:00:01Z",
+            failure_message: null,
+          });
+        }
+        if (url === "/api/projects/project-id/analyses") {
+          return jsonResponse([
+            {
+              id: "frames-job",
+              project_id: "project-id",
+              source_media_id: "media-id",
+              module_id: "extract_keyframes",
+              implementation_version: "1.0.0",
+              display_name: "Frames",
+              resource_class: "cpu",
+              state: "succeeded",
+              parameters: {},
+              max_attempts: 3,
+              next_attempt_at: null,
+              ready_at: "2026-08-08T12:00:01Z",
+              started_at: "2026-08-08T12:00:01Z",
+              finished_at: "2026-08-08T12:00:02Z",
+              cancel_requested_at: null,
+              failure_kind: null,
+              public_failure_message: null,
+              diagnostic_id: null,
+              reused: false,
+              created_at: "2026-08-08T12:00:01Z",
+              updated_at: "2026-08-08T12:00:02Z",
+              attempts: [],
+            },
+          ]);
+        }
+        if (url === "/api/projects/project-id/analyses/frames-job/artifacts") {
+          const common = {
+            sha256_hex: "b".repeat(64),
+            size_bytes: 100,
+            created_at: "2026-08-08T12:00:02Z",
+            schema_version: 1,
+          };
+          return jsonResponse([
+            {
+              ...common,
+              id: "frame-artifact",
+              output_name: "frames_000001",
+              kind: "blob",
+              media_type: "image/jpeg",
+              json_payload: null,
+              schema_id: "veridash.keyframe.jpeg",
+            },
+            {
+              ...common,
+              id: "index-artifact",
+              output_name: "index",
+              kind: "json",
+              media_type: "application/json",
+              json_payload: {
+                frames: [
+                  {
+                    output_name: "frames_000001",
+                    ordinal: 1,
+                    timestamp_seconds: 2.5,
+                  },
+                ],
+              },
+              schema_id: "veridash.keyframes.index",
+            },
+          ]);
+        }
+        return jsonResponse({}, 404);
+      }),
+    );
+
+    renderAt("/projects/project-id");
+
+    const frame = await screen.findByRole("img", {
+      name: "Video frame at 00:00:02",
+    });
+    expect(frame.getAttribute("src")).toContain(
+      "/artifacts/frame-artifact/content",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review all frames" }));
+    expect(screen.getByRole("dialog")).toBeDefined();
+    expect(
+      screen.getByRole("heading", { name: "Extracted frames" }),
+    ).toBeDefined();
   });
 });

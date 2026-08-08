@@ -3,6 +3,7 @@
 import contextlib
 import sys
 import traceback
+from pathlib import Path
 from typing import TextIO
 
 from pydantic import ValidationError
@@ -22,13 +23,20 @@ MAX_DIAGNOSTIC_CHARACTERS = 10_000
 
 
 class ChildRunContext:
-    def __init__(self, *, attempt_number: int, protocol_stream: TextIO) -> None:
+    def __init__(
+        self, *, attempt_number: int, output_directory: Path, protocol_stream: TextIO
+    ) -> None:
         self._attempt_number = attempt_number
+        self._output_directory = output_directory
         self._protocol_stream = protocol_stream
 
     @property
     def attempt_number(self) -> int:
         return self._attempt_number
+
+    @property
+    def output_directory(self) -> Path:
+        return self._output_directory
 
     def heartbeat(self) -> None:
         self._emit(HeartbeatMessage())
@@ -74,17 +82,12 @@ def run_child(request: ChildRequest, protocol_stream: TextIO) -> int:
         parameters = module.parameter_model.model_validate(request.parameters)
         context = ChildRunContext(
             attempt_number=request.attempt_number,
+            output_directory=request.output_directory,
             protocol_stream=protocol_stream,
         )
         with contextlib.redirect_stdout(sys.stderr):
             result = module.run(context, request.inputs, parameters)
-        if len(module.manifest.outputs) != 1:
-            raise RuntimeError("single-result child adapter requires exactly one output")
-        output_name = module.manifest.outputs[0].name
-        protocol_stream.write(
-            ResultMessage(outputs={output_name: result.model_dump(mode="json")}).model_dump_json()
-            + "\n"
-        )
+        protocol_stream.write(ResultMessage(outputs=result.outputs).model_dump_json() + "\n")
         protocol_stream.flush()
         return 0
     except AnalysisExecutionError as exception:

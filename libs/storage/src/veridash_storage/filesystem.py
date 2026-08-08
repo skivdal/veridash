@@ -32,9 +32,10 @@ class FilesystemBlobStore:
             raise ValueError("blob storage root must be an absolute path")
         self._root = root.resolve()
         self._blob_root = self._root / "blobs" / "sha256"
-        self._staging_root = self._root / "staging" / "uploads"
+        self._staging_root = self._root / "staging"
+        self._upload_staging_root = self._staging_root / "uploads"
         self._blob_root.mkdir(mode=0o750, parents=True, exist_ok=True)
-        self._staging_root.mkdir(mode=0o750, parents=True, exist_ok=True)
+        self._upload_staging_root.mkdir(mode=0o750, parents=True, exist_ok=True)
 
     def _blob_path(self, sha256: str) -> Path:
         if SHA256_PATTERN.fullmatch(sha256) is None:
@@ -43,7 +44,7 @@ class FilesystemBlobStore:
 
     def staging_path(self, staging_id: str) -> Path:
         normalized_id = str(UUID(staging_id))
-        return self._staging_root / f"{normalized_id}.part"
+        return self._upload_staging_root / f"{normalized_id}.part"
 
     async def stage(
         self,
@@ -80,9 +81,15 @@ class FilesystemBlobStore:
         return StagedBlob(sha256=digest.hexdigest(), size_bytes=size_bytes)
 
     def publish(self, staging_path: Path, *, media_type: str) -> BlobRef:
+        if staging_path.is_symlink():
+            raise ValueError("staging path must not be a symbolic link")
         resolved_staging = staging_path.resolve(strict=True)
-        if resolved_staging.parent != self._staging_root:
-            raise ValueError("staging path is outside the upload staging root")
+        if not resolved_staging.is_file():
+            raise ValueError("staging path must be a regular file")
+        try:
+            resolved_staging.relative_to(self._staging_root)
+        except ValueError as exception:
+            raise ValueError("staging path is outside the storage staging root") from exception
 
         digest = hashlib.sha256()
         size_bytes = 0

@@ -64,7 +64,14 @@ class AnalysisRegistry:
 
 def manifest_document(manifest: ModuleManifest) -> str:
     """Return the canonical JSON persisted with a versioned definition."""
-    return _canonical_json(manifest.model_dump(mode="json"))
+    document = manifest.model_dump(mode="json")
+    # Keep pre-collection scalar manifests byte-for-byte stable. These defaults
+    # extend the contract without changing the output of existing modules.
+    for output in document["outputs"]:
+        if not output["collection"]:
+            del output["collection"]
+            del output["minimum_items"]
+    return _canonical_json(document)
 
 
 def manifest_hash(manifest: ModuleManifest) -> str:

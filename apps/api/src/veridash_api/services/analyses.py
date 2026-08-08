@@ -136,3 +136,29 @@ async def list_project_analysis_artifacts(
             user_id=user_id,
         )
     ]
+
+
+async def get_project_analysis_blob_artifact(
+    connection: AsyncConnection,
+    *,
+    user_id: int,
+    project_id: UUID,
+    job_id: UUID,
+    artifact_id: UUID,
+):
+    artifact = await AsyncQuerier(connection).get_project_analysis_blob_artifact(
+        project_id=project_id,
+        job_id=job_id,
+        artifact_id=artifact_id,
+        user_id=user_id,
+    )
+    if artifact is None:
+        raise ApiProblem(
+            status=404,
+            code="analysis_artifact_not_found",
+            title="Analysis artifact not found",
+            detail="The requested analysis artifact does not exist.",
+        )
+    if artifact.blob_key is None or artifact.blob_key != artifact.sha256_hex:
+        raise RuntimeError("blob artifact has no valid immutable storage identity")
+    return artifact

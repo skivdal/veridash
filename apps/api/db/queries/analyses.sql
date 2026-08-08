@@ -175,6 +175,26 @@ JOIN project ON project.id = job.project_id
 WHERE link.job_id = sqlc.arg(job_id) AND project.user_id = sqlc.arg(user_id)
 ORDER BY link.output_name;
 
+-- name: GetProjectAnalysisBlobArtifact :one
+SELECT
+    artifact.id,
+    link.output_name,
+    artifact.sha256_hex,
+    artifact.size_bytes,
+    artifact.media_type,
+    artifact.blob_key
+FROM analysis_job_artifact AS link
+JOIN analysis_artifact AS artifact ON artifact.id = link.artifact_id
+JOIN analysis_job AS job ON job.id = link.job_id
+JOIN project ON project.id = job.project_id
+WHERE
+    job.project_id = sqlc.arg(project_id)
+    AND link.job_id = sqlc.arg(job_id)
+    AND artifact.id = sqlc.arg(artifact_id)
+    AND artifact.kind = 'blob'
+    AND project.user_id = sqlc.arg(user_id)
+LIMIT 1;
+
 -- name: ListProjectEventsAfter :many
 SELECT
     event.id,

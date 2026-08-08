@@ -7,7 +7,12 @@ from uuid import UUID
 
 from pydantic import JsonValue, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
-from veridash_analysis import ModuleManifest, analysis_cache_key
+from veridash_analysis import (
+    ModuleManifest,
+    analysis_cache_key,
+    match_output_spec,
+    resolve_output_specs,
+)
 
 from veridash_scheduler.config import Settings
 from veridash_scheduler.db.sqlc.analysis import AsyncQuerier, ListDependentCacheInputsRow
@@ -119,10 +124,10 @@ def _dependent_cache_key(rows: list[ListDependentCacheInputsRow]) -> str:
         outputs[row.dependency_module_id][row.output_name] = row.artifact_sha256
         dependency_manifest = ModuleManifest.model_validate(row.dependency_manifest)
         dependency_manifests[row.dependency_module_id] = dependency_manifest
-        expected_outputs = {output.name: output for output in dependency_manifest.outputs}
-        expected = expected_outputs.get(row.output_name)
-        if expected is None:
-            raise RuntimeError("dependency published an undeclared output")
+        try:
+            expected = match_output_spec(dependency_manifest, row.output_name)
+        except ValueError as exception:
+            raise RuntimeError("dependency published an undeclared output") from exception
         if (
             expected.kind.value != row.artifact_kind
             or expected.media_type != row.artifact_media_type
@@ -131,8 +136,10 @@ def _dependent_cache_key(rows: list[ListDependentCacheInputsRow]) -> str:
         ):
             raise RuntimeError("dependency artifact metadata violates its manifest")
     for dependency, dependency_manifest in dependency_manifests.items():
-        if set(outputs[dependency]) != {output.name for output in dependency_manifest.outputs}:
-            raise RuntimeError("dependency did not publish every required output")
+        try:
+            resolve_output_specs(dependency_manifest, outputs[dependency])
+        except ValueError as exception:
+            raise RuntimeError("dependency output set violates its manifest") from exception
     return analysis_cache_key(
         manifest_value,
         source_sha256=first.source_sha256,

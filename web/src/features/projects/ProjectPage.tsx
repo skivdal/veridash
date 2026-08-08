@@ -18,15 +18,11 @@ import {
 import type { AnalysisJobResponse } from "../../api/generated/schemas";
 import { AppHeader } from "../../components/AppHeader";
 import { SourceMediaPanel } from "../source-media/SourceMediaPanel";
+import { FramesCard } from "./FramesCard";
 import { MetadataCard } from "./MetadataCard";
 import { useProjectEvents } from "./projectEvents";
 
 const modulePlaceholders = [
-  [
-    "Frames",
-    "Extracted frames and stitching controls will appear here.",
-    "extract_keyframes",
-  ],
   [
     "Transcription",
     "Timestamped source-language transcription will appear here.",
@@ -46,6 +42,7 @@ const modulePlaceholders = [
 const moduleNames = [
   "Source",
   "Metadata",
+  "Frames",
   ...modulePlaceholders.map(([name]) => name),
 ];
 
@@ -304,6 +301,18 @@ export function ProjectPage({ projectId }: ProjectPageProps) {
             projectId={projectId}
             job={analysisJobs.find(
               (candidate) => candidate.module_id === "probe_media",
+            )}
+            cancelPendingJobId={
+              cancelAnalysis.isPending
+                ? cancelAnalysis.variables?.jobId
+                : undefined
+            }
+            onCancel={(jobId) => cancelAnalysis.mutate({ projectId, jobId })}
+          />
+          <FramesCard
+            projectId={projectId}
+            job={analysisJobs.find(
+              (candidate) => candidate.module_id === "extract_keyframes",
             )}
             cancelPendingJobId={
               cancelAnalysis.isPending
