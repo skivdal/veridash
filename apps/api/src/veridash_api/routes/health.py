@@ -12,6 +12,7 @@ from veridash_storage import UploadBlobStore
 
 from veridash_api.auth.dependencies import ApiSettings
 from veridash_api.database import DatabaseEngine
+from veridash_api.schema import database_schema_is_current
 
 router = APIRouter(tags=["system"])
 LOGGER = logging.getLogger(__name__)
@@ -49,14 +50,19 @@ async def ready(
     """Report whether required database, storage, and media-tool dependencies work."""
     dependencies: dict[str, Literal["ready", "unavailable"]] = {
         "database": "ready",
+        "database_schema": "ready",
         "blob_storage": "ready",
         "ffprobe": "ready",
     }
     try:
         async with engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
+            if not await database_schema_is_current(connection):
+                dependencies["database_schema"] = "unavailable"
+                LOGGER.error("readiness database-schema check failed")
     except Exception:
         dependencies["database"] = "unavailable"
+        dependencies["database_schema"] = "unavailable"
         LOGGER.exception("readiness database check failed")
 
     try:

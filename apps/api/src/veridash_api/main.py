@@ -20,6 +20,7 @@ from veridash_api.routes.health import router as health_router
 from veridash_api.routes.media import router as media_router
 from veridash_api.routes.preferences import router as preferences_router
 from veridash_api.routes.projects import router as projects_router
+from veridash_api.schema import require_current_database_schema
 
 
 def create_app(
@@ -47,6 +48,8 @@ def create_app(
         )
         application.state.analysis_registry = resolved_analysis_registry
         try:
+            async with engine.connect() as connection:
+                await require_current_database_schema(connection)
             yield
         finally:
             if database_engine is None:
