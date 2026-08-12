@@ -99,6 +99,13 @@ export function LoginPage() {
               {login.isPending ? "Signing in…" : "Sign in"}
             </button>
           </form>
+
+          <p className="legacy-login-notice">
+            If you want to use old Veridash, go to{" "}
+            <a href="https://old.veridash.fotoverifier.eu">
+              old.veridash.fotoverifier.eu
+            </a>
+          </p>
         </section>
       </main>
     </div>
