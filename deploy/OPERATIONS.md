@@ -72,6 +72,23 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/site.yml \
   --ask-vault-pass
 ```
 
+For a coexistence migration, prepare only the host and PostgreSQL first, while the
+legacy proxy remains active and before release images are available:
+
+```sh
+ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/prepare.yml \
+  --vault-password-file ansible/.vault-password
+```
+
+The later `site.yml` run is idempotent and applies the application, proxy, and
+backup roles after the staged release inputs are ready.
+
+The database role defaults to setting its password only when the role is created,
+which avoids PostgreSQL generating a new salted hash on every idempotence run. To
+rotate it, change the vaulted password, temporarily set
+`veridash_database_no_password_changes: false`, run the deployment once, then
+restore the default `true` value.
+
 For later releases, download the CI-built frontend artifact into `web/dist`, update
 the release ID and all image digests, then run:
 

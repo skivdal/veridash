@@ -94,6 +94,7 @@ jobs:
         env:
           ANSIBLE_CONFIG: ansible.cfg
         run: |
+          ansible-playbook --syntax-check -i inventory/hosts.example.yml playbooks/prepare.yml
           ansible-playbook --syntax-check -i inventory/hosts.example.yml playbooks/site.yml
           ansible-playbook --syntax-check -i inventory/hosts.example.yml playbooks/deploy.yml
 

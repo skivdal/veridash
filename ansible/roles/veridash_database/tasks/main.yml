@@ -49,6 +49,7 @@
     password: "{{ vault_veridash_database_password }}"
     role_attr_flags: NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOINHERIT,LOGIN
     login_port: "{{ veridash_database_port }}"
+    no_password_changes: "{{ veridash_database_no_password_changes }}"
 
 - name: Create the application database
   become_user: postgres

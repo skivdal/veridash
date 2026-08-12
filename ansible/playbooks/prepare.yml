@@ -1,0 +1,7 @@
+---
+- name: Prepare the VeriDash host and database
+  hosts: all
+  become: true
+  roles:
+    - veridash_host
+    - veridash_database

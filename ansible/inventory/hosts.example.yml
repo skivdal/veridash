@@ -7,6 +7,8 @@ all:
   vars:
     veridash_domain: veridash.example.org
     veridash_database_port: 5432
+    # Set false for one explicit password-rotation deployment.
+    veridash_database_no_password_changes: true
     # Set false when Docker CE is already installed from Docker's repository.
     veridash_install_docker_package: true
     # Optional legacy application retained on a loopback-only upstream.
