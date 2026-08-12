@@ -15,6 +15,10 @@ all:
     veridash_legacy_enabled: false
     veridash_legacy_domain: old.veridash.example.org
     veridash_legacy_upstream: http://127.0.0.1:3000
+    veridash_legacy_websocket_upstream: http://127.0.0.1:8000
+    veridash_legacy_object_store_enabled: false
+    veridash_legacy_object_store_domain: s3.veridash.example.org
+    veridash_legacy_object_store_upstream: http://127.0.0.1:9000
     veridash_release_id: replace-with-release-id
     veridash_api_image: ghcr.io/skivdal/veridash-api@sha256:replace
     veridash_scheduler_image: ghcr.io/skivdal/veridash-scheduler@sha256:replace

@@ -214,3 +214,4 @@ ansible/inventory/group_vars/*/vault.yml
 ansible/inventory/host_vars/*/vault.yml
 ansible/*.retry
 ansible/.vault-password
+ansible/.artifacts/

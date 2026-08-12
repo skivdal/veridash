@@ -21,7 +21,18 @@
     that:
       - veridash_legacy_domain != 'old.unconfigured.example'
       - veridash_legacy_upstream is regex('^http://127\\.0\\.0\\.1:[0-9]+$')
-    fail_msg: Set the legacy domain and a loopback-only legacy upstream.
+      - veridash_legacy_websocket_upstream is regex('^http://127\\.0\\.0\\.1:[0-9]+$')
+    fail_msg: Set the legacy domain and loopback-only frontend and WebSocket upstreams.
+
+- name: Require legacy object-store proxy inputs
+  when:
+    - veridash_legacy_enabled | bool
+    - veridash_legacy_object_store_enabled | bool
+  ansible.builtin.assert:
+    that:
+      - veridash_legacy_object_store_domain != 's3.old.unconfigured.example'
+      - veridash_legacy_object_store_upstream is regex('^http://127\\.0\\.0\\.1:[0-9]+$')
+    fail_msg: Set the legacy object-store domain and a loopback-only upstream.
 
 - name: Check for an existing TLS certificate
   when: veridash_manage_tls | bool
@@ -36,6 +47,29 @@
   ansible.builtin.stat:
     path: "{{ veridash_legacy_tls_certificate }}"
   register: veridash_legacy_tls_certificate_status
+
+- name: Stage the production proxy when TLS already exists
+  when:
+    - not (veridash_manage_tls | bool) or veridash_tls_certificate_status.stat.exists
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: /etc/nginx/sites-available/veridash.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx immediately
+
+- name: Stage the production legacy proxy when TLS already exists
+  when:
+    - veridash_legacy_enabled | bool
+    - not (veridash_manage_tls | bool) or veridash_legacy_tls_certificate_status.stat.exists
+  ansible.builtin.template:
+    src: legacy-site.conf.j2
+    dest: /etc/nginx/sites-available/veridash-legacy.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx immediately
 
 - name: Bootstrap the HTTP-only legacy ACME virtual host
   when:
@@ -78,6 +112,17 @@
     state: link
     force: true
   notify: Reload nginx immediately
+
+- name: Disable explicitly obsolete proxy sites
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ veridash_obsolete_proxy_sites }}"
+  notify: Reload nginx immediately
+
+- name: Validate the staged Nginx configuration
+  ansible.builtin.command: /usr/sbin/nginx -t
+  changed_when: false
 
 - name: Flush bootstrap proxy handlers
   ansible.builtin.meta: flush_handlers
@@ -140,13 +185,6 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Reload nginx immediately
-
-- name: Disable explicitly obsolete proxy sites
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop: "{{ veridash_obsolete_proxy_sites }}"
   notify: Reload nginx immediately
 
 - name: Validate the complete Nginx configuration

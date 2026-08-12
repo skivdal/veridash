@@ -90,8 +90,10 @@ rotate it, change the vaulted password, temporarily set
 `veridash_database_no_password_changes: false`, run the deployment once, then
 restore the default `true` value.
 
-For later releases, download the CI-built frontend artifact into `web/dist`, update
-the release ID and all image digests, then run:
+For later releases, download and verify the CI-built frontend artifact into an
+ignored `ansible/.artifacts/COMMIT_SHA/web` directory, point
+`veridash_frontend_source` there, update the release ID and all image digests, then
+run:
 
 ```sh
 ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/deploy.yml \
@@ -146,6 +148,17 @@ docker run --rm --gpus all nvidia/cuda:VERSION-base nvidia-smi
 
 Use a deliberately selected, pinned CUDA image for that diagnostic.
 
+The full provisioning play installs backup units before starting application
+containers. This ordering is intentional: on this NVIDIA/systemd configuration, a
+later `systemctl daemon-reload` can make a running GPU container lose device access.
+The application role verifies CUDA from inside the live GPU worker before proxy
+cutover. After any manual daemon reload, restart `veridash-worker-gpu.service` and
+verify it again.
+
+Container removal can remain asynchronous for several seconds after `docker rm -f`
+returns. Generated units therefore wait until the prior named container is truly
+absent before starting its replacement; do not remove that pre-start wait.
+
 Deployment downloads the exact `Systran/faster-whisper-medium` revision into the
 host data root before starting the GPU worker. Analysis children use that local
 snapshot with network downloads disabled. A missing or mismatched model becomes a
@@ -187,7 +200,7 @@ password reset. An operator can reset a forgotten password locally with
 Primary projects and blobs are retained indefinitely. Local recovery snapshots
 have a separate, configurable retention period (30 days by default) and are created
 daily by `veridash-backup.timer`. A real deployment also needs an encrypted,
-off-host copy of `/var/backups/veridash`; local snapshots do not protect against VPS
+off-host copy of `/var/lib/veridash/backups`; local snapshots do not protect against VPS
 loss.
 
 Run and inspect a snapshot:

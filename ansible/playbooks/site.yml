@@ -5,6 +5,8 @@
   roles:
     - veridash_host
     - veridash_database
+    # Install units before GPU containers start: a later systemd daemon-reload can
+    # invalidate NVIDIA device access for an already-running container.
+    - veridash_backup
     - veridash_application
     - veridash_proxy
-    - veridash_backup

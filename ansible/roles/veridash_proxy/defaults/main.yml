@@ -8,6 +8,12 @@ veridash_tls_certificate_key: "/etc/letsencrypt/live/{{ veridash_domain }}/privk
 veridash_legacy_enabled: false
 veridash_legacy_domain: old.unconfigured.example
 veridash_legacy_upstream: http://127.0.0.1:3000
+veridash_legacy_websocket_upstream: http://127.0.0.1:8000
 veridash_legacy_tls_certificate: "/etc/letsencrypt/live/{{ veridash_legacy_domain }}/fullchain.pem"
 veridash_legacy_tls_certificate_key: "/etc/letsencrypt/live/{{ veridash_legacy_domain }}/privkey.pem"
+veridash_legacy_object_store_enabled: false
+veridash_legacy_object_store_domain: s3.old.unconfigured.example
+veridash_legacy_object_store_upstream: http://127.0.0.1:9000
+veridash_legacy_object_store_tls_certificate: "{{ veridash_tls_certificate }}"
+veridash_legacy_object_store_tls_certificate_key: "{{ veridash_tls_certificate_key }}"
 veridash_obsolete_proxy_sites: []

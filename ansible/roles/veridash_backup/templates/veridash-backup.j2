@@ -19,7 +19,8 @@ trap cleanup EXIT
 
 # Database first: immutable blobs are published before their database references,
 # so a later blob copy contains every object reachable from this database snapshot.
-pg_dump --format=custom --file="${incomplete}/database.dump"
+pg_dump --dbname="${VERIDASH_BACKUP_DATABASE_URL}" \
+    --format=custom --file="${incomplete}/database.dump"
 pg_restore --list "${incomplete}/database.dump" >/dev/null
 
 mkdir "${incomplete}/blobs"

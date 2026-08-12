@@ -133,6 +133,7 @@
     veridash_service_description: "{{ item.description }}"
     veridash_service_image: "{{ item.image }}"
     veridash_service_environment: "{{ item.environment }}"
+    veridash_service_entrypoint: "{{ item.entrypoint }}"
     veridash_service_command: "{{ item.command }}"
     veridash_service_data_mount: "{{ item.data_mount }}"
     veridash_service_memory_max: "{{ item.memory_max }}"
@@ -142,7 +143,10 @@
       description: VeriDash HTTP API
       image: "{{ veridash_api_image }}"
       environment: api
-      command: ""
+      entrypoint: uvicorn
+      command: >-
+        veridash_api.main:app --host 127.0.0.1 --port {{ veridash_api_port }}
+        --proxy-headers --forwarded-allow-ips 127.0.0.1
       data_mount: true
       memory_max: "{{ veridash_api_memory_max }}"
       gpu: false
@@ -150,6 +154,7 @@
       description: VeriDash dependency scheduler
       image: "{{ veridash_scheduler_image }}"
       environment: scheduler
+      entrypoint: ""
       command: ""
       data_mount: false
       memory_max: "{{ veridash_scheduler_memory_max }}"
@@ -158,6 +163,7 @@
       description: VeriDash CPU analysis worker
       image: "{{ veridash_worker_image }}"
       environment: worker
+      entrypoint: ""
       command: "--pool cpu --concurrency {{ veridash_cpu_concurrency }}"
       data_mount: true
       memory_max: "{{ veridash_cpu_worker_memory_max }}"
@@ -179,6 +185,7 @@
     veridash_service_description: VeriDash GPU analysis worker
     veridash_service_image: "{{ veridash_worker_gpu_image }}"
     veridash_service_environment: worker
+    veridash_service_entrypoint: ""
     veridash_service_command: "--pool gpu --concurrency {{ veridash_gpu_concurrency }}"
     veridash_service_data_mount: true
     veridash_service_memory_max: "{{ veridash_gpu_worker_memory_max }}"
@@ -196,8 +203,14 @@
       - --rm
       - --user
       - "{{ veridash_system_uid }}:{{ veridash_system_uid }}"
+      - --env
+      - HF_HUB_DISABLE_XET=1
+      - --env
+      - "HOME={{ veridash_transcription_model_path | dirname }}"
+      - --env
+      - "XDG_CACHE_HOME={{ veridash_transcription_model_path | dirname }}/.cache"
       - --mount
-      - "type=bind,src={{ veridash_data_root }},dst=/var/lib/veridash,rw"
+      - "type=bind,src={{ veridash_data_root }},dst=/var/lib/veridash"
       - --entrypoint
       - veridash-download-transcription-model
       - "{{ veridash_worker_gpu_image }}"
@@ -218,6 +231,7 @@
     veridash_service_description: VeriDash transcript translation worker
     veridash_service_image: "{{ veridash_worker_translation_image }}"
     veridash_service_environment: translation
+    veridash_service_entrypoint: ""
     veridash_service_command: "--pool translation --concurrency {{ veridash_translation_concurrency }}"
     veridash_service_data_mount: true
     veridash_service_memory_max: "{{ veridash_translation_worker_memory_max }}"
@@ -262,12 +276,30 @@
 - name: Flush deployment handlers before readiness checks
   ansible.builtin.meta: flush_handlers
 
+- name: Verify CUDA from inside the live GPU worker
+  when: veridash_enable_gpu_worker | bool
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - veridash-worker-gpu
+      - python
+      - -c
+      - >-
+        import ctranslate2, sys;
+        sys.exit(0 if ctranslate2.get_cuda_device_count() >= 1 else 1)
+  register: veridash_gpu_worker_cuda
+  changed_when: false
+  retries: 90
+  delay: 1
+  until: veridash_gpu_worker_cuda.rc == 0
+
 - name: Wait for dependency-aware API readiness
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ veridash_api_port }}/api/ready"
     status_code: 200
   register: veridash_api_readiness
-  retries: 20
+  retries: 60
   delay: 1
   until: veridash_api_readiness.status == 200
 

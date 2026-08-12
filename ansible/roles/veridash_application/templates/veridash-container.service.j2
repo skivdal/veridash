@@ -14,8 +14,9 @@ TimeoutStartSec=90
 TimeoutStopSec=45
 MemoryMax={{ veridash_service_memory_max }}
 ExecStartPre=-/usr/bin/docker rm -f {{ veridash_service_name }}
-ExecStart=/usr/bin/docker run --name {{ veridash_service_name }} --rm --pull never --network host --user {{ veridash_system_uid }}:{{ veridash_system_uid }} --read-only --security-opt no-new-privileges --cap-drop ALL --pids-limit 1024 --stop-timeout 30 --tmpfs /tmp:rw,nosuid,nodev,noexec,size={{ veridash_worker_tmpfs_size }} --env-file {{ veridash_config_root }}/{{ veridash_service_environment }}.env{% if veridash_service_data_mount %} --mount type=bind,src={{ veridash_data_root }},dst=/var/lib/veridash,rw{% endif %}{% if veridash_service_gpu %} --gpus all{% endif %} {{ veridash_service_image }}{% if veridash_service_command %} {{ veridash_service_command }}{% endif %}
-ExecStop=-/usr/bin/docker stop --time 30 {{ veridash_service_name }}
+ExecStartPre=/bin/sh -ec 'while /usr/bin/docker container inspect {{ veridash_service_name }} >/dev/null 2>&1; do sleep 1; done'
+ExecStart=/usr/bin/docker run --name {{ veridash_service_name }} --rm --pull never --network host --user {{ veridash_system_uid }}:{{ veridash_system_uid }} --read-only --security-opt no-new-privileges --cap-drop ALL --pids-limit 1024 --stop-timeout 30 --tmpfs /tmp:rw,nosuid,nodev,noexec,size={{ veridash_worker_tmpfs_size }} --env-file {{ veridash_config_root }}/{{ veridash_service_environment }}.env{{ ' --mount type=bind,src=' ~ veridash_data_root ~ ',dst=/var/lib/veridash' if veridash_service_data_mount else '' }}{{ ' --gpus all' if veridash_service_gpu else '' }}{{ ' --entrypoint ' ~ veridash_service_entrypoint if veridash_service_entrypoint else '' }} {{ veridash_service_image }}{{ ' ' ~ veridash_service_command if veridash_service_command else '' }}
+ExecStop=-/usr/bin/docker stop --timeout 30 {{ veridash_service_name }}
 
 NoNewPrivileges=yes
 PrivateTmp=yes
