@@ -65,7 +65,7 @@ jobs:
 
       - name: Install project dependencies
         run: |
-          uv sync --frozen
+          uv sync --frozen --all-packages --extra transcription --extra translation
           pnpm install --frozen-lockfile
 
       - name: Migrate the isolated test database

@@ -15,6 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+transcription = [
+    "faster-whisper==1.2.1",
+]
 gpu = [
     "faster-whisper==1.2.1",
     "nvidia-cublas-cu12>=12.6; sys_platform == 'linux' and platform_machine == 'x86_64'",

@@ -973,6 +973,9 @@ gpu = [
     { name = "nvidia-cublas-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "nvidia-cudnn-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
+transcription = [
+    { name = "faster-whisper" },
+]
 translation = [
     { name = "openai" },
 ]
@@ -981,6 +984,7 @@ translation = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "faster-whisper", marker = "extra == 'gpu'", specifier = "==1.2.1" },
+    { name = "faster-whisper", marker = "extra == 'transcription'", specifier = "==1.2.1" },
     { name = "huggingface-hub", specifier = ">=1.7.1" },
     { name = "nvidia-cublas-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'gpu'", specifier = ">=12.6" },
     { name = "nvidia-cudnn-cu12", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'gpu'", specifier = ">=9.10" },
@@ -992,7 +996,7 @@ requires-dist = [
     { name = "veridash-core", editable = "libs/core" },
     { name = "veridash-storage", editable = "libs/storage" },
 ]
-provides-extras = ["gpu", "translation"]
+provides-extras = ["transcription", "gpu", "translation"]
 
 [[package]]
 name = "veridash-workspace"
