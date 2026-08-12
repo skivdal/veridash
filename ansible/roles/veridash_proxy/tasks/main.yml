@@ -15,11 +15,49 @@
     group: www-data
     mode: "0755"
 
+- name: Require legacy-site inputs
+  when: veridash_legacy_enabled | bool
+  ansible.builtin.assert:
+    that:
+      - veridash_legacy_domain != 'old.unconfigured.example'
+      - veridash_legacy_upstream is regex('^http://127\\.0\\.0\\.1:[0-9]+$')
+    fail_msg: Set the legacy domain and a loopback-only legacy upstream.
+
 - name: Check for an existing TLS certificate
   when: veridash_manage_tls | bool
   ansible.builtin.stat:
     path: "{{ veridash_tls_certificate }}"
   register: veridash_tls_certificate_status
+
+- name: Check for an existing legacy TLS certificate
+  when:
+    - veridash_manage_tls | bool
+    - veridash_legacy_enabled | bool
+  ansible.builtin.stat:
+    path: "{{ veridash_legacy_tls_certificate }}"
+  register: veridash_legacy_tls_certificate_status
+
+- name: Bootstrap the HTTP-only legacy ACME virtual host
+  when:
+    - veridash_manage_tls | bool
+    - veridash_legacy_enabled | bool
+    - not veridash_legacy_tls_certificate_status.stat.exists
+  ansible.builtin.template:
+    src: legacy-bootstrap.conf.j2
+    dest: /etc/nginx/sites-available/veridash-legacy.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx immediately
+
+- name: Enable the legacy virtual host
+  when: veridash_legacy_enabled | bool
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/veridash-legacy.conf
+    dest: /etc/nginx/sites-enabled/veridash-legacy.conf
+    state: link
+    force: true
+  notify: Reload nginx immediately
 
 - name: Bootstrap an HTTP-only ACME virtual host
   when:
@@ -64,6 +102,27 @@
   register: veridash_certbot_initial
   changed_when: veridash_certbot_initial.rc == 0
 
+- name: Obtain the initial legacy TLS certificate
+  when:
+    - veridash_manage_tls | bool
+    - veridash_legacy_enabled | bool
+    - not veridash_legacy_tls_certificate_status.stat.exists
+  ansible.builtin.command:
+    argv:
+      - certbot
+      - certonly
+      - --non-interactive
+      - --agree-tos
+      - --email
+      - "{{ veridash_acme_email }}"
+      - --webroot
+      - --webroot-path
+      - "{{ veridash_acme_webroot }}"
+      - --domain
+      - "{{ veridash_legacy_domain }}"
+  register: veridash_certbot_legacy_initial
+  changed_when: veridash_certbot_legacy_initial.rc == 0
+
 - name: Render the production reverse proxy
   ansible.builtin.template:
     src: site.conf.j2
@@ -71,6 +130,23 @@
     owner: root
     group: root
     mode: "0644"
+  notify: Reload nginx immediately
+
+- name: Render the production legacy reverse proxy
+  when: veridash_legacy_enabled | bool
+  ansible.builtin.template:
+    src: legacy-site.conf.j2
+    dest: /etc/nginx/sites-available/veridash-legacy.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx immediately
+
+- name: Disable explicitly obsolete proxy sites
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ veridash_obsolete_proxy_sites }}"
   notify: Reload nginx immediately
 
 - name: Validate the complete Nginx configuration

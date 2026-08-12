@@ -8,3 +8,4 @@ veridash_release_root: /opt/veridash/releases
 veridash_backup_root: /var/backups/veridash
 veridash_ssh_port: 22
 veridash_manage_firewall: true
+veridash_install_docker_package: true

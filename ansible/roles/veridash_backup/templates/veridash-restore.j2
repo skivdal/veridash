@@ -6,6 +6,7 @@ backup_root={{ veridash_backup_root | quote }}
 data_root={{ veridash_data_root | quote }}
 database_name={{ veridash_database_name | quote }}
 database_user={{ veridash_database_user | quote }}
+database_port={{ veridash_database_port | quote }}
 
 [[ "${EUID}" -eq 0 ]] || { echo "restore must run as root" >&2; exit 1; }
 exec 9>"${backup_root}/backup.lock"
@@ -45,10 +46,11 @@ while read -r relative_path _size; do
     [[ "${actual}" == "${expected}" ]] || { echo "corrupt blob: ${relative_path}" >&2; exit 1; }
 done < "${snapshot}/BLOB_MANIFEST"
 
-runuser -u postgres -- dropdb --if-exists "${database_name}"
-runuser -u postgres -- createdb --owner="${database_user}" "${database_name}"
+runuser -u postgres -- dropdb --port="${database_port}" --if-exists "${database_name}"
+runuser -u postgres -- createdb --port="${database_port}" --owner="${database_user}" "${database_name}"
 runuser -u postgres -- pg_restore --exit-on-error --no-owner \
-    --role="${database_user}" --dbname="${database_name}" "${snapshot}/database.dump"
+    --port="${database_port}" --role="${database_user}" \
+    --dbname="${database_name}" "${snapshot}/database.dump"
 mkdir -p "${data_root}/blobs"
 rsync --archive "${snapshot}/blobs/" "${data_root}/blobs/"
 chown -R {{ veridash_system_uid }}:{{ veridash_system_uid }} "${data_root}/blobs"

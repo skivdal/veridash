@@ -2,6 +2,9 @@
 Description={{ veridash_service_description }}
 Requires=docker.service veridash-migrate.service
 After=docker.service postgresql.service veridash-migrate.service
+{% if veridash_service_data_mount %}
+RequiresMountsFor={{ veridash_data_root }}
+{% endif %}
 
 [Service]
 Type=simple

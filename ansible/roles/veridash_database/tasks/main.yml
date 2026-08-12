@@ -6,6 +6,41 @@
       - vault_veridash_database_password | length >= 24
     fail_msg: Define vault_veridash_database_password in an encrypted inventory file.
 
+- name: Find the host PostgreSQL cluster configuration
+  ansible.builtin.find:
+    paths: /etc/postgresql
+    patterns: postgresql.conf
+    recurse: true
+    file_type: file
+  register: veridash_postgresql_configurations
+
+- name: Require exactly one host PostgreSQL cluster
+  ansible.builtin.assert:
+    that: veridash_postgresql_configurations.files | length == 1
+    fail_msg: VeriDash expects exactly one host-managed PostgreSQL cluster.
+
+- name: Bind the host PostgreSQL cluster to its dedicated loopback port
+  ansible.builtin.lineinfile:
+    path: "{{ veridash_postgresql_configurations.files[0].path }}"
+    regexp: '^\s*#?\s*port\s*='
+    line: "port = {{ veridash_database_port }}"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  register: veridash_postgresql_port_configuration
+
+- name: Enable and start host PostgreSQL
+  ansible.builtin.systemd_service:
+    name: postgresql
+    enabled: true
+    state: "{{ 'restarted' if veridash_postgresql_port_configuration.changed else 'started' }}"
+
+- name: Wait for host PostgreSQL on its dedicated loopback port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ veridash_database_port }}"
+    timeout: 30
+
 - name: Create the application database role
   become_user: postgres
   no_log: true
@@ -13,6 +48,7 @@
     name: "{{ veridash_database_user }}"
     password: "{{ vault_veridash_database_password }}"
     role_attr_flags: NOSUPERUSER,NOCREATEDB,NOCREATEROLE,NOINHERIT,LOGIN
+    login_port: "{{ veridash_database_port }}"
 
 - name: Create the application database
   become_user: postgres
@@ -21,3 +57,4 @@
     owner: "{{ veridash_database_user }}"
     encoding: UTF8
     template: template0
+    login_port: "{{ veridash_database_port }}"

@@ -1,17 +1,21 @@
 ---
 - name: Install host-managed runtime packages
   ansible.builtin.apt:
-    name:
-      - docker.io
-      - iproute2
-      - certbot
-      - nginx
-      - postgresql
-      - postgresql-client
-      - python3-certbot-nginx
-      - python3-psycopg2
-      - rsync
-      - ufw
+    name: >-
+      {{
+        [
+          'iproute2',
+          'certbot',
+          'nginx',
+          'postgresql',
+          'postgresql-client',
+          'python3-certbot-nginx',
+          'python3-psycopg2',
+          'rsync',
+          'ufw'
+        ]
+        + (['docker.io'] if veridash_install_docker_package | bool else [])
+      }}
     state: present
     update_cache: true
 
@@ -22,7 +26,6 @@
     state: started
   loop:
     - docker
-    - postgresql
     - nginx
 
 - name: Create the fixed-ID application group

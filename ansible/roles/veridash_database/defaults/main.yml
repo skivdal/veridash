@@ -1,3 +1,4 @@
 ---
 veridash_database_name: veridash
 veridash_database_user: veridash
+veridash_database_port: 5432

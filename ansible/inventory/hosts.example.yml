@@ -6,6 +6,13 @@ all:
       ansible_user: root
   vars:
     veridash_domain: veridash.example.org
+    veridash_database_port: 5432
+    # Set false when Docker CE is already installed from Docker's repository.
+    veridash_install_docker_package: true
+    # Optional legacy application retained on a loopback-only upstream.
+    veridash_legacy_enabled: false
+    veridash_legacy_domain: old.veridash.example.org
+    veridash_legacy_upstream: http://127.0.0.1:3000
     veridash_release_id: replace-with-release-id
     veridash_api_image: ghcr.io/skivdal/veridash-api@sha256:replace
     veridash_scheduler_image: ghcr.io/skivdal/veridash-scheduler@sha256:replace

@@ -2,6 +2,7 @@
 Description=Create a consistent VeriDash recovery snapshot
 Requires=postgresql.service
 After=postgresql.service
+RequiresMountsFor={{ veridash_data_root }}
 
 [Service]
 Type=oneshot

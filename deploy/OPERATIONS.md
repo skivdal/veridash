@@ -94,6 +94,16 @@ The host role installs Docker, PostgreSQL, Nginx, Certbot, and UFW. It deliberat
 does not install NVIDIA drivers or NVIDIA Container Toolkit. The VPS image and the
 operator own that host-specific setup.
 
+On a host with a dedicated persistent data disk, containerd may store its root at
+`/var/lib/veridash/containerd` instead of consuming the operating-system disk. Stop
+Docker and containerd before copying `/var/lib/containerd`, set containerd's
+top-level `root` setting to that path, and install
+`deploy/containerd-veridash.conf` as
+`/etc/systemd/system/containerd.service.d/veridash-data.conf`. The systemd drop-in
+prevents containerd from starting unless the VeriDash data filesystem is mounted.
+Keep the original runtime root until the migrated daemon and every existing
+container have been verified, then remove that superseded copy.
+
 Useful checks:
 
 ```sh
