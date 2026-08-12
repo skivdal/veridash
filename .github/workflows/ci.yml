@@ -154,7 +154,10 @@ jobs:
           GIT_REF: ${{ github.ref }}
         run: |
           enabled=false
-          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$GIT_REF" == "refs/heads/main" || "$GIT_REF" == refs/tags/v* ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ||
+                "$GIT_REF" == "refs/heads/main" ||
+                "$GIT_REF" == "refs/heads/rebuild-s26" ||
+                "$GIT_REF" == refs/tags/v* ]]; then
             enabled=true
           fi
           echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"

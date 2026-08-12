@@ -13,8 +13,9 @@ database, generated-code, frontend, production-build, and Ansible syntax checks,
 then builds all six Dockerfile targets for `linux/amd64`. Builds from pull requests
 and ordinary branches are not pushed.
 
-Pushes to `main`, `v*` tags, and manually dispatched trusted runs additionally
-publish and provenance-attest these packages:
+Pushes to `main`, `v*` tags, the temporary deployment branch `rebuild-s26`, and
+manually dispatched trusted runs additionally publish and provenance-attest these
+packages. Remove the deployment-branch exception after the initial cutover:
 
 - `ghcr.io/skivdal/veridash-api`
 - `ghcr.io/skivdal/veridash-scheduler`
