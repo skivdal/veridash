@@ -1,6 +1,7 @@
 """Explicit, deterministic panorama stitching over selected keyframes."""
 
 import importlib
+import importlib.metadata
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -23,7 +24,7 @@ from veridash_analysis.errors import AnalysisExecutionError
 from veridash_analysis.protocol import FileInput
 
 FRAME_OUTPUT_NAME = re.compile(r"^frames_[0-9]{6}$")
-OPENCV_VERSION = "4.12.0.88"
+OPENCV_PACKAGE_VERSION = "4.12.0.88"
 MAX_SELECTED_FRAMES = 12
 MAX_PANORAMA_PIXELS = 120_000_000
 MAX_PANORAMA_BYTES = 100 * 1024 * 1024
@@ -74,7 +75,7 @@ class StitchFramesModule:
         fingerprints=(
             ImplementationFingerprint(
                 name="opencv_python_headless",
-                value=OPENCV_VERSION,
+                value=OPENCV_PACKAGE_VERSION,
             ),
             ImplementationFingerprint(
                 name="stitch_policy",
@@ -239,6 +240,7 @@ def _validate_jpeg_input(frame: FileInput) -> None:
 def _stitch(paths: list[Path], output_path: Path) -> tuple[int, int]:
     try:
         cv2: Any = importlib.import_module("cv2")
+        package_version = importlib.metadata.version("opencv-python-headless")
     except ImportError as exception:
         raise AnalysisExecutionError(
             kind=ErrorKind.INTERNAL_BUG,
@@ -246,12 +248,19 @@ def _stitch(paths: list[Path], output_path: Path) -> tuple[int, int]:
             retryable=False,
             diagnostic=str(exception),
         ) from exception
-    if cv2.__version__ != OPENCV_VERSION:
+    # The wheel's build suffix is absent from cv2.__version__ (4.12.0).
+    # Compare distribution versions to enforce the declared cache fingerprint.
+    if package_version != OPENCV_PACKAGE_VERSION:
         raise AnalysisExecutionError(
             kind=ErrorKind.INTERNAL_BUG,
-            public_message="The frame stitching tools do not match this analysis version.",
+            public_message=(
+                "The server's OpenCV installation does not match the required stitching version."
+            ),
             retryable=False,
-            diagnostic=f"expected OpenCV {OPENCV_VERSION}, found {cv2.__version__}",
+            diagnostic=(
+                f"expected opencv-python-headless {OPENCV_PACKAGE_VERSION}, "
+                f"found {package_version} (cv2 {cv2.__version__})"
+            ),
         )
     cv2.setNumThreads(1)
     cv2.setRNGSeed(0)
