@@ -598,3 +598,102 @@ async def test_failed_logins_are_throttled_across_requests() -> None:
         await _delete_test_users(engine, [username])
         await _clear_test_throttle(engine, remote_address)
         await engine.dispose()
+
+
+@pytest.mark.db
+async def test_password_change_requires_current_password_and_survives_restart() -> None:
+    database_url = os.environ.get("TEST_DATABASE_URL")
+    if database_url is None:
+        pytest.skip("TEST_DATABASE_URL is not configured")
+
+    username = f"api-password-test-{uuid4().hex}"
+    password = "correct horse battery staple"
+    new_password = " new password with spaces 🔒 "
+    remote_address = "198.51.100.12"
+    engine = create_async_engine(database_url)
+    settings = Settings(database_url=database_url, session_cookie_secure=False)
+    await _create_test_user(engine, username, password)
+    payload = {
+        "current_password": password,
+        "new_password": new_password,
+        "confirm_password": new_password,
+    }
+
+    try:
+        app = create_app(settings=settings, database_engine=engine)
+        transport = ASGITransport(app=app, client=(remote_address, 123))
+        async with (
+            AsyncClient(transport=transport, base_url="http://test") as client,
+            AsyncClient(transport=transport, base_url="http://test") as other_session,
+        ):
+            unauthenticated = await client.post("/api/auth/change-password", json=payload)
+            assert unauthenticated.status_code == 401
+
+            for session_client in (client, other_session):
+                login = await session_client.post(
+                    "/api/auth/login", json={"username": username, "password": password}
+                )
+                assert login.status_code == 200
+
+            missing_csrf = await client.post("/api/auth/change-password", json=payload)
+            assert missing_csrf.status_code == 403
+            csrf_token = client.cookies.get(settings.csrf_cookie_name)
+            assert csrf_token is not None
+            headers = {"X-CSRF-Token": csrf_token}
+
+            wrong_password = await client.post(
+                "/api/auth/change-password",
+                json={**payload, "current_password": "incorrect"},
+                headers=headers,
+            )
+            assert wrong_password.status_code == 400
+            assert wrong_password.json()["code"] == "incorrect_current_password"
+
+            invalid_payloads = [
+                {**payload, "confirm_password": "different new password"},
+                {**payload, "new_password": "short", "confirm_password": "short"},
+                {**payload, "new_password": "x" * 1025, "confirm_password": "x" * 1025},
+                {**payload, "current_password": ""},
+                {"current_password": password, "new_password": new_password},
+            ]
+            for invalid_payload in invalid_payloads:
+                invalid = await client.post(
+                    "/api/auth/change-password", json=invalid_payload, headers=headers
+                )
+                assert invalid.status_code == 422
+                assert password not in invalid.text
+                assert new_password not in invalid.text
+
+            # Rejected changes leave both the credentials and existing sessions intact.
+            assert (await other_session.get("/api/auth/me")).status_code == 200
+            still_valid = await other_session.post(
+                "/api/auth/login", json={"username": username, "password": password}
+            )
+            assert still_valid.status_code == 200
+
+            changed = await client.post("/api/auth/change-password", json=payload, headers=headers)
+            assert changed.status_code == 204
+            assert changed.content == b""
+            assert (await client.get("/api/auth/me")).status_code == 200
+            assert (await other_session.get("/api/auth/me")).status_code == 401
+            persisted_cookies = Cookies(client.cookies)
+
+        restarted_app = create_app(settings=settings, database_engine=engine)
+        async with AsyncClient(
+            transport=ASGITransport(app=restarted_app, client=(remote_address, 124)),
+            base_url="http://test",
+            cookies=persisted_cookies,
+        ) as restarted_client:
+            assert (await restarted_client.get("/api/auth/me")).status_code == 200
+            old_login = await restarted_client.post(
+                "/api/auth/login", json={"username": username, "password": password}
+            )
+            assert old_login.status_code == 401
+            new_login = await restarted_client.post(
+                "/api/auth/login", json={"username": username, "password": new_password}
+            )
+            assert new_login.status_code == 200
+    finally:
+        await _delete_test_users(engine, [username])
+        await _clear_test_throttle(engine, remote_address)
+        await engine.dispose()

@@ -45,6 +45,9 @@ export function AppHeader({ username, isAdmin = false }: AppHeaderProps) {
             </Link>
           ) : null}
           <span className="username">{username}</span>
+          <Link className="button button-quiet" to="/account/password">
+            Change password
+          </Link>
           <button
             className="button button-quiet"
             type="button"

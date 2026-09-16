@@ -478,6 +478,35 @@
         "title": "AnalysisJobResponse",
         "type": "object"
       },
+      "ChangePasswordRequest": {
+        "properties": {
+          "confirm_password": {
+            "maxLength": 1024,
+            "minLength": 12,
+            "title": "Confirm Password",
+            "type": "string"
+          },
+          "current_password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 1024,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password",
+          "confirm_password"
+        ],
+        "title": "ChangePasswordRequest",
+        "type": "object"
+      },
       "CreateFrameStitchRequest": {
         "properties": {
           "selected_output_names": {
@@ -1357,6 +1386,80 @@
         "summary": "Post Deactivate User",
         "tags": [
           "administration"
+        ]
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "operationId": "post_change_password_api_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Incorrect current password"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "CSRF check failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Invalid password or confirmation"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Post Change Password",
+        "tags": [
+          "authentication"
         ]
       }
     },

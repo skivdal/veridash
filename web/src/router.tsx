@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 
 import { AdminUsersPage } from "./features/admin/AdminUsersPage";
+import { ChangePasswordPage } from "./features/auth/ChangePasswordPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { ProjectPage } from "./features/projects/ProjectPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
@@ -32,6 +33,11 @@ const projectsRoute = createRoute({
   path: "/projects",
   component: ProjectsPage,
 });
+const changePasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/account/password",
+  component: ChangePasswordPage,
+});
 const adminUsersRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/users",
@@ -51,6 +57,7 @@ function ProjectRoute() {
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  changePasswordRoute,
   projectsRoute,
   projectRoute,
   adminUsersRoute,

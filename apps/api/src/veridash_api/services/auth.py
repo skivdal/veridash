@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from veridash_api.auth.passwords import PASSWORD_HASH, verify_password
+from veridash_api.auth.passwords import PASSWORD_HASH, hash_password, verify_password
 from veridash_api.auth.tokens import hash_session_token, new_session_token
 from veridash_api.db.sqlc.auth import AsyncQuerier
 from veridash_api.errors import ApiProblem
@@ -138,3 +138,38 @@ async def resolve_session(
 
 async def log_out(connection: AsyncConnection, *, raw_token: str) -> None:
     await AsyncQuerier(connection).revoke_session(token_hash=hash_session_token(raw_token))
+
+
+async def change_password(
+    connection: AsyncConnection,
+    *,
+    session: AuthenticatedSession,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """Change credentials atomically, retaining only the requesting session."""
+    queries = AsyncQuerier(connection)
+    previous_hash = await queries.get_user_password_hash(user_id=session.user_id)
+    if previous_hash is None:
+        raise authentication_required_problem()
+
+    incorrect_password = ApiProblem(
+        status=400,
+        code="incorrect_current_password",
+        title="Password change failed",
+        detail="The current password is incorrect.",
+    )
+    if not verify_password(current_password, previous_hash):
+        raise incorrect_password
+
+    # Compare-and-swap prevents concurrent changes from reusing a stale password.
+    changed_user_id = await queries.change_user_password(
+        user_id=session.user_id,
+        previous_password_hash=previous_hash,
+        password_hash=hash_password(new_password),
+    )
+    if changed_user_id is None:
+        raise incorrect_password
+    await queries.revoke_other_user_sessions(
+        user_id=session.user_id, current_session_id=session.session_id
+    )

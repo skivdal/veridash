@@ -27,6 +27,7 @@ import type {
   AdminUserResponse,
   AnalysisArtifactResponse,
   AnalysisJobResponse,
+  ChangePasswordRequest,
   CreateFrameStitchRequest,
   CreateManagedUserRequest,
   CreateProjectRequest,
@@ -423,6 +424,116 @@ export const usePostDeactivateUserApiAdminUsersUserIdDeactivatePost = <TError = 
         TContext
       > => {
       return useMutation(getPostDeactivateUserApiAdminUsersUserIdDeactivatePostMutationOptions(options), queryClient);
+    }
+
+export type postChangePasswordApiAuthChangePasswordPostResponse204 = {
+  data: void
+  status: 204
+}
+
+export type postChangePasswordApiAuthChangePasswordPostResponse400 = {
+  data: ProblemResponse
+  status: 400
+}
+
+export type postChangePasswordApiAuthChangePasswordPostResponse401 = {
+  data: ProblemResponse
+  status: 401
+}
+
+export type postChangePasswordApiAuthChangePasswordPostResponse403 = {
+  data: ProblemResponse
+  status: 403
+}
+
+export type postChangePasswordApiAuthChangePasswordPostResponse422 = {
+  data: ProblemResponse
+  status: 422
+}
+
+export type postChangePasswordApiAuthChangePasswordPostResponse500 = {
+  data: ProblemResponse
+  status: 500
+}
+
+export type postChangePasswordApiAuthChangePasswordPostResponseSuccess = (postChangePasswordApiAuthChangePasswordPostResponse204) & {
+  headers: Headers;
+};
+export type postChangePasswordApiAuthChangePasswordPostResponseError = (postChangePasswordApiAuthChangePasswordPostResponse400 | postChangePasswordApiAuthChangePasswordPostResponse401 | postChangePasswordApiAuthChangePasswordPostResponse403 | postChangePasswordApiAuthChangePasswordPostResponse422 | postChangePasswordApiAuthChangePasswordPostResponse500) & {
+  headers: Headers;
+};
+
+export type postChangePasswordApiAuthChangePasswordPostResponse = (postChangePasswordApiAuthChangePasswordPostResponseSuccess | postChangePasswordApiAuthChangePasswordPostResponseError)
+
+export const getPostChangePasswordApiAuthChangePasswordPostUrl = () => {
+
+
+
+
+  return `/api/auth/change-password`
+}
+
+/**
+ * @summary Post Change Password
+ */
+export const postChangePasswordApiAuthChangePasswordPost = async (changePasswordRequest: ChangePasswordRequest, options?: RequestInit): Promise<postChangePasswordApiAuthChangePasswordPostResponse> => {
+
+  return apiFetch<postChangePasswordApiAuthChangePasswordPostResponse>(getPostChangePasswordApiAuthChangePasswordPostUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(changePasswordRequest)
+  }
+);}
+
+
+
+
+
+export const getPostChangePasswordApiAuthChangePasswordPostMutationOptions = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postChangePasswordApiAuthChangePasswordPost>>, TError,{data: BodyType<ChangePasswordRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postChangePasswordApiAuthChangePasswordPost>>, TError,{data: BodyType<ChangePasswordRequest>}, TContext> => {
+
+const mutationKey = ['postChangePasswordApiAuthChangePasswordPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postChangePasswordApiAuthChangePasswordPost>>, {data: BodyType<ChangePasswordRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postChangePasswordApiAuthChangePasswordPost(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostChangePasswordApiAuthChangePasswordPostMutationResult = NonNullable<Awaited<ReturnType<typeof postChangePasswordApiAuthChangePasswordPost>>>
+    export type PostChangePasswordApiAuthChangePasswordPostMutationBody = BodyType<ChangePasswordRequest>
+    export type PostChangePasswordApiAuthChangePasswordPostMutationError = ErrorType<ProblemResponse>
+
+    /**
+ * @summary Post Change Password
+ */
+export const usePostChangePasswordApiAuthChangePasswordPost = <TError = ErrorType<ProblemResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postChangePasswordApiAuthChangePasswordPost>>, TError,{data: BodyType<ChangePasswordRequest>}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postChangePasswordApiAuthChangePasswordPost>>,
+        TError,
+        {data: BodyType<ChangePasswordRequest>},
+        TContext
+      > => {
+      return useMutation(getPostChangePasswordApiAuthChangePasswordPostMutationOptions(options), queryClient);
     }
 
 export type loginApiAuthLoginPostResponse200 = {

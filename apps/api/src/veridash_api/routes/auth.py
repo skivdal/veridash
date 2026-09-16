@@ -5,8 +5,14 @@ from fastapi import APIRouter, Request, Response, status
 from veridash_api.auth.dependencies import ApiSettings, CurrentSession, MutationSession
 from veridash_api.auth.tokens import derive_csrf_token
 from veridash_api.database import DatabaseConnection, DatabaseEngine
-from veridash_api.models import PROBLEM_RESPONSE, LoginRequest, SessionResponse, UserResponse
-from veridash_api.services.auth import log_in, log_out
+from veridash_api.models import (
+    PROBLEM_RESPONSE,
+    ChangePasswordRequest,
+    LoginRequest,
+    SessionResponse,
+    UserResponse,
+)
+from veridash_api.services.auth import change_password, log_in, log_out
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -111,6 +117,29 @@ async def get_current_user(session: CurrentSession) -> SessionResponse:
         username=session.username,
         email=session.email,
         is_admin=session.is_admin,
+    )
+
+
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        400: {**PROBLEM_RESPONSE, "description": "Incorrect current password"},
+        401: {**PROBLEM_RESPONSE, "description": "Authentication required"},
+        403: {**PROBLEM_RESPONSE, "description": "CSRF check failed"},
+        422: {**PROBLEM_RESPONSE, "description": "Invalid password or confirmation"},
+    },
+)
+async def post_change_password(
+    payload: ChangePasswordRequest,
+    connection: DatabaseConnection,
+    session: MutationSession,
+) -> None:
+    await change_password(
+        connection,
+        session=session,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
     )
 
 

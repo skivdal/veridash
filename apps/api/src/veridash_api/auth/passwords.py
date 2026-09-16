@@ -8,7 +8,7 @@ PASSWORD_HASH = PasswordHash.recommended()
 
 
 def validate_new_password(password: str) -> None:
-    """Reject passwords that are impractical or too short for an admin-created account."""
+    """Reject passwords that are impractical or too short for an account."""
     if not MINIMUM_PASSWORD_LENGTH <= len(password) <= MAXIMUM_PASSWORD_LENGTH:
         message = (
             f"password must contain between {MINIMUM_PASSWORD_LENGTH} "

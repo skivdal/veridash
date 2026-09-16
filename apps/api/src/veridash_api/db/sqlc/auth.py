@@ -13,6 +13,17 @@ import sqlalchemy.ext.asyncio
 from veridash_api.db.sqlc import models
 
 
+CHANGE_USER_PASSWORD = """-- name: change_user_password \\:one
+UPDATE app_user
+SET password_hash = :p1, updated_at = now()
+WHERE
+    id = :p2
+    AND password_hash = :p3
+    AND is_enabled
+RETURNING id
+"""
+
+
 CLEAR_LOGIN_FAILURES = """-- name: clear_login_failures \\:exec
 DELETE FROM login_throttle
 WHERE remote_address = :p1
@@ -111,6 +122,13 @@ class GetUserByUsernameRow:
     updated_at: datetime.datetime
 
 
+GET_USER_PASSWORD_HASH = """-- name: get_user_password_hash \\:one
+SELECT password_hash
+FROM app_user
+WHERE id = :p1 AND is_enabled
+"""
+
+
 IS_LOGIN_BLOCKED = """-- name: is_login_blocked \\:one
 SELECT EXISTS (
     SELECT 1
@@ -150,6 +168,16 @@ WHERE id = :p1
 """
 
 
+REVOKE_OTHER_USER_SESSIONS = """-- name: revoke_other_user_sessions \\:exec
+UPDATE user_session
+SET revoked_at = now()
+WHERE
+    user_id = :p1
+    AND id <> :p2
+    AND revoked_at IS NULL
+"""
+
+
 REVOKE_SESSION = """-- name: revoke_session \\:exec
 UPDATE user_session
 SET revoked_at = now()
@@ -185,6 +213,12 @@ WHERE id = :p2
 class AsyncQuerier:
     def __init__(self, conn: sqlalchemy.ext.asyncio.AsyncConnection):
         self._conn = conn
+
+    async def change_user_password(self, *, password_hash: str, user_id: int, previous_password_hash: str) -> Optional[int]:
+        row = (await self._conn.execute(sqlalchemy.text(CHANGE_USER_PASSWORD), {"p1": password_hash, "p2": user_id, "p3": previous_password_hash})).first()
+        if row is None:
+            return None
+        return row[0]
 
     async def clear_login_failures(self, *, remote_address: str) -> None:
         await self._conn.execute(sqlalchemy.text(CLEAR_LOGIN_FAILURES), {"p1": remote_address})
@@ -258,6 +292,12 @@ class AsyncQuerier:
             updated_at=row[8],
         )
 
+    async def get_user_password_hash(self, *, user_id: int) -> Optional[str]:
+        row = (await self._conn.execute(sqlalchemy.text(GET_USER_PASSWORD_HASH), {"p1": user_id})).first()
+        if row is None:
+            return None
+        return row[0]
+
     async def is_login_blocked(self, *, remote_address: str) -> Optional[bool]:
         row = (await self._conn.execute(sqlalchemy.text(IS_LOGIN_BLOCKED), {"p1": remote_address})).first()
         if row is None:
@@ -269,6 +309,9 @@ class AsyncQuerier:
 
     async def record_successful_login(self, *, user_id: int) -> None:
         await self._conn.execute(sqlalchemy.text(RECORD_SUCCESSFUL_LOGIN), {"p1": user_id})
+
+    async def revoke_other_user_sessions(self, *, user_id: int, current_session_id: uuid.UUID) -> None:
+        await self._conn.execute(sqlalchemy.text(REVOKE_OTHER_USER_SESSIONS), {"p1": user_id, "p2": current_session_id})
 
     async def revoke_session(self, *, token_hash: memoryview) -> None:
         await self._conn.execute(sqlalchemy.text(REVOKE_SESSION), {"p1": token_hash})

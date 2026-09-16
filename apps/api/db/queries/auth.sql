@@ -23,6 +23,20 @@ UPDATE app_user
 SET password_hash = sqlc.arg(password_hash), updated_at = now()
 WHERE id = sqlc.arg(user_id);
 
+-- name: GetUserPasswordHash :one
+SELECT password_hash
+FROM app_user
+WHERE id = sqlc.arg(user_id) AND is_enabled;
+
+-- name: ChangeUserPassword :one
+UPDATE app_user
+SET password_hash = sqlc.arg(password_hash), updated_at = now()
+WHERE
+    id = sqlc.arg(user_id)
+    AND password_hash = sqlc.arg(previous_password_hash)
+    AND is_enabled
+RETURNING id;
+
 -- name: CreateSession :one
 INSERT INTO user_session (id, user_id, token_hash, expires_at)
 SELECT
@@ -69,6 +83,14 @@ WHERE token_hash = sqlc.arg(token_hash) AND revoked_at IS NULL;
 UPDATE user_session
 SET revoked_at = now()
 WHERE user_id = sqlc.arg(user_id) AND revoked_at IS NULL;
+
+-- name: RevokeOtherUserSessions :exec
+UPDATE user_session
+SET revoked_at = now()
+WHERE
+    user_id = sqlc.arg(user_id)
+    AND id <> sqlc.arg(current_session_id)
+    AND revoked_at IS NULL;
 
 -- name: RecordSuccessfulLogin :exec
 UPDATE app_user
