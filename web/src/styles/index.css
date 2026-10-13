@@ -254,6 +254,45 @@ h2 {
   font-size: clamp(38px, 7vw, 50px);
 }
 
+.login-shell {
+  min-height: calc(100vh - 77px);
+  align-content: center;
+  gap: 36px;
+}
+
+.funding-acknowledgement {
+  width: min(100%, 680px);
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.funding-acknowledgement p {
+  margin: 0 0 20px;
+}
+
+.funding-logos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px 28px;
+}
+
+.funding-logos img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.nordis-logo {
+  width: 363px;
+}
+
+.eu-funding-logo {
+  width: 88px;
+}
+
 .form-stack {
   display: grid;
   gap: 9px;

@@ -48,7 +48,7 @@ export function LoginPage() {
   return (
     <div className="app-canvas">
       <AppHeader />
-      <main className="auth-shell">
+      <main className="auth-shell login-shell">
         <section className="auth-card" aria-labelledby="login-title">
           <p className="eyebrow">Video forensics workspace</p>
           <h1 id="login-title">Welcome back</h1>
@@ -106,6 +106,36 @@ export function LoginPage() {
               old.veridash.fotoverifier.eu
             </a>
           </p>
+        </section>
+        <section
+          className="funding-acknowledgement"
+          aria-label="Funding acknowledgement"
+        >
+          <p>
+            The development of VeriDash back-end, specifically the job
+            scheduler, database design, file transfer, and modules for
+            keyframes, stitching, transcription, metadata, and map, is funded by
+            European Union under Action 101158604 — NORDIS, funded through the
+            Digital Europe Programme (DIGITAL) under the
+            DIGITAL-2023-DEPLOY-04-EDMO-HUBS call (Digital SME Support Actions),
+            managed by the European Health and Digital Executive Agency (HaDEA).
+          </p>
+          <div className="funding-logos">
+            <img
+              className="nordis-logo"
+              src={`${import.meta.env.BASE_URL}nordis-logo.png`}
+              alt="NORDIS"
+              width={363}
+              height={72}
+            />
+            <img
+              className="eu-funding-logo"
+              src={`${import.meta.env.BASE_URL}funded-by-eu.jpeg`}
+              alt="Funded by the European Union"
+              width={88}
+              height={88}
+            />
+          </div>
         </section>
       </main>
     </div>
